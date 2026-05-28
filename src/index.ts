@@ -19,7 +19,7 @@ process.on('SIGINT', () => process.exit(0));
 process.on('SIGTERM', () => process.exit(0));
 
 if (config.transport === 'http') {
-  runHttp(config, config.port).catch(onFatal);
+  runHttp(config.port).catch(onFatal);
 } else {
-  runStdio(config.token, config).catch(onFatal);
+  runStdio(config.apiKey).catch(onFatal);
 }

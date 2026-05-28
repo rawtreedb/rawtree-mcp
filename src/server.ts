@@ -8,14 +8,8 @@ import {
   addProjectTools,
   addTableTools,
 } from './tools/index.js';
-import type { ServerOptions } from './types.js';
 
-export type { ServerOptions } from './types.js';
-
-export function createMcpServer(
-  rawtree: RawTreeClient,
-  _options: ServerOptions,
-): McpServer {
+export function createMcpServer(rawtree: RawTreeClient): McpServer {
   const server = new McpServer({
     name: 'rawtree',
     version: packageJson.version,

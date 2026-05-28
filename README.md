@@ -16,7 +16,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 
 Create a RawTree API key from the RawTree CLI, dashboard, or API. A project API key starts with `rt_` and is enough for data tools such as `run-query`, `insert-json`, `list-tables`, and `list-logs`.
 
-The `get_project` tool uses the current token to read project identity from RawTree's keys endpoint, with a tables endpoint fallback for non-admin read-capable project API keys.
+The `get_project` tool uses the current API key to read project identity from RawTree's keys endpoint, with a tables endpoint fallback for non-admin read-capable project API keys.
 
 ## Usage
 
@@ -114,24 +114,19 @@ MCP_PORT=3000 npx -y @rawtree/mcp --http
 ## Options
 
 - `--api-key`: RawTree project API key for stdio mode
-- `--token`: Alias for `--api-key`
-- `--api-url`: RawTree API URL, defaults to `https://api.rawtree.com`
-- `--url`: Alias for `--api-url`
 - `--http`: Use HTTP transport instead of stdio
 - `--port`: HTTP port when using `--http`, default `3000` or `MCP_PORT`
 
 Environment variables:
 
 - `RAWTREE_API_KEY`: RawTree project API key
-- `RAWTREE_TOKEN`: Alias for `RAWTREE_API_KEY`
-- `RAWTREE_URL`: RawTree API URL
 - `MCP_PORT`: HTTP port when using `--http`
 
 ## Tools
 
 ### Data
 
-- `check-health` — Check that the configured RawTree API endpoint is reachable.
+- `check-health` — Check that the RawTree API endpoint is reachable.
 - `run-query` — Run read-only SQL and return RawTree's JSON query response.
 - `insert-json` — Insert JSON object(s) into a table, optionally with a RawTree transform.
 - `insert-from-url` — Ingest data from a public URL and return RawTree's NDJSON progress stream.

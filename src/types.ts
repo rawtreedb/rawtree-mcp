@@ -7,18 +7,13 @@ export interface JsonObject {
   [key: string]: JsonValue;
 }
 
-export interface ServerOptions {
-  baseUrl: string;
-}
-
-export interface StdioConfig extends ServerOptions {
-  token: string;
+export interface StdioConfig {
+  apiKey: string;
   transport: 'stdio';
   port: number;
 }
 
-export interface HttpConfig extends ServerOptions {
-  token?: string;
+export interface HttpConfig {
   transport: 'http';
   port: number;
 }

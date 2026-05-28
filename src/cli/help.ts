@@ -7,18 +7,13 @@ Usage:
   RAWTREE_API_KEY=rt_xxx rawtree-mcp [options]
 
 Options:
-  --api-key <token>        RawTree project API key (stdio mode)
-  --token <token>          Alias for --api-key
-  --api-url <url>          RawTree API URL (default: https://api.rawtree.com)
-  --url <url>              Alias for --api-url
+  --api-key <api-key>      RawTree project API key (stdio mode)
   --http                   Run HTTP server (Streamable HTTP at /mcp) instead of stdio
   --port <number>          HTTP port when using --http (default: 3000, or MCP_PORT)
   -h, --help               Show this help
 
 Environment:
   RAWTREE_API_KEY          RawTree project API key (rt_...)
-  RAWTREE_TOKEN            Alias for RAWTREE_API_KEY
-  RAWTREE_URL              RawTree API URL (default: https://api.rawtree.com)
   MCP_PORT                 HTTP port when using --http
 
 Notes:

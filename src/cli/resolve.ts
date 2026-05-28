@@ -1,5 +1,5 @@
 import type { ParsedArgs } from 'minimist';
-import { DEFAULT_HTTP_PORT, DEFAULT_RAWTREE_URL } from './constants.js';
+import { DEFAULT_HTTP_PORT } from './constants.js';
 import type { ResolveResult } from './types.js';
 
 function readString(value: unknown): string | undefined {
@@ -28,37 +28,22 @@ function parsePort(parsed: ParsedArgs, env: NodeJS.ProcessEnv): number {
   return DEFAULT_HTTP_PORT;
 }
 
-function normalizeUrl(url: string): string {
-  return url.replace(/\/+$/, '');
-}
-
 export function resolveConfig(
   parsed: ParsedArgs,
   env: NodeJS.ProcessEnv = process.env,
 ): ResolveResult {
-  const token = firstString(
-    parsed['api-key'],
-    parsed.token,
-    env.RAWTREE_API_KEY,
-    env.RAWTREE_TOKEN,
-  );
+  const apiKey = firstString(parsed['api-key'], env.RAWTREE_API_KEY);
   const transport = parsed.http === true ? 'http' : 'stdio';
 
-  if (transport === 'stdio' && !token) {
+  if (transport === 'stdio' && !apiKey) {
     return {
       ok: false,
       error:
-        'No RawTree token. Set RAWTREE_API_KEY, RAWTREE_TOKEN, or use --api-key=<token>',
+        'No RawTree API key. Set RAWTREE_API_KEY or use --api-key=<api-key>',
     };
   }
 
-  const baseUrl = normalizeUrl(
-    firstString(parsed['api-url'], parsed.url, env.RAWTREE_URL) ??
-      DEFAULT_RAWTREE_URL,
-  );
-
   const common = {
-    baseUrl,
     port: parsePort(parsed, env),
   };
 
@@ -68,7 +53,6 @@ export function resolveConfig(
       config: {
         ...common,
         transport,
-        token,
       },
     };
   }
@@ -78,7 +62,7 @@ export function resolveConfig(
     config: {
       ...common,
       transport,
-      token: token!,
+      apiKey: apiKey!,
     },
   };
 }

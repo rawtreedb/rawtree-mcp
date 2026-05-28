@@ -5,7 +5,6 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { RawTreeClient } from '../client.js';
 import { createMcpServer } from '../server.js';
-import type { ServerOptions } from '../types.js';
 
 const sessions: Record<string, StreamableHTTPServerTransport> = {};
 
@@ -25,17 +24,14 @@ function sendJsonRpcError(
   );
 }
 
-function extractBearerToken(req: IncomingMessage): string | null {
+function extractBearerApiKey(req: IncomingMessage): string | null {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) return null;
-  const token = header.slice('Bearer '.length).trim();
-  return token || null;
+  const apiKey = header.slice('Bearer '.length).trim();
+  return apiKey || null;
 }
 
-export async function runHttp(
-  options: ServerOptions,
-  port: number,
-): Promise<Server> {
+export async function runHttp(port: number): Promise<Server> {
   const app = createMcpExpressApp();
 
   app.get('/health', (_req: IncomingMessage, res: ServerResponse) => {
@@ -56,12 +52,12 @@ export async function runHttp(
         req.method === 'POST' &&
         isInitializeRequest(req.body)
       ) {
-        const token = extractBearerToken(req);
-        if (!token) {
+        const apiKey = extractBearerApiKey(req);
+        if (!apiKey) {
           sendJsonRpcError(
             res,
             401,
-            'Unauthorized: provide a RawTree token via Authorization: Bearer <token>',
+            'Unauthorized: provide a RawTree API key via Authorization: Bearer <api-key>',
           );
           return;
         }
@@ -77,8 +73,8 @@ export async function runHttp(
           if (sid && sessions[sid]) delete sessions[sid];
         };
 
-        const rawtree = new RawTreeClient({ ...options, token });
-        const server = createMcpServer(rawtree, options);
+        const rawtree = new RawTreeClient({ apiKey });
+        const server = createMcpServer(rawtree);
         await server.connect(transport);
       } else if (sessionId && !sessions[sessionId]) {
         res.statusCode = 404;

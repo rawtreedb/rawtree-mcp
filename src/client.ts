@@ -1,4 +1,4 @@
-import type { JsonValue, ServerOptions } from './types.js';
+import type { JsonValue } from './types.js';
 
 const DEFAULT_BASE_URL = 'https://api.rawtree.com';
 const DEFAULT_USER_AGENT = '@rawtree/mcp/0.1.0';
@@ -19,9 +19,9 @@ interface RequestOptions {
   headers?: Record<string, string>;
 }
 
-interface RawTreeClientOptions extends ServerOptions {
+interface RawTreeClientOptions {
   fetchFn?: typeof fetch;
-  token: string;
+  apiKey: string;
   userAgent?: string;
 }
 
@@ -51,12 +51,6 @@ export class RawTreeApiError extends Error {
     this.path = path;
     this.payload = payload;
   }
-}
-
-function normalizeBaseUrl(baseUrl: string | undefined): string {
-  const trimmed = (baseUrl ?? DEFAULT_BASE_URL).trim();
-  if (!trimmed) return DEFAULT_BASE_URL;
-  return trimmed.replace(/\/+$/, '').replace(/\/v1$/, '');
 }
 
 function parseJson(text: string): unknown {
@@ -136,15 +130,13 @@ function projectIdentityFromResponse(response: unknown): {
 }
 
 export class RawTreeClient {
-  readonly baseUrl: string;
   private readonly fetchFn: typeof fetch;
-  private readonly token: string;
+  private readonly apiKey: string;
   private readonly userAgent: string;
 
   constructor(options: RawTreeClientOptions) {
-    this.baseUrl = normalizeBaseUrl(options.baseUrl);
     this.fetchFn = options.fetchFn ?? fetch;
-    this.token = options.token;
+    this.apiKey = options.apiKey;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
   }
 
@@ -268,7 +260,7 @@ export class RawTreeClient {
   }
 
   private endpoint(path: string, query?: QueryParams): URL {
-    const url = new URL(`${this.baseUrl}${path}`);
+    const url = new URL(`${DEFAULT_BASE_URL}${path}`);
     appendQuery(url, query);
     return url;
   }
@@ -298,7 +290,7 @@ export class RawTreeClient {
     const response = await this.fetchFn(this.endpoint(path, options.query), {
       method,
       headers: {
-        Authorization: `Bearer ${this.token}`,
+        Authorization: `Bearer ${this.apiKey}`,
         'User-Agent': this.userAgent,
         ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
         ...options.headers,
