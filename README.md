@@ -283,7 +283,7 @@ Release flow:
 
 1. Update `package.json` to the new version.
 2. Push the change to `main`.
-3. Create and publish a GitHub release with a tag that matches the package version, such as `v0.1.0`.
+3. Create and publish a GitHub release with a tag that matches the package version, such as `v0.2.0`.
 
 The workflow verifies that the release tag matches `package.json`, runs lint, tests, and build, then publishes with npm provenance:
 

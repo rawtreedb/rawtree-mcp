@@ -1,7 +1,7 @@
 import type { JsonValue } from './types.js';
 
 const DEFAULT_API_URL = 'https://api.rawtree.com';
-const DEFAULT_USER_AGENT = '@rawtree/mcp/0.1.0';
+const DEFAULT_USER_AGENT = '@rawtree/mcp/0.2.0';
 
 type QueryValue =
   | string
