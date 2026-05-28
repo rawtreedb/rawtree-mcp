@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "rawtree": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "env": {
+        "RAWTREE_API_KEY": "${RAWTREE_API_KEY}"
+      }
+    },
+    "rawtree-dev": {
+      "command": "node",
+      "args": ["dist/index.js", "--key", "${RAWTREE_API_KEY}"],
+      "env": {}
+    }
+  }
+}
