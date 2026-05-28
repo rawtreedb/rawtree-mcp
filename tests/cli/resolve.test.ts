@@ -23,10 +23,13 @@ describe('resolveConfig', () => {
 
   it('accepts the private api-url arg', () => {
     expect(
-      resolveConfig({
-        'api-key': 'rt_arg',
-        'api-url': 'https://api.rawtree.test',
-      }),
+      resolveConfig(
+        {
+          'api-key': 'rt_arg',
+          'api-url': 'https://api.rawtree.test',
+        },
+        {},
+      ),
     ).toEqual({
       ok: true,
       config: {
