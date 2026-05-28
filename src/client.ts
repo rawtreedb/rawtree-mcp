@@ -1,6 +1,6 @@
 import type { JsonValue } from './types.js';
 
-const DEFAULT_BASE_URL = 'https://api.rawtree.com';
+const DEFAULT_API_URL = 'https://api.rawtree.com';
 const DEFAULT_USER_AGENT = '@rawtree/mcp/0.1.0';
 
 type QueryValue =
@@ -22,6 +22,7 @@ interface RequestOptions {
 interface RawTreeClientOptions {
   fetchFn?: typeof fetch;
   apiKey: string;
+  apiUrl?: string;
   userAgent?: string;
 }
 
@@ -59,6 +60,12 @@ function parseJson(text: string): unknown {
   } catch {
     return text;
   }
+}
+
+function normalizeApiUrl(apiUrl: string | undefined): string {
+  const trimmed = (apiUrl ?? DEFAULT_API_URL).trim();
+  if (!trimmed) return DEFAULT_API_URL;
+  return trimmed.replace(/\/+$/, '').replace(/\/v1$/, '');
 }
 
 function errorMessage(
@@ -130,11 +137,13 @@ function projectIdentityFromResponse(response: unknown): {
 }
 
 export class RawTreeClient {
+  private readonly apiUrl: string;
   private readonly fetchFn: typeof fetch;
   private readonly apiKey: string;
   private readonly userAgent: string;
 
   constructor(options: RawTreeClientOptions) {
+    this.apiUrl = normalizeApiUrl(options.apiUrl);
     this.fetchFn = options.fetchFn ?? fetch;
     this.apiKey = options.apiKey;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
@@ -260,7 +269,7 @@ export class RawTreeClient {
   }
 
   private endpoint(path: string, query?: QueryParams): URL {
-    const url = new URL(`${DEFAULT_BASE_URL}${path}`);
+    const url = new URL(`${this.apiUrl}${path}`);
     appendQuery(url, query);
     return url;
   }

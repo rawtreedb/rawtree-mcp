@@ -21,6 +21,23 @@ describe('resolveConfig', () => {
     });
   });
 
+  it('accepts the private api-url arg', () => {
+    expect(
+      resolveConfig({
+        'api-key': 'rt_arg',
+        'api-url': 'https://api.rawtree.test',
+      }),
+    ).toEqual({
+      ok: true,
+      config: {
+        apiKey: 'rt_arg',
+        apiUrl: 'https://api.rawtree.test',
+        port: 3000,
+        transport: 'stdio',
+      },
+    });
+  });
+
   it('resolves stdio config from env', () => {
     expect(
       resolveConfig(

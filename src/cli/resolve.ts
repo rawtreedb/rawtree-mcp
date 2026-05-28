@@ -33,6 +33,7 @@ export function resolveConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): ResolveResult {
   const apiKey = firstString(parsed['api-key'], env.RAWTREE_API_KEY);
+  const apiUrl = firstString(parsed['api-url']);
   const transport = parsed.http === true ? 'http' : 'stdio';
 
   if (transport === 'stdio' && !apiKey) {
@@ -44,6 +45,7 @@ export function resolveConfig(
   }
 
   const common = {
+    ...(apiUrl ? { apiUrl } : {}),
     port: parsePort(parsed, env),
   };
 

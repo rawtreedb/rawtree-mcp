@@ -46,6 +46,19 @@ describe('RawTreeClient', () => {
     });
   });
 
+  it('can use a private API URL override', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'rt_test',
+      apiUrl: 'https://api.rawtree.test/v1/',
+      fetchFn: recordingFetch(jsonResponse({ rows: 1 }), calls),
+    });
+
+    await client.query('SELECT 1');
+
+    expect(calls[0].url).toBe('https://api.rawtree.test/v1/query');
+  });
+
   it('parses project identity from the keys response', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({

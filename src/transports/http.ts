@@ -31,7 +31,7 @@ function extractBearerApiKey(req: IncomingMessage): string | null {
   return apiKey || null;
 }
 
-export async function runHttp(port: number): Promise<Server> {
+export async function runHttp(port: number, apiUrl?: string): Promise<Server> {
   const app = createMcpExpressApp();
 
   app.get('/health', (_req: IncomingMessage, res: ServerResponse) => {
@@ -73,7 +73,7 @@ export async function runHttp(port: number): Promise<Server> {
           if (sid && sessions[sid]) delete sessions[sid];
         };
 
-        const rawtree = new RawTreeClient({ apiKey });
+        const rawtree = new RawTreeClient({ apiKey, apiUrl });
         const server = createMcpServer(rawtree);
         await server.connect(transport);
       } else if (sessionId && !sessions[sessionId]) {

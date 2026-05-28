@@ -9,11 +9,13 @@ export interface JsonObject {
 
 export interface StdioConfig {
   apiKey: string;
+  apiUrl?: string;
   transport: 'stdio';
   port: number;
 }
 
 export interface HttpConfig {
+  apiUrl?: string;
   transport: 'http';
   port: number;
 }
