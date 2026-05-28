@@ -252,10 +252,10 @@ export class RawTreeClient {
     });
   }
 
-  async deleteApiKey(idOrToken: string): Promise<unknown> {
+  async deleteApiKey(idOrApiKey: string): Promise<unknown> {
     return this.requestJson(
       'DELETE',
-      `${this.apiPath('/keys')}/${encodePathPart(idOrToken)}`,
+      `${this.apiPath('/keys')}/${encodePathPart(idOrApiKey)}`,
     );
   }
 

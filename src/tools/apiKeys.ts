@@ -24,7 +24,7 @@ export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
 
 **NOT for:** Creating or revoking credentials. Use create-api-key or delete-api-key for those workflows.
 
-**Returns:** API key names, IDs, token hints, permissions, project, organization, and creation dates.
+**Returns:** API key names, IDs, API key hints, permissions, project, organization, and creation dates.
 
 **Auth:** Uses GET /v1/keys and requires an admin project API key.
 
@@ -45,7 +45,7 @@ export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
 
 **NOT for:** User login or creating projects. Use RawTree auth/CLI or the dashboard for those workflows.
 
-**Returns:** The new API key token. The token is only shown once, so you MUST display it to the user.
+**Returns:** The new API key value. The API key is only shown once, so you MUST display it to the user.
 
 **Auth:** Uses POST /v1/keys and requires admin permission for project API key auth.
 
@@ -71,7 +71,7 @@ export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
       return textResult(
         'API key created successfully.',
         `Result:\n${JSON.stringify(created, null, 2)}`,
-        'IMPORTANT: The token above is only shown once. You MUST display it to the user so they can save it.',
+        'IMPORTANT: The API key above is only shown once. You MUST display it to the user so they can save it.',
       );
     },
   );
@@ -80,7 +80,7 @@ export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
     'delete-api-key',
     {
       title: 'Delete API Key',
-      description: `**Purpose:** Permanently revoke and delete a RawTree API key by UUID or full token.
+      description: `**Purpose:** Permanently revoke and delete a RawTree API key by UUID or full API key value.
 
 **NOT for:** Deleting a table, project, or user session.
 
@@ -88,10 +88,10 @@ export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Safety:** You MUST list or identify the key first, ask the user to confirm the exact key name or ID, and warn that services using it will lose access. This action cannot be undone.`,
       inputSchema: {
-        idOrToken: z
+        idOrApiKey: z
           .string()
           .min(1)
-          .describe('API key UUID or full rt_ token to delete.'),
+          .describe('API key UUID or full rt_ API key value to delete.'),
         confirm: z
           .boolean()
           .describe(
@@ -99,14 +99,14 @@ export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
           ),
       },
     },
-    async ({ idOrToken, confirm }) => {
+    async ({ idOrApiKey, confirm }) => {
       requireConfirmation(
         confirm,
         'Refusing to delete API key without explicit confirmation.',
       );
       return namedJsonResult(
         'Delete API key result',
-        await rawtree.deleteApiKey(idOrToken),
+        await rawtree.deleteApiKey(idOrApiKey),
       );
     },
   );

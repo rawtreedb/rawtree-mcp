@@ -8,7 +8,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 - **Ingest** — Insert a single JSON object, arrays of JSON objects, or public URL data. Supports RawTree built-in transforms for OTLP traces/logs/metrics, CloudWatch Logs, CloudTrail, and Firehose.
 - **Tables** — List tables, describe table columns and sizes, and delete tables after explicit confirmation.
 - **Logs** — Inspect RawTree query and insert history with structured filters for type, status, origin, table, hints, time window, and pagination.
-- **API Keys** — List, create, and revoke RawTree API keys for a project. Creation responses include the one-time token.
+- **API Keys** — List, create, and revoke RawTree API keys for a project. Creation responses include the one-time API key value.
 - **Projects** — Get the current project from API-key context.
 - **Transports** — Supports stdio for local MCP clients and Streamable HTTP for remote or multi-client deployments.
 
@@ -74,7 +74,7 @@ Open Claude Desktop settings > "Developer" tab > "Edit Config".
 
 ### HTTP Transport
 
-Run the server over HTTP for remote or web-based integrations. In HTTP mode, each MCP client authenticates by passing its RawTree API key as a Bearer token in the `Authorization` header.
+Run the server over HTTP for remote or web-based integrations. In HTTP mode, each MCP client authenticates by passing its RawTree API key in the `Authorization` header.
 
 Start the server:
 
