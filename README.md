@@ -111,28 +111,12 @@ You can also set the port via the `MCP_PORT` environment variable:
 MCP_PORT=3000 npx -y @rawtree/mcp --http
 ```
 
-### Scoped Routes
-
-Project API keys are already scoped to one project, so most users do not need these settings.
-
-When using scoped routes, set both organization and project:
-
-```bash
-RAWTREE_API_KEY=rt_xxx \
-RAWTREE_ORG=my_org \
-RAWTREE_PROJECT=analytics \
-npx -y @rawtree/mcp
-```
-
 ## Options
 
 - `--key`: RawTree project API key for stdio mode
 - `--token`: Alias for `--key`
 - `--api-url`: RawTree API URL, defaults to `https://api.rawtree.com`
 - `--url`: Alias for `--api-url`
-- `--org`: Organization name for scoped routes
-- `--organization`: Alias for `--org`
-- `--project`: Project name for scoped routes
 - `--http`: Use HTTP transport instead of stdio
 - `--port`: HTTP port when using `--http`, default `3000` or `MCP_PORT`
 
@@ -141,8 +125,6 @@ Environment variables:
 - `RAWTREE_API_KEY`: RawTree project API key
 - `RAWTREE_TOKEN`: Alias for `RAWTREE_API_KEY`
 - `RAWTREE_URL`: RawTree API URL
-- `RAWTREE_ORG`: Organization name for scoped routes
-- `RAWTREE_PROJECT`: Project name for scoped routes
 - `MCP_PORT`: HTTP port when using `--http`
 
 ## Tools

@@ -6,8 +6,5 @@ export const CLI_STRING_OPTIONS = [
   'token',
   'api-url',
   'url',
-  'org',
-  'organization',
-  'project',
   'port',
 ] as const;

@@ -26,7 +26,7 @@ export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Returns:** API key names, IDs, token hints, permissions, project, organization, and creation dates.
 
-**Auth:** Unscoped /v1/keys requires an admin project API key. When RAWTREE_ORG and RAWTREE_PROJECT are configured, this uses RawTree's scoped route.
+**Auth:** Uses GET /v1/keys and requires an admin project API key.
 
 **When to use:**
 - User asks what API keys exist
@@ -47,7 +47,7 @@ export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Returns:** The new API key token. The token is only shown once, so you MUST display it to the user.
 
-**Auth:** Requires admin permission for unscoped project API key auth. When RAWTREE_ORG and RAWTREE_PROJECT are configured, this uses RawTree's scoped route.
+**Auth:** Uses POST /v1/keys and requires admin permission for project API key auth.
 
 **When to use:**
 - User needs a key for CI, an agent, a connector, or a script

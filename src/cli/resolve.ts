@@ -56,25 +56,9 @@ export function resolveConfig(
     firstString(parsed['api-url'], parsed.url, env.RAWTREE_URL) ??
       DEFAULT_RAWTREE_URL,
   );
-  const organization = firstString(
-    parsed.org,
-    parsed.organization,
-    env.RAWTREE_ORG,
-  );
-  const project = firstString(parsed.project, env.RAWTREE_PROJECT);
-
-  if ((organization && !project) || (!organization && project)) {
-    return {
-      ok: false,
-      error:
-        'Scoped routes require both organization and project. Set RAWTREE_ORG and RAWTREE_PROJECT together.',
-    };
-  }
 
   const common = {
     baseUrl,
-    organization,
-    project,
     port: parsePort(parsed, env),
   };
 

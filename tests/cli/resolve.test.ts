@@ -23,8 +23,6 @@ describe('resolveConfig', () => {
       ok: true,
       config: {
         baseUrl: 'https://api.rawtree.test',
-        organization: undefined,
-        project: undefined,
         port: 3000,
         token: 'rt_test',
         transport: 'stdio',
@@ -37,8 +35,6 @@ describe('resolveConfig', () => {
       ok: true,
       config: {
         baseUrl: 'https://api.rawtree.com',
-        organization: undefined,
-        project: undefined,
         port: 3000,
         token: undefined,
         transport: 'http',
@@ -46,38 +42,18 @@ describe('resolveConfig', () => {
     });
   });
 
-  it('requires organization and project together', () => {
-    expect(
-      resolveConfig(
-        {},
-        {
-          RAWTREE_API_KEY: 'rt_test',
-          RAWTREE_ORG: 'team',
-        },
-      ),
-    ).toEqual({
-      ok: false,
-      error:
-        'Scoped routes require both organization and project. Set RAWTREE_ORG and RAWTREE_PROJECT together.',
-    });
-  });
-
-  it('uses scoped route settings when both values are present', () => {
+  it('resolves the configured port from args', () => {
     expect(
       resolveConfig(
         { port: '4545' },
         {
           RAWTREE_TOKEN: 'jwt_test',
-          RAWTREE_ORG: 'team',
-          RAWTREE_PROJECT: 'analytics',
         },
       ),
     ).toEqual({
       ok: true,
       config: {
         baseUrl: 'https://api.rawtree.com',
-        organization: 'team',
-        project: 'analytics',
         port: 4545,
         token: 'jwt_test',
         transport: 'stdio',

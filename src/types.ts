@@ -9,8 +9,6 @@ export interface JsonObject {
 
 export interface ServerOptions {
   baseUrl: string;
-  organization?: string;
-  project?: string;
 }
 
 export interface StdioConfig extends ServerOptions {

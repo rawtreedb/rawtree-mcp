@@ -27,7 +27,7 @@ function recordingFetch(
 }
 
 describe('RawTreeClient', () => {
-  it('sends authenticated query requests to unscoped API routes', async () => {
+  it('sends authenticated query requests to public API routes', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({
       token: 'rt_test',
@@ -45,23 +45,6 @@ describe('RawTreeClient', () => {
       Authorization: 'Bearer rt_test',
       'Content-Type': 'application/json',
     });
-  });
-
-  it('uses scoped routes when organization and project are configured', async () => {
-    const calls: RecordedCall[] = [];
-    const client = new RawTreeClient({
-      token: 'jwt_test',
-      baseUrl: 'https://api.rawtree.test',
-      organization: 'acme',
-      project: 'analytics',
-      fetchFn: recordingFetch(jsonResponse({ tables: [] }), calls),
-    });
-
-    await client.listTables();
-
-    expect(calls[0].url).toBe(
-      'https://api.rawtree.test/v1/acme/analytics/tables',
-    );
   });
 
   it('parses project identity from the keys response', async () => {
