@@ -19,7 +19,7 @@ export function addDataTools(server: McpServer, rawtree: RawTreeClient) {
     'check-health',
     {
       title: 'Check RawTree Health',
-      description: `**Purpose:** Check that the configured RawTree API endpoint is reachable.
+      description: `**Purpose:** Check that the RawTree API endpoint is reachable.
 
 **NOT for:** Validating project permissions or checking whether a specific table exists. Use list-tables or run-query for authenticated checks.
 
@@ -27,7 +27,6 @@ export function addDataTools(server: McpServer, rawtree: RawTreeClient) {
 
 **When to use:**
 - User asks whether RawTree is up
-- You changed RAWTREE_URL and need to confirm the server responds
 - You are debugging MCP configuration before using authenticated tools`,
       inputSchema: {},
     },

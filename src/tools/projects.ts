@@ -7,7 +7,7 @@ export function addProjectTools(server: McpServer, rawtree: RawTreeClient) {
     'get_project',
     {
       title: 'Get Project',
-      description: `**Purpose:** Return the configured RawTree project identity using the current token.
+      description: `**Purpose:** Return the configured RawTree project identity using the current API key.
 
 **NOT for:** Listing tables inside a project. Use list-tables for project data.
 

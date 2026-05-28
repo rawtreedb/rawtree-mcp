@@ -1,5 +1,5 @@
 import type { ParsedArgs } from 'minimist';
-import { DEFAULT_HTTP_PORT, DEFAULT_RAWTREE_URL } from './constants.js';
+import { DEFAULT_HTTP_PORT } from './constants.js';
 import type { ResolveResult } from './types.js';
 
 function readString(value: unknown): string | undefined {
@@ -28,53 +28,24 @@ function parsePort(parsed: ParsedArgs, env: NodeJS.ProcessEnv): number {
   return DEFAULT_HTTP_PORT;
 }
 
-function normalizeUrl(url: string): string {
-  return url.replace(/\/+$/, '');
-}
-
 export function resolveConfig(
   parsed: ParsedArgs,
   env: NodeJS.ProcessEnv = process.env,
 ): ResolveResult {
-  const token = firstString(
-    parsed.key,
-    parsed.token,
-    env.RAWTREE_API_KEY,
-    env.RAWTREE_TOKEN,
-  );
+  const apiKey = firstString(parsed['api-key'], env.RAWTREE_API_KEY);
+  const apiUrl = firstString(parsed['api-url']);
   const transport = parsed.http === true ? 'http' : 'stdio';
 
-  if (transport === 'stdio' && !token) {
+  if (transport === 'stdio' && !apiKey) {
     return {
       ok: false,
       error:
-        'No RawTree token. Set RAWTREE_API_KEY, RAWTREE_TOKEN, or use --key=<token>',
-    };
-  }
-
-  const baseUrl = normalizeUrl(
-    firstString(parsed['api-url'], parsed.url, env.RAWTREE_URL) ??
-      DEFAULT_RAWTREE_URL,
-  );
-  const organization = firstString(
-    parsed.org,
-    parsed.organization,
-    env.RAWTREE_ORG,
-  );
-  const project = firstString(parsed.project, env.RAWTREE_PROJECT);
-
-  if ((organization && !project) || (!organization && project)) {
-    return {
-      ok: false,
-      error:
-        'Scoped routes require both organization and project. Set RAWTREE_ORG and RAWTREE_PROJECT together.',
+        'No RawTree API key. Set RAWTREE_API_KEY or use --api-key=<api-key>',
     };
   }
 
   const common = {
-    baseUrl,
-    organization,
-    project,
+    ...(apiUrl ? { apiUrl } : {}),
     port: parsePort(parsed, env),
   };
 
@@ -84,7 +55,6 @@ export function resolveConfig(
       config: {
         ...common,
         transport,
-        token,
       },
     };
   }
@@ -94,7 +64,7 @@ export function resolveConfig(
     config: {
       ...common,
       transport,
-      token: token!,
+      apiKey: apiKey!,
     },
   };
 }

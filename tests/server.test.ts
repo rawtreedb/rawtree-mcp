@@ -4,10 +4,8 @@ import { createMcpServer } from '../src/server.js';
 
 describe('createMcpServer', () => {
   it('returns an MCP server with connect method', () => {
-    const client = new RawTreeClient({ token: 'rt_test' });
-    const server = createMcpServer(client, {
-      baseUrl: 'https://api.rawtree.com',
-    });
+    const client = new RawTreeClient({ apiKey: 'rt_test' });
+    const server = createMcpServer(client);
 
     expect(server).toBeDefined();
     expect(typeof server.connect).toBe('function');

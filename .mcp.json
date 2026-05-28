@@ -9,7 +9,7 @@
     },
     "rawtree-dev": {
       "command": "node",
-      "args": ["dist/index.js", "--key", "${RAWTREE_API_KEY}"],
+      "args": ["dist/index.js", "--api-key", "${RAWTREE_API_KEY}"],
       "env": {}
     }
   }

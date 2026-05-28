@@ -1,7 +1,7 @@
-import type { JsonValue, ServerOptions } from './types.js';
+import type { JsonValue } from './types.js';
 
-const DEFAULT_BASE_URL = 'https://api.rawtree.com';
-const DEFAULT_USER_AGENT = '@rawtree/mcp/0.1.0';
+const DEFAULT_API_URL = 'https://api.rawtree.com';
+const DEFAULT_USER_AGENT = '@rawtree/mcp/0.2.0';
 
 type QueryValue =
   | string
@@ -19,9 +19,10 @@ interface RequestOptions {
   headers?: Record<string, string>;
 }
 
-interface RawTreeClientOptions extends ServerOptions {
+interface RawTreeClientOptions {
   fetchFn?: typeof fetch;
-  token: string;
+  apiKey: string;
+  apiUrl?: string;
   userAgent?: string;
 }
 
@@ -53,18 +54,18 @@ export class RawTreeApiError extends Error {
   }
 }
 
-function normalizeBaseUrl(baseUrl: string | undefined): string {
-  const trimmed = (baseUrl ?? DEFAULT_BASE_URL).trim();
-  if (!trimmed) return DEFAULT_BASE_URL;
-  return trimmed.replace(/\/+$/, '').replace(/\/v1$/, '');
-}
-
 function parseJson(text: string): unknown {
   try {
     return JSON.parse(text);
   } catch {
     return text;
   }
+}
+
+function normalizeApiUrl(apiUrl: string | undefined): string {
+  const trimmed = (apiUrl ?? DEFAULT_API_URL).trim();
+  if (!trimmed) return DEFAULT_API_URL;
+  return trimmed.replace(/\/+$/, '').replace(/\/v1$/, '');
 }
 
 function errorMessage(
@@ -136,26 +137,19 @@ function projectIdentityFromResponse(response: unknown): {
 }
 
 export class RawTreeClient {
-  readonly baseUrl: string;
-  readonly organization?: string;
-  readonly project?: string;
+  private readonly apiUrl: string;
   private readonly fetchFn: typeof fetch;
-  private readonly token: string;
+  private readonly apiKey: string;
   private readonly userAgent: string;
 
   constructor(options: RawTreeClientOptions) {
-    this.baseUrl = normalizeBaseUrl(options.baseUrl);
-    this.organization = options.organization;
-    this.project = options.project;
+    this.apiUrl = normalizeApiUrl(options.apiUrl);
     this.fetchFn = options.fetchFn ?? fetch;
-    this.token = options.token;
+    this.apiKey = options.apiKey;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
   }
 
-  dataPath(path: `/${string}`): string {
-    if (this.organization && this.project) {
-      return `/v1/${encodePathPart(this.organization)}/${encodePathPart(this.project)}${path}`;
-    }
+  apiPath(path: `/${string}`): string {
     return `/v1${path}`;
   }
 
@@ -164,20 +158,20 @@ export class RawTreeClient {
   }
 
   async listTables(): Promise<unknown> {
-    return this.requestJson('GET', this.dataPath('/tables'));
+    return this.requestJson('GET', this.apiPath('/tables'));
   }
 
   async describeTable(table: string): Promise<unknown> {
     return this.requestJson(
       'GET',
-      `${this.dataPath('/tables')}/${encodePathPart(table)}`,
+      `${this.apiPath('/tables')}/${encodePathPart(table)}`,
     );
   }
 
   async deleteTable(table: string): Promise<unknown> {
     return this.requestJson(
       'DELETE',
-      `${this.dataPath('/tables')}/${encodePathPart(table)}`,
+      `${this.apiPath('/tables')}/${encodePathPart(table)}`,
     );
   }
 
@@ -194,7 +188,7 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson(
       'POST',
-      `${this.dataPath('/tables')}/${encodePathPart(table)}`,
+      `${this.apiPath('/tables')}/${encodePathPart(table)}`,
       {
         body: data,
         query: {
@@ -215,7 +209,7 @@ export class RawTreeClient {
   }): Promise<string> {
     return this.requestText(
       'POST',
-      `${this.dataPath('/tables')}/${encodePathPart(table)}`,
+      `${this.apiPath('/tables')}/${encodePathPart(table)}`,
       {
         query: { url },
       },
@@ -223,13 +217,13 @@ export class RawTreeClient {
   }
 
   async query(sql: string): Promise<unknown> {
-    return this.requestJson('POST', this.dataPath('/query'), {
+    return this.requestJson('POST', this.apiPath('/query'), {
       body: { sql },
     });
   }
 
   async listLogs(query: QueryParams): Promise<unknown> {
-    return this.requestJson('GET', this.dataPath('/logs'), { query });
+    return this.requestJson('GET', this.apiPath('/logs'), { query });
   }
 
   async getProject(): Promise<{
@@ -238,7 +232,7 @@ export class RawTreeClient {
   }> {
     try {
       return projectIdentityFromResponse(
-        await this.requestJson('GET', this.dataPath('/keys')),
+        await this.requestJson('GET', this.apiPath('/keys')),
       );
     } catch (error) {
       if (!(error instanceof RawTreeApiError) || error.status !== 403) {
@@ -247,12 +241,12 @@ export class RawTreeClient {
     }
 
     return projectIdentityFromResponse(
-      await this.requestJson('GET', this.dataPath('/tables')),
+      await this.requestJson('GET', this.apiPath('/tables')),
     );
   }
 
   async listApiKeys(): Promise<unknown> {
-    return this.requestJson('GET', this.dataPath('/keys'));
+    return this.requestJson('GET', this.apiPath('/keys'));
   }
 
   async createApiKey({
@@ -262,20 +256,20 @@ export class RawTreeClient {
     name: string;
     permission: string;
   }): Promise<unknown> {
-    return this.requestJson('POST', this.dataPath('/keys'), {
+    return this.requestJson('POST', this.apiPath('/keys'), {
       body: { name, permission },
     });
   }
 
-  async deleteApiKey(idOrToken: string): Promise<unknown> {
+  async deleteApiKey(idOrApiKey: string): Promise<unknown> {
     return this.requestJson(
       'DELETE',
-      `${this.dataPath('/keys')}/${encodePathPart(idOrToken)}`,
+      `${this.apiPath('/keys')}/${encodePathPart(idOrApiKey)}`,
     );
   }
 
   private endpoint(path: string, query?: QueryParams): URL {
-    const url = new URL(`${this.baseUrl}${path}`);
+    const url = new URL(`${this.apiUrl}${path}`);
     appendQuery(url, query);
     return url;
   }
@@ -305,7 +299,7 @@ export class RawTreeClient {
     const response = await this.fetchFn(this.endpoint(path, options.query), {
       method,
       headers: {
-        Authorization: `Bearer ${this.token}`,
+        Authorization: `Bearer ${this.apiKey}`,
         'User-Agent': this.userAgent,
         ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
         ...options.headers,

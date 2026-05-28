@@ -27,18 +27,17 @@ function recordingFetch(
 }
 
 describe('RawTreeClient', () => {
-  it('sends authenticated query requests to unscoped API routes', async () => {
+  it('sends authenticated query requests to public API routes', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({
-      token: 'rt_test',
-      baseUrl: 'https://api.rawtree.test/v1/',
+      apiKey: 'rt_test',
       fetchFn: recordingFetch(jsonResponse({ rows: 1 }), calls),
     });
 
     await expect(client.query('SELECT 1')).resolves.toEqual({ rows: 1 });
 
     expect(calls).toHaveLength(1);
-    expect(calls[0].url).toBe('https://api.rawtree.test/v1/query');
+    expect(calls[0].url).toBe('https://api.rawtree.com/v1/query');
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBe(JSON.stringify({ sql: 'SELECT 1' }));
     expect(calls[0].init.headers).toMatchObject({
@@ -47,27 +46,23 @@ describe('RawTreeClient', () => {
     });
   });
 
-  it('uses scoped routes when organization and project are configured', async () => {
+  it('can use a private API URL override', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({
-      token: 'jwt_test',
-      baseUrl: 'https://api.rawtree.test',
-      organization: 'acme',
-      project: 'analytics',
-      fetchFn: recordingFetch(jsonResponse({ tables: [] }), calls),
+      apiKey: 'rt_test',
+      apiUrl: 'https://api.rawtree.test/v1/',
+      fetchFn: recordingFetch(jsonResponse({ rows: 1 }), calls),
     });
 
-    await client.listTables();
+    await client.query('SELECT 1');
 
-    expect(calls[0].url).toBe(
-      'https://api.rawtree.test/v1/acme/analytics/tables',
-    );
+    expect(calls[0].url).toBe('https://api.rawtree.test/v1/query');
   });
 
   it('parses project identity from the keys response', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({
-      token: 'rt_test',
+      apiKey: 'rt_test',
       fetchFn: recordingFetch(
         jsonResponse({
           keys: [],
@@ -103,7 +98,7 @@ describe('RawTreeClient', () => {
       }),
     ];
     const client = new RawTreeClient({
-      token: 'rt_test',
+      apiKey: 'rt_test',
       fetchFn: async (input, init) => {
         calls.push({
           url: input.toString(),
@@ -128,7 +123,7 @@ describe('RawTreeClient', () => {
   it('passes transform and Firehose columns for JSON inserts', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({
-      token: 'rt_test',
+      apiKey: 'rt_test',
       fetchFn: recordingFetch(jsonResponse({ inserted: 1 }), calls),
     });
 
@@ -148,7 +143,7 @@ describe('RawTreeClient', () => {
   it('returns URL insert streams as text', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({
-      token: 'rt_test',
+      apiKey: 'rt_test',
       fetchFn: recordingFetch(new Response('{"event":"started"}\n'), calls),
     });
 
@@ -166,7 +161,7 @@ describe('RawTreeClient', () => {
 
   it('throws RawTreeApiError with API message and hint', async () => {
     const client = new RawTreeClient({
-      token: 'rt_test',
+      apiKey: 'rt_test',
       fetchFn: recordingFetch(
         jsonResponse(
           {

@@ -8,7 +8,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 - **Ingest** — Insert a single JSON object, arrays of JSON objects, or public URL data. Supports RawTree built-in transforms for OTLP traces/logs/metrics, CloudWatch Logs, CloudTrail, and Firehose.
 - **Tables** — List tables, describe table columns and sizes, and delete tables after explicit confirmation.
 - **Logs** — Inspect RawTree query and insert history with structured filters for type, status, origin, table, hints, time window, and pagination.
-- **API Keys** — List, create, and revoke RawTree API keys for a project. Creation responses include the one-time token.
+- **API Keys** — List, create, and revoke RawTree API keys for a project. Creation responses include the one-time API key value.
 - **Projects** — Get the current project from API-key context.
 - **Transports** — Supports stdio for local MCP clients and Streamable HTTP for remote or multi-client deployments.
 
@@ -16,7 +16,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 
 Create a RawTree API key from the RawTree CLI, dashboard, or API. A project API key starts with `rt_` and is enough for data tools such as `run-query`, `insert-json`, `list-tables`, and `list-logs`.
 
-The `get_project` tool uses the current token to read project identity from RawTree's keys endpoint, with a tables endpoint fallback for non-admin read-capable project API keys.
+The `get_project` tool uses the current API key to read project identity from RawTree's keys endpoint, with a tables endpoint fallback for non-admin read-capable project API keys.
 
 ## Usage
 
@@ -74,7 +74,7 @@ Open Claude Desktop settings > "Developer" tab > "Edit Config".
 
 ### HTTP Transport
 
-Run the server over HTTP for remote or web-based integrations. In HTTP mode, each MCP client authenticates by passing its RawTree API key as a Bearer token in the `Authorization` header.
+Run the server over HTTP for remote or web-based integrations. In HTTP mode, each MCP client authenticates by passing its RawTree API key in the `Authorization` header.
 
 Start the server:
 
@@ -111,45 +111,22 @@ You can also set the port via the `MCP_PORT` environment variable:
 MCP_PORT=3000 npx -y @rawtree/mcp --http
 ```
 
-### Scoped Routes
-
-Project API keys are already scoped to one project, so most users do not need these settings.
-
-When using scoped routes, set both organization and project:
-
-```bash
-RAWTREE_API_KEY=rt_xxx \
-RAWTREE_ORG=my_org \
-RAWTREE_PROJECT=analytics \
-npx -y @rawtree/mcp
-```
-
 ## Options
 
-- `--key`: RawTree project API key for stdio mode
-- `--token`: Alias for `--key`
-- `--api-url`: RawTree API URL, defaults to `https://api.rawtree.com`
-- `--url`: Alias for `--api-url`
-- `--org`: Organization name for scoped routes
-- `--organization`: Alias for `--org`
-- `--project`: Project name for scoped routes
+- `--api-key`: RawTree project API key for stdio mode
 - `--http`: Use HTTP transport instead of stdio
 - `--port`: HTTP port when using `--http`, default `3000` or `MCP_PORT`
 
 Environment variables:
 
 - `RAWTREE_API_KEY`: RawTree project API key
-- `RAWTREE_TOKEN`: Alias for `RAWTREE_API_KEY`
-- `RAWTREE_URL`: RawTree API URL
-- `RAWTREE_ORG`: Organization name for scoped routes
-- `RAWTREE_PROJECT`: Project name for scoped routes
 - `MCP_PORT`: HTTP port when using `--http`
 
 ## Tools
 
 ### Data
 
-- `check-health` — Check that the configured RawTree API endpoint is reachable.
+- `check-health` — Check that the RawTree API endpoint is reachable.
 - `run-query` — Run read-only SQL and return RawTree's JSON query response.
 - `insert-json` — Insert JSON object(s) into a table, optionally with a RawTree transform.
 - `insert-from-url` — Ingest data from a public URL and return RawTree's NDJSON progress stream.
@@ -306,7 +283,7 @@ Release flow:
 
 1. Update `package.json` to the new version.
 2. Push the change to `main`.
-3. Create and publish a GitHub release with a tag that matches the package version, such as `v0.1.0`.
+3. Create and publish a GitHub release with a tag that matches the package version, such as `v0.2.0`.
 
 The workflow verifies that the release tag matches `package.json`, runs lint, tests, and build, then publishes with npm provenance:
 
