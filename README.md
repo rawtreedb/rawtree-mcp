@@ -113,8 +113,8 @@ MCP_PORT=3000 npx -y @rawtree/mcp --http
 
 ## Options
 
-- `--key`: RawTree project API key for stdio mode
-- `--token`: Alias for `--key`
+- `--api-key`: RawTree project API key for stdio mode
+- `--token`: Alias for `--api-key`
 - `--api-url`: RawTree API URL, defaults to `https://api.rawtree.com`
 - `--url`: Alias for `--api-url`
 - `--http`: Use HTTP transport instead of stdio

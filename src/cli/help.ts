@@ -7,8 +7,8 @@ Usage:
   RAWTREE_API_KEY=rt_xxx rawtree-mcp [options]
 
 Options:
-  --key <token>            RawTree project API key (stdio mode)
-  --token <token>          Alias for --key
+  --api-key <token>        RawTree project API key (stdio mode)
+  --token <token>          Alias for --api-key
   --api-url <url>          RawTree API URL (default: https://api.rawtree.com)
   --url <url>              Alias for --api-url
   --http                   Run HTTP server (Streamable HTTP at /mcp) instead of stdio

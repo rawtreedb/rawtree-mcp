@@ -6,7 +6,19 @@ describe('resolveConfig', () => {
     expect(resolveConfig({}, {})).toEqual({
       ok: false,
       error:
-        'No RawTree token. Set RAWTREE_API_KEY, RAWTREE_TOKEN, or use --key=<token>',
+        'No RawTree token. Set RAWTREE_API_KEY, RAWTREE_TOKEN, or use --api-key=<token>',
+    });
+  });
+
+  it('resolves stdio config from the api-key arg', () => {
+    expect(resolveConfig({ 'api-key': 'rt_arg' }, {})).toEqual({
+      ok: true,
+      config: {
+        baseUrl: 'https://api.rawtree.com',
+        port: 3000,
+        token: 'rt_arg',
+        transport: 'stdio',
+      },
     });
   });
 

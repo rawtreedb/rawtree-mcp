@@ -37,7 +37,7 @@ export function resolveConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): ResolveResult {
   const token = firstString(
-    parsed.key,
+    parsed['api-key'],
     parsed.token,
     env.RAWTREE_API_KEY,
     env.RAWTREE_TOKEN,
@@ -48,7 +48,7 @@ export function resolveConfig(
     return {
       ok: false,
       error:
-        'No RawTree token. Set RAWTREE_API_KEY, RAWTREE_TOKEN, or use --key=<token>',
+        'No RawTree token. Set RAWTREE_API_KEY, RAWTREE_TOKEN, or use --api-key=<token>',
     };
   }
 
