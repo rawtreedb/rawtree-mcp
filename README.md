@@ -294,6 +294,26 @@ pnpm tsc --watch
 
 Restart the MCP client session after each rebuild.
 
+## Publishing
+
+Publishing is handled by the GitHub Actions `Publish` workflow.
+
+Required repository secret:
+
+- `NPM_TOKEN`: npm automation token with permission to publish `@rawtree/mcp`.
+
+Release flow:
+
+1. Update `package.json` to the new version.
+2. Push the change to `main`.
+3. Create and publish a GitHub release with a tag that matches the package version, such as `v0.1.0`.
+
+The workflow verifies that the release tag matches `package.json`, runs lint, tests, and build, then publishes with npm provenance:
+
+```bash
+npm publish --provenance --access public
+```
+
 ### Testing with MCP Inspector
 
 Build first:
