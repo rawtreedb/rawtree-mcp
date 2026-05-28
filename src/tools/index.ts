@@ -1,4 +1,4 @@
-export * from './apiKeys.js';
+export * from './api-keys.js';
 export * from './data.js';
 export * from './logs.js';
 export * from './projects.js';
