@@ -7,15 +7,19 @@ export interface JsonObject {
   [key: string]: JsonValue;
 }
 
-export interface StdioConfig {
-  apiKey: string;
+interface RawTreeScopeConfig {
   apiUrl?: string;
+  database?: string;
+  organization?: string;
+}
+
+export interface StdioConfig extends RawTreeScopeConfig {
+  apiKey: string;
   transport: 'stdio';
   port: number;
 }
 
-export interface HttpConfig {
-  apiUrl?: string;
+export interface HttpConfig extends RawTreeScopeConfig {
   transport: 'http';
   port: number;
 }

@@ -1,22 +1,22 @@
 # RawTree MCP Server
 
-An MCP server for [RawTree](https://rawtree.com/), an analytics database for unstructured data. Query data with SQL, insert JSON, inspect table schemas, review RawTree logs, and manage project credentials from MCP clients like Claude Code, Cursor, and Claude Desktop.
+An MCP server for [RawTree](https://rawtree.com/), an analytics database for unstructured data. Query data with SQL, insert JSON, inspect table schemas, review RawTree logs, and manage database credentials from MCP clients like Claude Code, Cursor, and Claude Desktop.
 
 ## Features
 
-- **Queries** — Run read-only SQL against a RawTree project and receive JSON rows, metadata, statistics, and hints.
+- **Queries** — Run read-only SQL against a RawTree database and receive JSON rows, metadata, statistics, and hints.
 - **Ingest** — Insert a single JSON object, arrays of JSON objects, or public URL data. Supports RawTree built-in transforms for OTLP traces/logs/metrics, CloudWatch Logs, CloudTrail, and Firehose.
 - **Tables** — List tables, describe table columns and sizes, and delete tables after explicit confirmation.
 - **Logs** — Inspect RawTree query and insert history with structured filters for type, status, origin, table, hints, time window, and pagination.
-- **API Keys** — List, create, and revoke RawTree API keys for a project. Creation responses include the one-time API key value.
-- **Projects** — Get the current project from API-key context.
+- **API Keys** — List, create, and revoke RawTree API keys for a database. Creation responses include the one-time API key value.
+- **Databases** — Get the current database from API-key context.
 - **Transports** — Supports stdio for local MCP clients and Streamable HTTP for remote or multi-client deployments.
 
 ## Setup
 
-Create a RawTree API key from the RawTree CLI, dashboard, or API. A project API key starts with `rt_` and is enough for data tools such as `run-query`, `insert-json`, `list-tables`, and `list-logs`.
+Create a RawTree API key from the RawTree CLI, dashboard, or API. A database API key starts with `rt_` and is enough for data tools such as `run-query`, `insert-json`, `list-tables`, and `list-logs`.
 
-The `get_project` tool uses the current API key to read project identity from RawTree's keys endpoint, with a tables endpoint fallback for non-admin read-capable project API keys.
+The `get_database` tool uses the current API key to read database identity from RawTree's keys endpoint, with a tables endpoint fallback for non-admin read-capable database API keys.
 
 ## Usage
 
@@ -113,13 +113,17 @@ MCP_PORT=3000 npx -y @rawtree/mcp --http
 
 ## Options
 
-- `--api-key`: RawTree project API key for stdio mode
+- `--api-key`: RawTree database API key for stdio mode
+- `--database`: Database name for scoped routes
+- `--org`: Organization name for scoped routes
 - `--http`: Use HTTP transport instead of stdio
 - `--port`: HTTP port when using `--http`, default `3000` or `MCP_PORT`
 
 Environment variables:
 
-- `RAWTREE_API_KEY`: RawTree project API key
+- `RAWTREE_API_KEY`: RawTree database API key
+- `RAWTREE_DATABASE`: Database name for scoped routes
+- `RAWTREE_ORG`: Organization name for scoped routes
 - `MCP_PORT`: HTTP port when using `--http`
 
 ## Tools
@@ -133,8 +137,8 @@ Environment variables:
 
 ### Tables
 
-- `list-tables` — List tables in the configured project.
-- `describe-table` — Inspect columns, row count, byte count, project, and organization.
+- `list-tables` — List tables in the configured database.
+- `describe-table` — Inspect columns, row count, byte count, database, and organization.
 - `delete-table` — Delete a table after explicit confirmation. Requires admin permission.
 
 ### Logs
@@ -156,13 +160,13 @@ Structured log filters include:
 
 ### API Keys
 
-- `list-api-keys` — List API keys for the configured project.
+- `list-api-keys` — List API keys for the configured database.
 - `create-api-key` — Create a key with `admin`, `read_write`, `write_only`, or `read_only` permission.
 - `delete-api-key` — Revoke a key after explicit confirmation.
 
-### Projects
+### Databases
 
-- `get_project` — Return the current project as `{ "name": "...", "organization": { "name": "..." } }`.
+- `get_database` — Return the current database as `{ "name": "...", "organization": { "name": "..." } }`.
 
 ## Examples
 

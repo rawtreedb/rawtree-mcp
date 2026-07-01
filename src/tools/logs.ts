@@ -77,7 +77,7 @@ export function addLogTools(server: McpServer, rawtree: RawTreeClient) {
     'list-logs',
     {
       title: 'List Logs',
-      description: `**Purpose:** List recent RawTree insert/query/describe/explain activity for the configured project.
+      description: `**Purpose:** List recent RawTree insert/query/describe/explain activity for the configured database.
 
 **NOT for:** Reading application log files from disk or infrastructure logs. This tool reads RawTree's product query and insert logs.
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Rename MCP project terminology to database terminology and expose `get_database`.
+- Add database and organization query scoping with `--database`, `--org`, `RAWTREE_DATABASE`, and `RAWTREE_ORG`.
+
 ## 0.2.0
 
 - Remove non-public scoped route support.
@@ -10,4 +15,4 @@
 ## 0.1.0
 
 - Initial RawTree MCP server with stdio and Streamable HTTP transports.
-- Add tools for querying, ingesting, inspecting logs, managing tables, managing API keys, and project workflows.
+- Add tools for querying, ingesting, inspecting logs, managing tables, managing API keys, and database workflows.
