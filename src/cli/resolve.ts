@@ -33,7 +33,18 @@ export function resolveConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): ResolveResult {
   const apiKey = firstString(parsed['api-key'], env.RAWTREE_API_KEY);
-  const apiUrl = firstString(parsed['api-url']);
+  const apiUrl = firstString(parsed['api-url'], env.RAWTREE_API_URL);
+  const database = firstString(
+    parsed.database,
+    parsed.project,
+    env.RAWTREE_DATABASE,
+    env.RAWTREE_PROJECT,
+  );
+  const organization = firstString(
+    parsed.org,
+    parsed.organization,
+    env.RAWTREE_ORG,
+  );
   const transport = parsed.http === true ? 'http' : 'stdio';
 
   if (transport === 'stdio' && !apiKey) {
@@ -46,6 +57,8 @@ export function resolveConfig(
 
   const common = {
     ...(apiUrl ? { apiUrl } : {}),
+    ...(database ? { database } : {}),
+    ...(organization ? { organization } : {}),
     port: parsePort(parsed, env),
   };
 

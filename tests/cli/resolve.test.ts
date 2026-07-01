@@ -41,18 +41,44 @@ describe('resolveConfig', () => {
     });
   });
 
+  it('resolves database scope from args', () => {
+    expect(
+      resolveConfig(
+        {
+          'api-key': 'rt_arg',
+          database: 'analytics',
+          org: 'team',
+        },
+        {},
+      ),
+    ).toEqual({
+      ok: true,
+      config: {
+        apiKey: 'rt_arg',
+        database: 'analytics',
+        organization: 'team',
+        port: 3000,
+        transport: 'stdio',
+      },
+    });
+  });
+
   it('resolves stdio config from env', () => {
     expect(
       resolveConfig(
         {},
         {
           RAWTREE_API_KEY: 'rt_test',
+          RAWTREE_DATABASE: 'analytics',
+          RAWTREE_ORG: 'team',
         },
       ),
     ).toEqual({
       ok: true,
       config: {
         apiKey: 'rt_test',
+        database: 'analytics',
+        organization: 'team',
         port: 3000,
         transport: 'stdio',
       },

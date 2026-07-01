@@ -21,7 +21,7 @@ export function addDataTools(server: McpServer, rawtree: RawTreeClient) {
       title: 'Check RawTree Health',
       description: `**Purpose:** Check that the RawTree API endpoint is reachable.
 
-**NOT for:** Validating project permissions or checking whether a specific table exists. Use list-tables or run-query for authenticated checks.
+**NOT for:** Validating database permissions or checking whether a specific table exists. Use list-tables or run-query for authenticated checks.
 
 **Returns:** The RawTree health response.
 
@@ -37,7 +37,7 @@ export function addDataTools(server: McpServer, rawtree: RawTreeClient) {
     'run-query',
     {
       title: 'Run Query',
-      description: `**Purpose:** Execute a read-only SQL query against the configured RawTree project and return JSON rows, column metadata, statistics, and hints.
+      description: `**Purpose:** Execute a read-only SQL query against the configured RawTree database and return JSON rows, column metadata, statistics, and hints.
 
 **NOT for:** Inserting, updating, deleting, or mutating data. RawTree validates queries as read-only and rejects unsafe statements.
 

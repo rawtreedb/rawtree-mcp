@@ -5,8 +5,10 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { RawTreeClient } from '../client.js';
 import { createMcpServer } from '../server.js';
+import type { HttpConfig } from '../types.js';
 
 const sessions: Record<string, StreamableHTTPServerTransport> = {};
+type HttpClientConfig = Omit<HttpConfig, 'port' | 'transport'>;
 
 function sendJsonRpcError(
   res: ServerResponse,
@@ -31,7 +33,10 @@ function extractBearerApiKey(req: IncomingMessage): string | null {
   return apiKey || null;
 }
 
-export async function runHttp(port: number, apiUrl?: string): Promise<Server> {
+export async function runHttp(
+  port: number,
+  config: HttpClientConfig = {},
+): Promise<Server> {
   const app = createMcpExpressApp();
 
   app.get('/health', (_req: IncomingMessage, res: ServerResponse) => {
@@ -73,7 +78,7 @@ export async function runHttp(port: number, apiUrl?: string): Promise<Server> {
           if (sid && sessions[sid]) delete sessions[sid];
         };
 
-        const rawtree = new RawTreeClient({ apiKey, apiUrl });
+        const rawtree = new RawTreeClient({ ...config, apiKey });
         const server = createMcpServer(rawtree);
         await server.connect(transport);
       } else if (sessionId && !sessions[sessionId]) {

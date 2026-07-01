@@ -20,18 +20,18 @@ export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
     'list-api-keys',
     {
       title: 'List API Keys',
-      description: `**Purpose:** List API keys for the configured RawTree project.
+      description: `**Purpose:** List API keys for the configured RawTree database.
 
 **NOT for:** Creating or revoking credentials. Use create-api-key or delete-api-key for those workflows.
 
-**Returns:** API key names, IDs, API key hints, permissions, project, organization, and creation dates.
+**Returns:** API key names, IDs, API key hints, permissions, database, organization, and creation dates.
 
-**Auth:** Uses GET /v1/keys and requires an admin project API key.
+**Auth:** Uses GET /v1/keys and requires an admin database API key.
 
 **When to use:**
 - User asks what API keys exist
 - You need the key ID before revoking a key
-- You need to audit permissions for a project`,
+- You need to audit permissions for a database`,
       inputSchema: {},
     },
     async () => jsonResult(await rawtree.listApiKeys()),
@@ -41,13 +41,13 @@ export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
     'create-api-key',
     {
       title: 'Create API Key',
-      description: `**Purpose:** Create a new RawTree API key for the configured project.
+      description: `**Purpose:** Create a new RawTree API key for the configured database.
 
-**NOT for:** User login or creating projects. Use RawTree auth/CLI or the dashboard for those workflows.
+**NOT for:** User login or creating databases. Use RawTree auth/CLI or the dashboard for those workflows.
 
 **Returns:** The new API key value. The API key is only shown once, so you MUST display it to the user.
 
-**Auth:** Uses POST /v1/keys and requires admin permission for project API key auth.
+**Auth:** Uses POST /v1/keys and requires admin permission for database API key auth.
 
 **When to use:**
 - User needs a key for CI, an agent, a connector, or a script
@@ -82,7 +82,7 @@ export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
       title: 'Delete API Key',
       description: `**Purpose:** Permanently revoke and delete a RawTree API key by UUID or full API key value.
 
-**NOT for:** Deleting a table, project, or user session.
+**NOT for:** Deleting a table, database, or user session.
 
 **Returns:** Deletion confirmation.
 

@@ -59,28 +59,63 @@ describe('RawTreeClient', () => {
     expect(calls[0].url).toBe('https://api.rawtree.test/v1/query');
   });
 
-  it('parses project identity from the keys response', async () => {
+  it('uses database-scoped query routes when configured', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      database: 'analytics db',
+      organization: 'acme team',
+      fetchFn: recordingFetch(jsonResponse({ tables: [] }), calls),
+    });
+
+    await client.listTables();
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/tables?database=analytics+db&organization=acme+team',
+    );
+  });
+
+  it('appends database scope to existing query params', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      database: 'analytics',
+      organization: 'acme',
+      fetchFn: recordingFetch(new Response('{"event":"started"}\n'), calls),
+    });
+
+    await client.insertFromUrl({
+      table: 'events',
+      url: 'https://example.com/events.jsonl',
+    });
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/tables/events?url=https%3A%2F%2Fexample.com%2Fevents.jsonl&database=analytics&organization=acme',
+    );
+  });
+
+  it('parses database identity from the keys response', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({
       apiKey: 'rt_test',
       fetchFn: recordingFetch(
         jsonResponse({
           keys: [],
-          project: { name: 'analytics' },
+          database: { name: 'analytics' },
           organization: { name: 'acme' },
         }),
         calls,
       ),
     });
 
-    await expect(client.getProject()).resolves.toEqual({
+    await expect(client.getDatabase()).resolves.toEqual({
       name: 'analytics',
       organization: { name: 'acme' },
     });
     expect(calls[0].url).toBe('https://api.rawtree.com/v1/keys');
   });
 
-  it('falls back to tables for project identity when keys require admin permission', async () => {
+  it('falls back to tables for database identity when keys require admin permission', async () => {
     const calls: RecordedCall[] = [];
     const responses = [
       jsonResponse(
@@ -110,7 +145,7 @@ describe('RawTreeClient', () => {
       },
     });
 
-    await expect(client.getProject()).resolves.toEqual({
+    await expect(client.getDatabase()).resolves.toEqual({
       name: 'analytics',
       organization: { name: 'acme' },
     });

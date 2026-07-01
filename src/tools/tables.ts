@@ -8,11 +8,11 @@ export function addTableTools(server: McpServer, rawtree: RawTreeClient) {
     'list-tables',
     {
       title: 'List Tables',
-      description: `**Purpose:** List all tables in the configured RawTree project with row and byte counts.
+      description: `**Purpose:** List all tables in the configured RawTree database with row and byte counts.
 
 **NOT for:** Reading table rows. Use run-query for data and describe-table for columns.
 
-**Returns:** Tables plus project and organization context.
+**Returns:** Tables plus database and organization context.
 
 **When to use:**
 - User asks what data exists
@@ -27,7 +27,7 @@ export function addTableTools(server: McpServer, rawtree: RawTreeClient) {
     'describe-table',
     {
       title: 'Describe Table',
-      description: `**Purpose:** Inspect a RawTree table's columns, row count, byte count, project, and organization.
+      description: `**Purpose:** Inspect a RawTree table's columns, row count, byte count, database, and organization.
 
 **NOT for:** Sampling actual row values. Use run-query for SELECT queries.
 
