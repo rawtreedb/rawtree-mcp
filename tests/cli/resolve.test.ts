@@ -21,7 +21,7 @@ describe('resolveConfig', () => {
     });
   });
 
-  it('accepts the private api-url arg', () => {
+  it('accepts the api-url arg', () => {
     expect(
       resolveConfig(
         {
