@@ -43,7 +43,7 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.headers).toMatchObject({
       Authorization: 'Bearer rt_test',
       'Content-Type': 'application/json',
-      'User-Agent': 'rawtree-mcp/0.2.0',
+      'User-Agent': 'rawtree-mcp/0.2.1',
     });
   });
 
