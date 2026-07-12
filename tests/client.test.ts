@@ -43,6 +43,22 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.headers).toMatchObject({
       Authorization: 'Bearer rt_test',
       'Content-Type': 'application/json',
+      'User-Agent': 'rawtree-mcp/0.2.0',
+    });
+  });
+
+  it('supports overriding the user agent', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'rt_test',
+      fetchFn: recordingFetch(jsonResponse({ status: 'ok' }), calls),
+      userAgent: 'rawtree-mcp-test/1.0.0',
+    });
+
+    await client.health();
+
+    expect(calls[0].init.headers).toMatchObject({
+      'User-Agent': 'rawtree-mcp-test/1.0.0',
     });
   });
 
