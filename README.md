@@ -10,7 +10,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 - **Logs** — Inspect RawTree query and insert history with structured filters for type, status, origin, table, hints, time window, and pagination.
 - **API Keys** — List, create, and revoke RawTree API keys for a database. Creation responses include the one-time API key value.
 - **Databases** — Get the current database from API-key context.
-- **Transports** — Supports stdio for local MCP clients and Streamable HTTP for remote or multi-client deployments.
+- **Transports** — Supports stdio for local MCP clients and dual-era Streamable HTTP for remote or multi-client deployments, including stateless MCP 2026-07-28 requests and legacy initialize-handshake clients.
 
 ## Setup
 
@@ -276,6 +276,19 @@ pnpm tsc --watch
 ```
 
 Restart the MCP client session after each rebuild.
+
+## Programmatic usage
+
+The package root exposes the reusable MCP server layer. The Node HTTP transport
+is available separately from `@rawtree/mcp/http`, so hosted adapters can use
+the server factory without importing the local process entrypoint.
+
+```ts
+import { createMcpServer, RawTreeClient } from '@rawtree/mcp';
+
+const client = new RawTreeClient({ apiKey: process.env.RAWTREE_API_KEY! });
+const server = createMcpServer(client);
+```
 
 ## Publishing
 

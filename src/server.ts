@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import packageJson from '../package.json' with { type: 'json' };
 import type { RawTreeClient } from './client.js';
 import {
@@ -8,6 +8,9 @@ import {
   addLogTools,
   addTableTools,
 } from './tools/index.js';
+
+export type { RawTreeClientOptions } from './client.js';
+export { RawTreeClient } from './client.js';
 
 export function createMcpServer(rawtree: RawTreeClient): McpServer {
   const server = new McpServer({
