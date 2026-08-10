@@ -16,7 +16,7 @@ import { createMcpServer } from '../server.js';
 import type { HttpConfig } from '../types.js';
 
 const sessions: Record<string, NodeStreamableHTTPServerTransport> = {};
-type HttpClientConfig = Omit<HttpConfig, 'port' | 'transport'>;
+export type HttpTransportOptions = Omit<HttpConfig, 'port' | 'transport'>;
 
 function sendJsonRpcError(
   res: ServerResponse,
@@ -50,7 +50,7 @@ function extractBearerApiKeyFromWebRequest(req: Request): string | null {
 
 export async function runHttp(
   port: number,
-  config: HttpClientConfig = {},
+  config: HttpTransportOptions = {},
 ): Promise<Server> {
   const app = createMcpExpressApp();
 

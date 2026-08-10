@@ -20,7 +20,7 @@ interface RequestOptions {
   headers?: Record<string, string>;
 }
 
-interface RawTreeClientOptions {
+export interface RawTreeClientOptions {
   fetchFn?: typeof fetch;
   apiKey: string;
   apiUrl?: string;

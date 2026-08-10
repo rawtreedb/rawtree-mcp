@@ -9,6 +9,9 @@ import {
   addTableTools,
 } from './tools/index.js';
 
+export type { RawTreeClientOptions } from './client.js';
+export { RawTreeClient } from './client.js';
+
 export function createMcpServer(rawtree: RawTreeClient): McpServer {
   const server = new McpServer({
     name: 'rawtree',

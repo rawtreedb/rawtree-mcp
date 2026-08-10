@@ -277,6 +277,19 @@ pnpm tsc --watch
 
 Restart the MCP client session after each rebuild.
 
+## Programmatic usage
+
+The package root exposes the reusable MCP server layer. The Node HTTP transport
+is available separately from `@rawtree/mcp/http`, so hosted adapters can use
+the server factory without importing the local process entrypoint.
+
+```ts
+import { createMcpServer, RawTreeClient } from '@rawtree/mcp';
+
+const client = new RawTreeClient({ apiKey: process.env.RAWTREE_API_KEY! });
+const server = createMcpServer(client);
+```
+
 ## Publishing
 
 Publishing is handled by the GitHub Actions `Publish` workflow.
