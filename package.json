@@ -1,6 +1,6 @@
 {
   "name": "@rawtree/mcp",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -21,7 +21,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@modelcontextprotocol/express": "2.0.0",
+    "@modelcontextprotocol/node": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
     "dotenv": "17.4.2",
     "express": "5.2.1",
     "minimist": "1.2.8",
@@ -32,6 +34,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.10",
+    "@modelcontextprotocol/client": "2.0.0",
     "@types/express": "5.0.6",
     "@types/minimist": "1.2.5",
     "@types/node": "25.9.1",

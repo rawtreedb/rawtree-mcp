@@ -1,13 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
-import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import { createMcpExpressApp } from '@modelcontextprotocol/express';
+import {
+  NodeStreamableHTTPServerTransport,
+  toNodeHandler,
+  toWebRequest,
+} from '@modelcontextprotocol/node';
+import {
+  createMcpHandler,
+  isInitializeRequest,
+  isLegacyRequest,
+} from '@modelcontextprotocol/server';
 import { RawTreeClient } from '../client.js';
 import { createMcpServer } from '../server.js';
 import type { HttpConfig } from '../types.js';
 
-const sessions: Record<string, StreamableHTTPServerTransport> = {};
+const sessions: Record<string, NodeStreamableHTTPServerTransport> = {};
 type HttpClientConfig = Omit<HttpConfig, 'port' | 'transport'>;
 
 function sendJsonRpcError(
@@ -33,11 +41,34 @@ function extractBearerApiKey(req: IncomingMessage): string | null {
   return apiKey || null;
 }
 
+function extractBearerApiKeyFromWebRequest(req: Request): string | null {
+  const header = req.headers.get('authorization');
+  if (!header?.startsWith('Bearer ')) return null;
+  const apiKey = header.slice('Bearer '.length).trim();
+  return apiKey || null;
+}
+
 export async function runHttp(
   port: number,
   config: HttpClientConfig = {},
 ): Promise<Server> {
   const app = createMcpExpressApp();
+
+  const modernHandler = createMcpHandler(
+    (ctx) => {
+      const apiKey = ctx.requestInfo
+        ? extractBearerApiKeyFromWebRequest(ctx.requestInfo)
+        : null;
+      if (!apiKey) {
+        throw new Error(
+          'Unauthorized: provide a RawTree API key via Authorization: Bearer <api-key>',
+        );
+      }
+      return createMcpServer(new RawTreeClient({ ...config, apiKey }));
+    },
+    { legacy: 'reject' },
+  );
+  const modernNodeHandler = toNodeHandler(modernHandler);
 
   app.get('/health', (_req: IncomingMessage, res: ServerResponse) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -47,8 +78,23 @@ export async function runHttp(
   app.all(
     '/mcp',
     async (req: IncomingMessage & { body?: unknown }, res: ServerResponse) => {
+      const webRequest = await toWebRequest(req, req.body);
+      if (!(await isLegacyRequest(webRequest, req.body))) {
+        const apiKey = extractBearerApiKeyFromWebRequest(webRequest);
+        if (!apiKey) {
+          sendJsonRpcError(
+            res,
+            401,
+            'Unauthorized: provide a RawTree API key via Authorization: Bearer <api-key>',
+          );
+          return;
+        }
+        await modernNodeHandler(req, res, req.body);
+        return;
+      }
+
       const sessionId = req.headers['mcp-session-id'] as string | undefined;
-      let transport: StreamableHTTPServerTransport | undefined;
+      let transport: NodeStreamableHTTPServerTransport | undefined;
 
       if (sessionId && sessions[sessionId]) {
         transport = sessions[sessionId];
@@ -67,7 +113,7 @@ export async function runHttp(
           return;
         }
 
-        transport = new StreamableHTTPServerTransport({
+        transport = new NodeStreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           onsessioninitialized: (sid) => {
             sessions[sid] = transport!;
@@ -118,6 +164,7 @@ export async function runHttp(
         }
         delete sessions[sid];
       }
+      await modernHandler.close().catch(() => {});
       server.close();
       process.exit(0);
     };
