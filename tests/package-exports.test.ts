@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import packageJson from '../package.json' with { type: 'json' };
 import * as serverModule from '../src/server.js';
+import tsconfig from '../tsconfig.json' with { type: 'json' };
 
 describe('package exports', () => {
   it('exposes the reusable server layer at the package root', () => {
@@ -19,5 +20,9 @@ describe('package exports', () => {
       types: './dist/transports/http.d.ts',
       default: './dist/transports/http.js',
     });
+  });
+
+  it('emits the declarations referenced by package exports', () => {
+    expect(tsconfig.compilerOptions.declaration).toBe(true);
   });
 });
