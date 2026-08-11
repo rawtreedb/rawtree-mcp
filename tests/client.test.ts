@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { type RawTreeApiError, RawTreeClient } from '../src/client.js';
 
 interface RecordedCall {
@@ -27,6 +27,35 @@ function recordingFetch(
 }
 
 describe('RawTreeClient', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('preserves the runtime receiver when using the default fetch', async () => {
+    const calls: RecordedCall[] = [];
+    const runtimeFetch = vi.fn(function (
+      this: unknown,
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> {
+      if (this !== globalThis) {
+        throw new TypeError('Illegal invocation');
+      }
+      calls.push({
+        url: input.toString(),
+        init: init ?? {},
+      });
+      return Promise.resolve(jsonResponse({ status: 'ok' }));
+    });
+    vi.stubGlobal('fetch', runtimeFetch);
+
+    const client = new RawTreeClient({ apiKey: 'rt_test' });
+
+    await expect(client.health()).resolves.toEqual({ status: 'ok' });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe('https://api.rawtree.com/health');
+  });
+
   it('sends authenticated query requests to public API routes', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({

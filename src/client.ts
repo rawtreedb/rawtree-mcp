@@ -150,7 +150,7 @@ export class RawTreeClient {
   constructor(options: RawTreeClientOptions) {
     this.apiUrl = normalizeApiUrl(options.apiUrl);
     this.database = options.database;
-    this.fetchFn = options.fetchFn ?? fetch;
+    this.fetchFn = options.fetchFn ?? globalThis.fetch.bind(globalThis);
     this.apiKey = options.apiKey;
     this.organization = options.organization;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
