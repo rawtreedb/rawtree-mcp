@@ -243,6 +243,38 @@ export class RawTreeClient {
     );
   }
 
+  async listClusters(organization: string): Promise<unknown> {
+    return this.requestJson('GET', this.apiPath('/clusters'), {
+      query: { organization },
+    });
+  }
+
+  async createCluster({
+    organization,
+    name,
+    replicas,
+    cpuCores,
+    memoryGiB,
+  }: {
+    organization: string;
+    name: string;
+    replicas: number;
+    cpuCores: number;
+    memoryGiB: number;
+  }): Promise<unknown> {
+    return this.requestJson('POST', this.apiPath('/clusters'), {
+      query: { organization },
+      body: {
+        name,
+        replicas,
+        size: {
+          cpu_cores: cpuCores,
+          memory_gib: memoryGiB,
+        },
+      },
+    });
+  }
+
   async getDatabase(): Promise<{
     name: string;
     organization: { name: string };
