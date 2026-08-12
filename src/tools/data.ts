@@ -1,7 +1,14 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { RawTreeClient } from '../client.js';
-import { asJsonRows, jsonResult, namedJsonResult } from './common.js';
+import {
+  asJsonRows,
+  databaseScopeInput,
+  jsonResult,
+  namedJsonResult,
+  requestScope,
+  type ToolScopeOptions,
+} from './common.js';
 
 const transformSchema = z.enum([
   'otlp-traces',
@@ -14,7 +21,11 @@ const transformSchema = z.enum([
 
 const jsonObjectSchema = z.record(z.string(), z.unknown());
 
-export function addDataTools(server: McpServer, rawtree: RawTreeClient) {
+export function addDataTools(
+  server: McpServer,
+  rawtree: RawTreeClient,
+  scopeOptions: ToolScopeOptions = {},
+) {
   server.registerTool(
     'check-health',
     {
@@ -37,7 +48,7 @@ export function addDataTools(server: McpServer, rawtree: RawTreeClient) {
     'run-query',
     {
       title: 'Run Query',
-      description: `**Purpose:** Execute a read-only SQL query against the configured RawTree database and return JSON rows, column metadata, statistics, and hints.
+      description: `**Purpose:** Execute a read-only SQL query against a RawTree database and return JSON rows, column metadata, statistics, and hints.
 
 **NOT for:** Inserting, updating, deleting, or mutating data. RawTree validates queries as read-only and rejects unsafe statements.
 
@@ -53,6 +64,7 @@ export function addDataTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Key trigger phrases:** "query RawTree", "run SQL", "count rows", "show sample rows", "check the data"`,
       inputSchema: {
+        ...databaseScopeInput(scopeOptions),
         sql: z
           .string()
           .min(1)
@@ -61,7 +73,13 @@ export function addDataTools(server: McpServer, rawtree: RawTreeClient) {
           ),
       },
     },
-    async ({ sql }) => jsonResult(await rawtree.query(sql)),
+    async ({ organization, cluster, database, sql }) =>
+      jsonResult(
+        await rawtree.query(
+          sql,
+          requestScope({ organization, cluster, database }),
+        ),
+      ),
   );
 
   server.registerTool(
@@ -84,6 +102,7 @@ export function addDataTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Key trigger phrases:** "insert this", "send event", "write to RawTree", "create table with data", "ingest JSON"`,
       inputSchema: {
+        ...databaseScopeInput(scopeOptions),
         table: z
           .string()
           .min(1)
@@ -108,13 +127,24 @@ export function addDataTools(server: McpServer, rawtree: RawTreeClient) {
           ),
       },
     },
-    async ({ table, data, transform, columns }) => {
-      const inserted = await rawtree.insertJson({
-        table,
-        data: asJsonRows(data),
-        transform,
-        columns,
-      });
+    async ({
+      organization,
+      cluster,
+      database,
+      table,
+      data,
+      transform,
+      columns,
+    }) => {
+      const inserted = await rawtree.insertJson(
+        {
+          table,
+          data: asJsonRows(data),
+          transform,
+          columns,
+        },
+        requestScope({ organization, cluster, database }),
+      );
       return namedJsonResult('Insert result', inserted);
     },
   );
@@ -138,12 +168,16 @@ export function addDataTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Key trigger phrases:** "ingest this URL", "load JSONL from", "import from public file"`,
       inputSchema: {
+        ...databaseScopeInput(scopeOptions),
         table: z.string().min(1).describe('Target table name.'),
         url: z.url().describe('Public URL containing data RawTree can fetch.'),
       },
     },
-    async ({ table, url }) => {
-      const stream = await rawtree.insertFromUrl({ table, url });
+    async ({ organization, cluster, database, table, url }) => {
+      const stream = await rawtree.insertFromUrl(
+        { table, url },
+        requestScope({ organization, cluster, database }),
+      );
       return namedJsonResult('URL insert event stream', stream);
     },
   );

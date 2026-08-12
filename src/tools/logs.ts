@@ -1,7 +1,12 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { RawTreeClient } from '../client.js';
-import { jsonResult } from './common.js';
+import {
+  databaseScopeInput,
+  jsonResult,
+  requestScope,
+  type ToolScopeOptions,
+} from './common.js';
 
 const logTypeSchema = z.enum(['select', 'insert', 'describe', 'explain']);
 const logStatusSchema = z.enum(['success', 'error']);
@@ -72,12 +77,16 @@ function buildSearch({
   return tokens.length > 0 ? tokens.join(' ') : undefined;
 }
 
-export function addLogTools(server: McpServer, rawtree: RawTreeClient) {
+export function addLogTools(
+  server: McpServer,
+  rawtree: RawTreeClient,
+  scopeOptions: ToolScopeOptions = {},
+) {
   server.registerTool(
     'list-logs',
     {
       title: 'List Logs',
-      description: `**Purpose:** List recent RawTree insert/query/describe/explain activity for the configured database.
+      description: `**Purpose:** List recent RawTree insert/query/describe/explain activity for a database.
 
 **NOT for:** Reading application log files from disk or infrastructure logs. This tool reads RawTree's product query and insert logs.
 
@@ -93,6 +102,7 @@ export function addLogTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Key trigger phrases:** "check RawTree logs", "why did the insert fail", "show query history", "recent errors"`,
       inputSchema: {
+        ...databaseScopeInput(scopeOptions),
         startTime: z
           .string()
           .optional()
@@ -146,6 +156,9 @@ export function addLogTools(server: McpServer, rawtree: RawTreeClient) {
       },
     },
     async ({
+      organization,
+      cluster,
+      database,
       startTime,
       endTime,
       limit,
@@ -158,19 +171,22 @@ export function addLogTools(server: McpServer, rawtree: RawTreeClient) {
       hints,
     }) => {
       const timeWindow = resolveTimeWindow({ startTime, endTime });
-      const response = await rawtree.listLogs({
-        ...timeWindow,
-        limit,
-        offset,
-        search: buildSearch({
-          search,
-          types,
-          statuses,
-          origins,
-          tables,
-          hints,
-        }),
-      });
+      const response = await rawtree.listLogs(
+        {
+          ...timeWindow,
+          limit,
+          offset,
+          search: buildSearch({
+            search,
+            types,
+            statuses,
+            origins,
+            tables,
+            hints,
+          }),
+        },
+        requestScope({ organization, cluster, database }),
+      );
       return jsonResult(response);
     },
   );

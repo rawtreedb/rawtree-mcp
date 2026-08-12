@@ -1,4 +1,40 @@
+import { z } from 'zod';
+import type { RawTreeScope } from '../client.js';
 import type { JsonObject, JsonValue } from '../types.js';
+
+export interface ToolScopeOptions {
+  requireExplicitScope?: boolean;
+}
+
+function scopeName(options: ToolScopeOptions, description: string) {
+  const schema = z.string().min(1).describe(description);
+  return options.requireExplicitScope ? schema : schema.optional();
+}
+
+export function clusterScopeInput(options: ToolScopeOptions) {
+  return {
+    organization: scopeName(
+      options,
+      'RawTree organization containing the target cluster.',
+    ),
+    cluster: scopeName(options, 'RawTree cluster to use for this operation.'),
+  };
+}
+
+export function databaseScopeInput(options: ToolScopeOptions) {
+  return {
+    ...clusterScopeInput(options),
+    database: scopeName(options, 'RawTree database to use for this operation.'),
+  };
+}
+
+export function requestScope({
+  organization,
+  cluster,
+  database,
+}: RawTreeScope): RawTreeScope {
+  return { organization, cluster, database };
+}
 
 export function textResult(...texts: string[]) {
   return {

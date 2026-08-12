@@ -2,9 +2,12 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { RawTreeClient } from '../client.js';
 import {
+  clusterScopeInput,
   jsonResult,
   namedJsonResult,
+  requestScope,
   requireConfirmation,
+  type ToolScopeOptions,
   textResult,
 } from './common.js';
 
@@ -15,12 +18,16 @@ const permissionSchema = z.enum([
   'read_only',
 ]);
 
-export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
+export function addApiKeyTools(
+  server: McpServer,
+  rawtree: RawTreeClient,
+  scopeOptions: ToolScopeOptions = {},
+) {
   server.registerTool(
     'list-api-keys',
     {
       title: 'List API Keys',
-      description: `**Purpose:** List API keys for the configured RawTree database.
+      description: `**Purpose:** List API keys for a RawTree cluster.
 
 **NOT for:** Creating or revoking credentials. Use create-api-key or delete-api-key for those workflows.
 
@@ -32,16 +39,19 @@ export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
 - User asks what API keys exist
 - You need the key ID before revoking a key
 - You need to audit permissions for a database`,
-      inputSchema: {},
+      inputSchema: clusterScopeInput(scopeOptions),
     },
-    async () => jsonResult(await rawtree.listApiKeys()),
+    async ({ organization, cluster }) =>
+      jsonResult(
+        await rawtree.listApiKeys(requestScope({ organization, cluster })),
+      ),
   );
 
   server.registerTool(
     'create-api-key',
     {
       title: 'Create API Key',
-      description: `**Purpose:** Create a new RawTree API key for the configured database.
+      description: `**Purpose:** Create a new RawTree API key for a cluster.
 
 **NOT for:** User login or creating databases. Use RawTree auth/CLI or the dashboard for those workflows.
 
@@ -54,6 +64,14 @@ export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
 - User wants a read-only, write-only, read-write, or admin credential
 - User asks to rotate credentials by creating a replacement before revoking the old key`,
       inputSchema: {
+        ...clusterScopeInput(scopeOptions),
+        database: z
+          .string()
+          .min(1)
+          .optional()
+          .describe(
+            'Optional default database for the new key. RawTree uses the default database when omitted.',
+          ),
         name: z
           .string()
           .min(1)
@@ -66,8 +84,11 @@ export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
           ),
       },
     },
-    async ({ name, permission }) => {
-      const created = await rawtree.createApiKey({ name, permission });
+    async ({ organization, cluster, database, name, permission }) => {
+      const created = await rawtree.createApiKey(
+        { name, permission },
+        requestScope({ organization, cluster, database }),
+      );
       return textResult(
         'API key created successfully.',
         `Result:\n${JSON.stringify(created, null, 2)}`,
@@ -88,6 +109,7 @@ export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Safety:** You MUST list or identify the key first, ask the user to confirm the exact key name or ID, and warn that services using it will lose access. This action cannot be undone.`,
       inputSchema: {
+        ...clusterScopeInput(scopeOptions),
         idOrApiKey: z
           .string()
           .min(1)
@@ -99,14 +121,17 @@ export function addApiKeyTools(server: McpServer, rawtree: RawTreeClient) {
           ),
       },
     },
-    async ({ idOrApiKey, confirm }) => {
+    async ({ organization, cluster, idOrApiKey, confirm }) => {
       requireConfirmation(
         confirm,
         'Refusing to delete API key without explicit confirmation.',
       );
       return namedJsonResult(
         'Delete API key result',
-        await rawtree.deleteApiKey(idOrApiKey),
+        await rawtree.deleteApiKey(
+          idOrApiKey,
+          requestScope({ organization, cluster }),
+        ),
       );
     },
   );

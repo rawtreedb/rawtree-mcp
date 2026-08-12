@@ -24,9 +24,16 @@ export interface RawTreeClientOptions {
   fetchFn?: typeof fetch;
   apiKey: string;
   apiUrl?: string;
+  cluster?: string;
   database?: string;
   organization?: string;
   userAgent?: string;
+}
+
+export interface RawTreeScope {
+  cluster?: string;
+  database?: string;
+  organization?: string;
 }
 
 export class RawTreeApiError extends Error {
@@ -141,6 +148,7 @@ function databaseIdentityFromResponse(response: unknown): {
 
 export class RawTreeClient {
   private readonly apiUrl: string;
+  private readonly cluster?: string;
   private readonly database?: string;
   private readonly fetchFn: typeof fetch;
   private readonly apiKey: string;
@@ -149,6 +157,7 @@ export class RawTreeClient {
 
   constructor(options: RawTreeClientOptions) {
     this.apiUrl = normalizeApiUrl(options.apiUrl);
+    this.cluster = options.cluster;
     this.database = options.database;
     this.fetchFn = options.fetchFn ?? globalThis.fetch.bind(globalThis);
     this.apiKey = options.apiKey;
@@ -164,82 +173,111 @@ export class RawTreeClient {
     return this.requestJson('GET', '/health');
   }
 
-  async listTables(): Promise<unknown> {
-    return this.requestJson('GET', this.apiPath('/tables'), this.scoped());
+  async listOrganizations(): Promise<unknown> {
+    return this.requestJson('GET', this.apiPath('/organizations'));
   }
 
-  async describeTable(table: string): Promise<unknown> {
+  async listTables(scope: RawTreeScope = {}): Promise<unknown> {
     return this.requestJson(
       'GET',
-      `${this.apiPath('/tables')}/${encodePathPart(table)}`,
-      this.scoped(),
+      this.apiPath('/tables'),
+      this.scoped({}, scope),
     );
   }
 
-  async deleteTable(table: string): Promise<unknown> {
+  async describeTable(
+    table: string,
+    scope: RawTreeScope = {},
+  ): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      `${this.apiPath('/tables')}/${encodePathPart(table)}`,
+      this.scoped({}, scope),
+    );
+  }
+
+  async deleteTable(table: string, scope: RawTreeScope = {}): Promise<unknown> {
     return this.requestJson(
       'DELETE',
       `${this.apiPath('/tables')}/${encodePathPart(table)}`,
-      this.scoped(),
+      this.scoped({}, scope),
     );
   }
 
-  async insertJson({
-    table,
-    data,
-    transform,
-    columns,
-  }: {
-    table: string;
-    data: JsonValue;
-    transform?: string;
-    columns?: readonly string[];
-  }): Promise<unknown> {
+  async insertJson(
+    {
+      table,
+      data,
+      transform,
+      columns,
+    }: {
+      table: string;
+      data: JsonValue;
+      transform?: string;
+      columns?: readonly string[];
+    },
+    scope: RawTreeScope = {},
+  ): Promise<unknown> {
     return this.requestJson(
       'POST',
       `${this.apiPath('/tables')}/${encodePathPart(table)}`,
-      this.scoped({
-        body: data,
-        query: {
-          transform,
-          columns:
-            columns && columns.length > 0 ? columns.join(',') : undefined,
+      this.scoped(
+        {
+          body: data,
+          query: {
+            transform,
+            columns:
+              columns && columns.length > 0 ? columns.join(',') : undefined,
+          },
         },
-      }),
+        scope,
+      ),
     );
   }
 
-  async insertFromUrl({
-    table,
-    url,
-  }: {
-    table: string;
-    url: string;
-  }): Promise<string> {
+  async insertFromUrl(
+    {
+      table,
+      url,
+    }: {
+      table: string;
+      url: string;
+    },
+    scope: RawTreeScope = {},
+  ): Promise<string> {
     return this.requestText(
       'POST',
       `${this.apiPath('/tables')}/${encodePathPart(table)}`,
-      this.scoped({
-        query: { url },
-      }),
+      this.scoped(
+        {
+          query: { url },
+        },
+        scope,
+      ),
     );
   }
 
-  async query(sql: string): Promise<unknown> {
+  async query(sql: string, scope: RawTreeScope = {}): Promise<unknown> {
     return this.requestJson(
       'POST',
       this.apiPath('/query'),
-      this.scoped({
-        body: { sql },
-      }),
+      this.scoped(
+        {
+          body: { sql },
+        },
+        scope,
+      ),
     );
   }
 
-  async listLogs(query: QueryParams): Promise<unknown> {
+  async listLogs(
+    query: QueryParams,
+    scope: RawTreeScope = {},
+  ): Promise<unknown> {
     return this.requestJson(
       'GET',
       this.apiPath('/logs'),
-      this.scoped({ query }),
+      this.scoped({ query }, scope),
     );
   }
 
@@ -275,13 +313,25 @@ export class RawTreeClient {
     });
   }
 
-  async getDatabase(): Promise<{
+  async listDatabases(scope: RawTreeScope = {}): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      this.apiPath('/databases'),
+      this.scoped({}, scope),
+    );
+  }
+
+  async getDatabase(scope: RawTreeScope = {}): Promise<{
     name: string;
     organization: { name: string };
   }> {
     try {
       return databaseIdentityFromResponse(
-        await this.requestJson('GET', this.apiPath('/keys'), this.scoped()),
+        await this.requestJson(
+          'GET',
+          this.apiPath('/keys'),
+          this.scoped({}, scope),
+        ),
       );
     } catch (error) {
       if (!(error instanceof RawTreeApiError) || error.status !== 403) {
@@ -290,47 +340,71 @@ export class RawTreeClient {
     }
 
     return databaseIdentityFromResponse(
-      await this.requestJson('GET', this.apiPath('/tables'), this.scoped()),
+      await this.requestJson(
+        'GET',
+        this.apiPath('/tables'),
+        this.scoped({}, scope),
+      ),
     );
   }
 
-  async listApiKeys(): Promise<unknown> {
-    return this.requestJson('GET', this.apiPath('/keys'), this.scoped());
+  async listApiKeys(scope: RawTreeScope = {}): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      this.apiPath('/keys'),
+      this.scoped({}, scope),
+    );
   }
 
-  async createApiKey({
-    name,
-    permission,
-  }: {
-    name: string;
-    permission: string;
-  }): Promise<unknown> {
+  async createApiKey(
+    {
+      name,
+      permission,
+    }: {
+      name: string;
+      permission: string;
+    },
+    scope: RawTreeScope = {},
+  ): Promise<unknown> {
     return this.requestJson(
       'POST',
       this.apiPath('/keys'),
-      this.scoped({
-        body: { name, permission },
-      }),
+      this.scoped(
+        {
+          body: { name, permission },
+        },
+        scope,
+      ),
     );
   }
 
-  async deleteApiKey(idOrApiKey: string): Promise<unknown> {
+  async deleteApiKey(
+    idOrApiKey: string,
+    scope: RawTreeScope = {},
+  ): Promise<unknown> {
     return this.requestJson(
       'DELETE',
       `${this.apiPath('/keys')}/${encodePathPart(idOrApiKey)}`,
-      this.scoped(),
+      this.scoped({}, scope),
     );
   }
 
-  private scoped(options: RequestOptions = {}): RequestOptions {
-    if (!this.database && !this.organization) return options;
+  private scoped(
+    options: RequestOptions = {},
+    scope: RawTreeScope = {},
+  ): RequestOptions {
+    const cluster = scope.cluster ?? this.cluster;
+    const database = scope.database ?? this.database;
+    const organization = scope.organization ?? this.organization;
+    if (!cluster && !database && !organization) return options;
     // RawTree database-scoped data routes stay at /v1/<resource>; auth reads scope from query params.
     return {
       ...options,
       query: {
         ...options.query,
-        database: this.database,
-        organization: this.organization,
+        database,
+        organization,
+        cluster,
       },
     };
   }

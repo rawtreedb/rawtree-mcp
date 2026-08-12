@@ -1,14 +1,25 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { RawTreeClient } from '../client.js';
-import { jsonResult, namedJsonResult, requireConfirmation } from './common.js';
+import {
+  databaseScopeInput,
+  jsonResult,
+  namedJsonResult,
+  requestScope,
+  requireConfirmation,
+  type ToolScopeOptions,
+} from './common.js';
 
-export function addTableTools(server: McpServer, rawtree: RawTreeClient) {
+export function addTableTools(
+  server: McpServer,
+  rawtree: RawTreeClient,
+  scopeOptions: ToolScopeOptions = {},
+) {
   server.registerTool(
     'list-tables',
     {
       title: 'List Tables',
-      description: `**Purpose:** List all tables in the configured RawTree database with row and byte counts.
+      description: `**Purpose:** List all tables in a RawTree database with row and byte counts.
 
 **NOT for:** Reading table rows. Use run-query for data and describe-table for columns.
 
@@ -18,9 +29,14 @@ export function addTableTools(server: McpServer, rawtree: RawTreeClient) {
 - User asks what data exists
 - You need a table name before querying
 - You want to verify that an insert auto-created a table`,
-      inputSchema: {},
+      inputSchema: databaseScopeInput(scopeOptions),
     },
-    async () => jsonResult(await rawtree.listTables()),
+    async ({ organization, cluster, database }) =>
+      jsonResult(
+        await rawtree.listTables(
+          requestScope({ organization, cluster, database }),
+        ),
+      ),
   );
 
   server.registerTool(
@@ -38,10 +54,17 @@ export function addTableTools(server: McpServer, rawtree: RawTreeClient) {
 - A query fails because a column may not exist
 - You just inserted data and want to inspect the dynamic schema`,
       inputSchema: {
+        ...databaseScopeInput(scopeOptions),
         table: z.string().min(1).describe('Table name to describe.'),
       },
     },
-    async ({ table }) => jsonResult(await rawtree.describeTable(table)),
+    async ({ organization, cluster, database, table }) =>
+      jsonResult(
+        await rawtree.describeTable(
+          table,
+          requestScope({ organization, cluster, database }),
+        ),
+      ),
   );
 
   server.registerTool(
@@ -56,6 +79,7 @@ export function addTableTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Safety:** You MUST ask the user to confirm the exact table name before calling this tool. This action requires an admin key and cannot be undone.`,
       inputSchema: {
+        ...databaseScopeInput(scopeOptions),
         table: z.string().min(1).describe('Table name to delete.'),
         confirm: z
           .boolean()
@@ -64,14 +88,17 @@ export function addTableTools(server: McpServer, rawtree: RawTreeClient) {
           ),
       },
     },
-    async ({ table, confirm }) => {
+    async ({ organization, cluster, database, table, confirm }) => {
       requireConfirmation(
         confirm,
         'Refusing to delete table without explicit confirmation.',
       );
       return namedJsonResult(
         'Delete table result',
-        await rawtree.deleteTable(table),
+        await rawtree.deleteTable(
+          table,
+          requestScope({ organization, cluster, database }),
+        ),
       );
     },
   );

@@ -33,7 +33,41 @@ describe('createMcpServer', () => {
 
     const { tools } = await client.listTools();
     expect(tools.map((tool) => tool.name)).toEqual(
-      expect.arrayContaining(['list-clusters', 'create-cluster']),
+      expect.arrayContaining([
+        'list-organizations',
+        'list-clusters',
+        'create-cluster',
+        'list-databases',
+      ]),
     );
+  });
+
+  it('requires resource scope in explicitly scoped deployments', async () => {
+    const rawtree = new RawTreeClient({ apiKey: 'oauth_access_token' });
+    const server = createMcpServer(rawtree, { requireExplicitScope: true });
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    closeables.push(client, server);
+
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+
+    const { tools } = await client.listTools();
+    const runQuery = tools.find((tool) => tool.name === 'run-query');
+    const listClusters = tools.find((tool) => tool.name === 'list-clusters');
+    const listDatabases = tools.find((tool) => tool.name === 'list-databases');
+
+    expect(runQuery?.inputSchema.required).toEqual([
+      'organization',
+      'cluster',
+      'database',
+      'sql',
+    ]);
+    expect(listClusters?.inputSchema.required).toEqual(['organization']);
+    expect(listDatabases?.inputSchema.required).toEqual([
+      'organization',
+      'cluster',
+    ]);
   });
 });

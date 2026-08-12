@@ -120,6 +120,57 @@ describe('RawTreeClient', () => {
     );
   });
 
+  it('uses per-request organization, cluster, and database scope', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      database: 'configured_database',
+      organization: 'configured_org',
+      fetchFn: recordingFetch(jsonResponse({ rows: 1 }), calls),
+    });
+
+    await client.query('SELECT 1', {
+      organization: 'acme team',
+      cluster: 'production',
+      database: 'analytics db',
+    });
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/query?database=analytics+db&organization=acme+team&cluster=production',
+    );
+  });
+
+  it('lists organizations without resource scope', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      database: 'analytics',
+      organization: 'acme',
+      fetchFn: recordingFetch(jsonResponse({ organizations: [] }), calls),
+    });
+
+    await client.listOrganizations();
+
+    expect(calls[0].url).toBe('https://api.rawtree.com/v1/organizations');
+  });
+
+  it('lists databases in an explicit organization and cluster', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(jsonResponse({ databases: [] }), calls),
+    });
+
+    await client.listDatabases({
+      organization: 'acme',
+      cluster: 'production',
+    });
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/databases?organization=acme&cluster=production',
+    );
+  });
+
   it('appends database scope to existing query params', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({

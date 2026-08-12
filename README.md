@@ -9,7 +9,8 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 - **Tables** — List tables, describe table columns and sizes, and delete tables after explicit confirmation.
 - **Logs** — Inspect RawTree query and insert history with structured filters for type, status, origin, table, hints, time window, and pagination.
 - **API Keys** — List, create, and revoke RawTree API keys for a database. Creation responses include the one-time API key value.
-- **Databases** — Get the current database from API-key context.
+- **Organizations** — List organizations available to an OAuth-authenticated user.
+- **Databases** — List databases in a cluster and verify access to a selected database.
 - **Clusters** — List dedicated clusters and provision a cluster after explicit confirmation. RawTree enforces user and organization-admin authorization.
 - **Transports** — Supports stdio for local MCP clients and dual-era Streamable HTTP for remote or multi-client deployments, including stateless MCP 2026-07-28 requests and legacy initialize-handshake clients.
 
@@ -134,7 +135,7 @@ Environment variables:
 ### Data
 
 - `check-health` — Check that the RawTree API endpoint is reachable.
-- `run-query` — Run read-only SQL and return RawTree's JSON query response.
+- `run-query` — Run read-only SQL and return RawTree's JSON query response. Accepts organization, cluster, and database overrides.
 - `insert-json` — Insert JSON object(s) into a table, optionally with a RawTree transform.
 - `insert-from-url` — Ingest data from a public URL and return RawTree's NDJSON progress stream.
 
@@ -169,7 +170,12 @@ Structured log filters include:
 
 ### Databases
 
-- `get_database` — Return the current database as `{ "name": "...", "organization": { "name": "..." } }`.
+- `list-databases` — List databases in an organization and cluster.
+- `get_database` — Verify a selected database and return `{ "name": "...", "organization": { "name": "..." } }`.
+
+### Organizations
+
+- `list-organizations` — List organizations available to the authenticated user. Requires a user credential such as OAuth.
 
 ### Clusters
 
@@ -178,12 +184,23 @@ Structured log filters include:
 
 Cluster tools are advertised to every MCP client. The RawTree API remains the authorization boundary: cluster access requires a user access token, and cluster creation additionally requires organization-admin access.
 
+Programmatic hosted deployments can require explicit resource selection on
+every applicable tool. This lets one OAuth-backed MCP connection switch between
+organizations, clusters, and databases without encoding context in the MCP URL:
+
+```ts
+const server = createMcpServer(client, { requireExplicitScope: true });
+```
+
 ## Examples
 
 ### Query
 
 ```json
 {
+  "organization": "acme",
+  "cluster": "production",
+  "database": "analytics",
   "sql": "SELECT count() AS rows FROM events"
 }
 ```
