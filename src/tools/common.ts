@@ -24,7 +24,13 @@ export function clusterScopeInput(options: ToolScopeOptions) {
 export function databaseScopeInput(options: ToolScopeOptions) {
   return {
     ...clusterScopeInput(options),
-    database: scopeName(options, 'RawTree database to use for this operation.'),
+    database: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Optional RawTree database override. RawTree uses the default database when omitted.',
+      ),
   };
 }
 

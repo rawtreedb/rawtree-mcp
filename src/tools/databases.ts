@@ -36,7 +36,7 @@ export function addDatabaseTools(
     'get_database',
     {
       title: 'Get Database',
-      description: `**Purpose:** Verify and return a selected RawTree database identity using the current credential.
+      description: `**Purpose:** Verify and return a RawTree database identity using the current credential. RawTree uses the default database when database is omitted.
 
 **NOT for:** Listing tables inside a database. Use list-tables for database data.
 

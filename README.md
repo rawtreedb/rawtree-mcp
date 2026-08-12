@@ -185,8 +185,10 @@ Structured log filters include:
 Cluster tools are advertised to every MCP client. The RawTree API remains the authorization boundary: cluster access requires a user access token, and cluster creation additionally requires organization-admin access.
 
 Programmatic hosted deployments can require explicit resource selection on
-every applicable tool. This lets one OAuth-backed MCP connection switch between
-organizations, clusters, and databases without encoding context in the MCP URL:
+every applicable tool. Organization and cluster identify the resource boundary;
+database remains an optional override and defaults to `default` when omitted.
+This lets one OAuth-backed MCP connection switch between organizations,
+clusters, and databases without encoding context in the MCP URL:
 
 ```ts
 const server = createMcpServer(client, { requireExplicitScope: true });

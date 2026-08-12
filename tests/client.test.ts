@@ -140,6 +140,23 @@ describe('RawTreeClient', () => {
     );
   });
 
+  it('omits the database selector so the API can use its default', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(jsonResponse({ rows: 1 }), calls),
+    });
+
+    await client.query('SELECT 1', {
+      organization: 'acme',
+      cluster: 'production',
+    });
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/query?organization=acme&cluster=production',
+    );
+  });
+
   it('lists organizations without resource scope', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({

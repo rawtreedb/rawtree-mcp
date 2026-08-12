@@ -61,7 +61,6 @@ describe('createMcpServer', () => {
     expect(runQuery?.inputSchema.required).toEqual([
       'organization',
       'cluster',
-      'database',
       'sql',
     ]);
     expect(listClusters?.inputSchema.required).toEqual(['organization']);
