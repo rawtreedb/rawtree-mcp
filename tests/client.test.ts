@@ -175,6 +175,7 @@ describe('RawTreeClient', () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({
       apiKey: 'jwt_test',
+      database: 'configured_database',
       fetchFn: recordingFetch(jsonResponse({ databases: [] }), calls),
     });
 

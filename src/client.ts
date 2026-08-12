@@ -313,12 +313,15 @@ export class RawTreeClient {
     });
   }
 
-  async listDatabases(scope: RawTreeScope = {}): Promise<unknown> {
-    return this.requestJson(
-      'GET',
-      this.apiPath('/databases'),
-      this.scoped({}, scope),
-    );
+  async listDatabases(
+    scope: Omit<RawTreeScope, 'database'> = {},
+  ): Promise<unknown> {
+    return this.requestJson('GET', this.apiPath('/databases'), {
+      query: {
+        organization: scope.organization ?? this.organization,
+        cluster: scope.cluster ?? this.cluster,
+      },
+    });
   }
 
   async getDatabase(scope: RawTreeScope = {}): Promise<{
