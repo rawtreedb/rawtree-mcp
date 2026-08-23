@@ -478,6 +478,93 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.body).toBeUndefined();
   });
 
+  it('lists apps and installation state for a cluster', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(
+        jsonResponse({
+          cluster: { id: 'cluster/id', name: 'production' },
+          apps: [{ id: 'prometheus', name: 'Prometheus', installed: true }],
+        }),
+        calls,
+      ),
+    });
+
+    await expect(
+      client.listApps({
+        organization: 'acme team',
+        cluster: 'production cluster',
+      }),
+    ).resolves.toMatchObject({
+      apps: [{ id: 'prometheus', installed: true }],
+    });
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/apps?organization=acme+team&cluster=production+cluster',
+    );
+    expect(calls[0].init.method).toBe('GET');
+    expect(calls[0].init.body).toBeUndefined();
+  });
+
+  it('installs an app on a cluster', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(
+        jsonResponse({
+          id: 'opentelemetry/app',
+          name: 'OpenTelemetry',
+          installed: true,
+        }),
+        calls,
+      ),
+    });
+
+    await expect(
+      client.installApp({
+        organization: 'acme team',
+        cluster: 'production cluster',
+        appId: 'opentelemetry/app',
+      }),
+    ).resolves.toMatchObject({ installed: true });
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/apps/opentelemetry%2Fapp?organization=acme+team&cluster=production+cluster',
+    );
+    expect(calls[0].init.method).toBe('PUT');
+    expect(calls[0].init.body).toBeUndefined();
+  });
+
+  it('uninstalls an app from a cluster', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(
+        jsonResponse({
+          id: 'prometheus/app',
+          name: 'Prometheus',
+          installed: false,
+        }),
+        calls,
+      ),
+    });
+
+    await expect(
+      client.uninstallApp({
+        organization: 'acme team',
+        cluster: 'production cluster',
+        appId: 'prometheus/app',
+      }),
+    ).resolves.toMatchObject({ installed: false });
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/apps/prometheus%2Fapp?organization=acme+team&cluster=production+cluster',
+    );
+    expect(calls[0].init.method).toBe('DELETE');
+    expect(calls[0].init.body).toBeUndefined();
+  });
+
   it('throws RawTreeApiError with API message and hint', async () => {
     const client = new RawTreeClient({
       apiKey: 'rt_test',

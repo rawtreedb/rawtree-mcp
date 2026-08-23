@@ -354,6 +354,50 @@ export class RawTreeClient {
     );
   }
 
+  async listApps({
+    organization,
+    cluster,
+  }: {
+    organization: string;
+    cluster: string;
+  }): Promise<unknown> {
+    return this.requestJson('GET', this.apiPath('/apps'), {
+      query: { organization, cluster },
+    });
+  }
+
+  async installApp({
+    organization,
+    cluster,
+    appId,
+  }: {
+    organization: string;
+    cluster: string;
+    appId: string;
+  }): Promise<unknown> {
+    return this.requestJson(
+      'PUT',
+      `${this.apiPath('/apps')}/${encodePathPart(appId)}`,
+      { query: { organization, cluster } },
+    );
+  }
+
+  async uninstallApp({
+    organization,
+    cluster,
+    appId,
+  }: {
+    organization: string;
+    cluster: string;
+    appId: string;
+  }): Promise<unknown> {
+    return this.requestJson(
+      'DELETE',
+      `${this.apiPath('/apps')}/${encodePathPart(appId)}`,
+      { query: { organization, cluster } },
+    );
+  }
+
   async listDatabases(
     scope: Omit<RawTreeScope, 'database'> = {},
   ): Promise<unknown> {

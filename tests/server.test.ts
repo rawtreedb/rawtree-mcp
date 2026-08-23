@@ -20,7 +20,7 @@ describe('createMcpServer', () => {
     expect(typeof server.connect).toBe('function');
   });
 
-  it('unconditionally advertises cluster tools', async () => {
+  it('unconditionally advertises management tools', async () => {
     const rawtree = new RawTreeClient({ apiKey: 'rt_database_key' });
     const server = createMcpServer(rawtree);
     const client = new Client({ name: 'test-client', version: '0.0.0' });
@@ -44,6 +44,9 @@ describe('createMcpServer', () => {
         'get-cluster',
         'pause-cluster',
         'resume-cluster',
+        'list-apps',
+        'install-app',
+        'uninstall-app',
         'delete-table',
         'delete-api-key',
         'list-databases',
@@ -145,6 +148,32 @@ describe('createMcpServer', () => {
       expect(tool?.annotations).toMatchObject({
         readOnlyHint: false,
         destructiveHint: true,
+      });
+    }
+
+    const listApps = tools.find((candidate) => candidate.name === 'list-apps');
+    expect(listApps?.inputSchema.required).toEqual(['organization', 'cluster']);
+    expect(listApps?.annotations).toMatchObject({
+      readOnlyHint: true,
+      destructiveHint: false,
+    });
+
+    for (const expected of [
+      { name: 'install-app', destructiveHint: false },
+      { name: 'uninstall-app', destructiveHint: true },
+    ]) {
+      const tool = tools.find((candidate) => candidate.name === expected.name);
+      expect(tool?.inputSchema.required).toEqual([
+        'organization',
+        'cluster',
+        'appId',
+      ]);
+      expect(tool?.inputSchema.properties.appId).not.toHaveProperty('enum');
+      expect(tool?.inputSchema.properties).not.toHaveProperty('confirm');
+      expect(tool?.annotations).toMatchObject({
+        readOnlyHint: false,
+        destructiveHint: expected.destructiveHint,
+        idempotentHint: true,
       });
     }
   });
