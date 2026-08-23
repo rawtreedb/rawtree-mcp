@@ -51,9 +51,9 @@ describe('RawTreeClient', () => {
 
     const client = new RawTreeClient({ apiKey: 'rt_test' });
 
-    await expect(client.health()).resolves.toEqual({ status: 'ok' });
+    await expect(client.query('SELECT 1')).resolves.toEqual({ status: 'ok' });
     expect(calls).toHaveLength(1);
-    expect(calls[0].url).toBe('https://api.rawtree.com/health');
+    expect(calls[0].url).toBe('https://api.rawtree.com/v1/query');
   });
 
   it('sends authenticated query requests to public API routes', async () => {
@@ -84,7 +84,7 @@ describe('RawTreeClient', () => {
       userAgent: 'rawtree-mcp-test/1.0.0',
     });
 
-    await client.health();
+    await client.query('SELECT 1');
 
     expect(calls[0].init.headers).toMatchObject({
       'User-Agent': 'rawtree-mcp-test/1.0.0',
@@ -189,6 +189,25 @@ describe('RawTreeClient', () => {
     );
   });
 
+  it('deletes a database by name in an organization', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      database: 'configured_database',
+      organization: 'configured_org',
+      fetchFn: recordingFetch(jsonResponse({ deleted: true }), calls),
+    });
+
+    await expect(
+      client.deleteDatabase('analytics db', { organization: 'acme team' }),
+    ).resolves.toEqual({ deleted: true });
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/databases/analytics%20db?organization=acme+team',
+    );
+    expect(calls[0].init.method).toBe('DELETE');
+  });
+
   it('appends database scope to existing query params', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({
@@ -208,68 +227,7 @@ describe('RawTreeClient', () => {
     );
   });
 
-  it('parses database identity from the keys response', async () => {
-    const calls: RecordedCall[] = [];
-    const client = new RawTreeClient({
-      apiKey: 'rt_test',
-      fetchFn: recordingFetch(
-        jsonResponse({
-          keys: [],
-          database: { name: 'analytics' },
-          organization: { name: 'acme' },
-        }),
-        calls,
-      ),
-    });
-
-    await expect(client.getDatabase()).resolves.toEqual({
-      name: 'analytics',
-      organization: { name: 'acme' },
-    });
-    expect(calls[0].url).toBe('https://api.rawtree.com/v1/keys');
-  });
-
-  it('falls back to tables for database identity when keys require admin permission', async () => {
-    const calls: RecordedCall[] = [];
-    const responses = [
-      jsonResponse(
-        {
-          error: 'forbidden',
-          message: 'Forbidden',
-          hint: 'This API key does not have admin permission.',
-        },
-        403,
-      ),
-      jsonResponse({
-        tables: [],
-        project: { name: 'analytics' },
-        organization: { name: 'acme' },
-      }),
-    ];
-    const client = new RawTreeClient({
-      apiKey: 'rt_test',
-      fetchFn: async (input, init) => {
-        calls.push({
-          url: input.toString(),
-          init: init ?? {},
-        });
-        const response = responses.shift();
-        if (!response) throw new Error('unexpected request');
-        return response;
-      },
-    });
-
-    await expect(client.getDatabase()).resolves.toEqual({
-      name: 'analytics',
-      organization: { name: 'acme' },
-    });
-    expect(calls.map((call) => call.url)).toEqual([
-      'https://api.rawtree.com/v1/keys',
-      'https://api.rawtree.com/v1/tables',
-    ]);
-  });
-
-  it('passes transform and Firehose columns for JSON inserts', async () => {
+  it('inserts JSON without transform query parameters', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({
       apiKey: 'rt_test',
@@ -279,13 +237,9 @@ describe('RawTreeClient', () => {
     await client.insertJson({
       table: 'events',
       data: [{ event: 'signup' }],
-      transform: 'firehose',
-      columns: ['time', 'message'],
     });
 
-    expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/tables/events?transform=firehose&columns=time%2Cmessage',
-    );
+    expect(calls[0].url).toBe('https://api.rawtree.com/v1/tables/events');
     expect(calls[0].init.body).toBe(JSON.stringify([{ event: 'signup' }]));
   });
 

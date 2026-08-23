@@ -10,15 +10,6 @@ import {
   type ToolScopeOptions,
 } from './common.js';
 
-const transformSchema = z.enum([
-  'otlp-traces',
-  'otlp-logs',
-  'otlp-metrics',
-  'cloudwatch-logs',
-  'cloudtrail',
-  'firehose',
-]);
-
 const jsonObjectSchema = z.record(z.string(), z.unknown());
 
 export function addDataTools(
@@ -26,24 +17,6 @@ export function addDataTools(
   rawtree: RawTreeClient,
   scopeOptions: ToolScopeOptions = {},
 ) {
-  server.registerTool(
-    'check-health',
-    {
-      title: 'Check RawTree Health',
-      description: `**Purpose:** Check that the RawTree API endpoint is reachable.
-
-**NOT for:** Validating database permissions or checking whether a specific table exists. Use list-tables or run-query for authenticated checks.
-
-**Returns:** The RawTree health response.
-
-**When to use:**
-- User asks whether RawTree is up
-- You are debugging MCP configuration before using authenticated tools`,
-      inputSchema: {},
-    },
-    async () => jsonResult(await rawtree.health()),
-  );
-
   server.registerTool(
     'run-query',
     {
@@ -88,15 +61,14 @@ export function addDataTools(
       title: 'Insert JSON',
       description: `**Purpose:** Insert one JSON object or an array of JSON objects into a RawTree table. RawTree auto-creates the table on first insert.
 
-**NOT for:** Loading data from a public URL (use insert-from-url). Not for transformed URL ingest; transforms only apply to JSON request bodies.
+**NOT for:** Loading data from a public URL (use insert-from-url).
 
-**Returns:** Insert confirmation, usually { "inserted": <row_count> }. Firehose transform returns request metadata.
+**Returns:** Insert confirmation, usually { "inserted": <row_count> }.
 
 **When to use:**
 - User wants to send events, logs, traces, metrics, or arbitrary records to RawTree
 - You need to create a table by inserting the first row
 - You need to validate that RawTree accepts a payload shape
-- You have OTLP, CloudWatch Logs, CloudTrail, or Firehose JSON that should be flattened by RawTree
 
 **Workflow:** Choose a table name → send a small representative payload → run describe-table or run-query to verify.
 
@@ -114,34 +86,13 @@ export function addDataTools(
           .describe(
             'A JSON object or a non-empty array of JSON objects to insert.',
           ),
-        transform: transformSchema
-          .optional()
-          .describe(
-            'Optional RawTree built-in transform for JSON body inserts: otlp-traces, otlp-logs, otlp-metrics, cloudwatch-logs, cloudtrail, or firehose.',
-          ),
-        columns: z
-          .array(z.string().min(1))
-          .optional()
-          .describe(
-            'For transform=firehose only: TSV column names matching each Firehose record line.',
-          ),
       },
     },
-    async ({
-      organization,
-      cluster,
-      database,
-      table,
-      data,
-      transform,
-      columns,
-    }) => {
+    async ({ organization, cluster, database, table, data }) => {
       const inserted = await rawtree.insertJson(
         {
           table,
           data: asJsonRows(data),
-          transform,
-          columns,
         },
         requestScope({ organization, cluster, database }),
       );
@@ -155,7 +106,7 @@ export function addDataTools(
       title: 'Insert From URL',
       description: `**Purpose:** Ask RawTree to ingest JSON/JSONL data from a public URL into a table. RawTree streams progress as NDJSON.
 
-**NOT for:** Private files on your machine, authenticated URLs, or built-in transforms. Host transformed data first or use insert-json with transform.
+**NOT for:** Private files on your machine or authenticated URLs. Normalize or transform data before making it available at the public URL.
 
 **Returns:** The RawTree NDJSON progress stream as text.
 

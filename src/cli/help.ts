@@ -24,7 +24,6 @@ Environment:
 
 Notes:
   - Data tools work with database API keys.
-  - get_database reads database identity from the keys endpoint, with a tables fallback.
 `.trim();
 
 export function printHelp(): void {

@@ -21,6 +21,15 @@ export function clusterScopeInput(options: ToolScopeOptions) {
   };
 }
 
+export function organizationScopeInput(options: ToolScopeOptions) {
+  return {
+    organization: scopeName(
+      options,
+      'RawTree organization containing the target database.',
+    ),
+  };
+}
+
 export function databaseScopeInput(options: ToolScopeOptions) {
   return {
     ...clusterScopeInput(options),

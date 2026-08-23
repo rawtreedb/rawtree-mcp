@@ -43,8 +43,11 @@ describe('createMcpServer', () => {
         'delete-table',
         'delete-api-key',
         'list-databases',
+        'delete-database',
       ]),
     );
+    expect(tools.map((tool) => tool.name)).not.toContain('check-health');
+    expect(tools.map((tool) => tool.name)).not.toContain('get_database');
 
     const getCluster = tools.find(
       (candidate) => candidate.name === 'get-cluster',
@@ -64,11 +67,24 @@ describe('createMcpServer', () => {
       'resume-cluster',
       'delete-table',
       'delete-api-key',
+      'delete-database',
     ]) {
       const tool = tools.find((candidate) => candidate.name === name);
       expect(tool).toBeDefined();
       expect(tool?.inputSchema.properties).not.toHaveProperty('confirm');
     }
+
+    const insertJson = tools.find((tool) => tool.name === 'insert-json');
+    expect(insertJson?.inputSchema.properties).not.toHaveProperty('transform');
+    expect(insertJson?.inputSchema.properties).not.toHaveProperty('columns');
+
+    const deleteDatabase = tools.find(
+      (tool) => tool.name === 'delete-database',
+    );
+    expect(deleteDatabase?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+    });
 
     for (const name of ['pause-cluster', 'resume-cluster']) {
       const tool = tools.find((candidate) => candidate.name === name);
@@ -95,6 +111,9 @@ describe('createMcpServer', () => {
     const runQuery = tools.find((tool) => tool.name === 'run-query');
     const listClusters = tools.find((tool) => tool.name === 'list-clusters');
     const listDatabases = tools.find((tool) => tool.name === 'list-databases');
+    const deleteDatabase = tools.find(
+      (tool) => tool.name === 'delete-database',
+    );
 
     expect(runQuery?.inputSchema.required).toEqual([
       'organization',
@@ -105,6 +124,10 @@ describe('createMcpServer', () => {
     expect(listDatabases?.inputSchema.required).toEqual([
       'organization',
       'cluster',
+    ]);
+    expect(deleteDatabase?.inputSchema.required).toEqual([
+      'organization',
+      'database',
     ]);
   });
 });

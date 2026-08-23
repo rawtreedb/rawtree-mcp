@@ -5,20 +5,18 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 ## Features
 
 - **Queries** — Run read-only SQL against a RawTree database and receive JSON rows, metadata, statistics, and hints.
-- **Ingest** — Insert a single JSON object, arrays of JSON objects, or public URL data. Supports RawTree built-in transforms for OTLP traces/logs/metrics, CloudWatch Logs, CloudTrail, and Firehose.
+- **Ingest** — Insert a single JSON object, arrays of JSON objects, or public URL data.
 - **Tables** — List tables, describe table columns and sizes, and delete tables after explicit confirmation.
 - **Logs** — Inspect RawTree query and insert history with structured filters for type, status, origin, table, hints, time window, and pagination.
 - **API Keys** — List, create, and revoke RawTree API keys for a database. Creation responses include the one-time API key value.
 - **Organizations** — List organizations available to an OAuth-authenticated user.
-- **Databases** — List databases in a cluster and verify access to a selected database.
+- **Databases** — List databases in a cluster and delete a named database.
 - **Clusters** — List, inspect, pause, resume, and provision dedicated clusters after explicit confirmation where required. RawTree enforces user and organization-admin authorization.
 - **Transports** — Supports stdio for local MCP clients and dual-era Streamable HTTP for remote or multi-client deployments, including stateless MCP 2026-07-28 requests and legacy initialize-handshake clients.
 
 ## Setup
 
 Create a RawTree API key from the RawTree CLI, dashboard, or API. A database API key starts with `rt_` and is enough for data tools such as `run-query`, `insert-json`, `list-tables`, and `list-logs`.
-
-The `get_database` tool uses the current API key to read database identity from RawTree's keys endpoint, with a tables endpoint fallback for non-admin read-capable database API keys.
 
 ## Usage
 
@@ -134,9 +132,8 @@ Environment variables:
 
 ### Data
 
-- `check-health` — Check that the RawTree API endpoint is reachable.
 - `run-query` — Run read-only SQL and return RawTree's JSON query response. Accepts organization, cluster, and database overrides.
-- `insert-json` — Insert JSON object(s) into a table, optionally with a RawTree transform.
+- `insert-json` — Insert JSON object(s) into a table.
 - `insert-from-url` — Ingest data from a public URL and return RawTree's NDJSON progress stream.
 
 ### Tables
@@ -171,7 +168,7 @@ Structured log filters include:
 ### Databases
 
 - `list-databases` — List databases in an organization and cluster.
-- `get_database` — Verify a selected database and return `{ "name": "...", "organization": { "name": "..." } }`.
+- `delete-database` — Delete a database and all its data after explicit confirmation.
 
 ### Organizations
 
@@ -222,37 +219,6 @@ const server = createMcpServer(client, { requireExplicitScope: true });
       "source": "mcp"
     }
   ]
-}
-```
-
-### Insert OTLP Traces
-
-```json
-{
-  "table": "traces",
-  "transform": "otlp-traces",
-  "data": {
-    "resource": {
-      "attributes": [
-        {
-          "key": "service.name",
-          "value": {
-            "stringValue": "api"
-          }
-        }
-      ]
-    },
-    "scopeSpans": [
-      {
-        "spans": [
-          {
-            "name": "GET /health",
-            "spanId": "abc"
-          }
-        ]
-      }
-    ]
-  }
 }
 ```
 
