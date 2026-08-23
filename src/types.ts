@@ -35,11 +35,3 @@ export type PermissionLevel =
   | 'read_write'
   | 'write_only'
   | 'read_only';
-
-export type BuiltinTransform =
-  | 'otlp-traces'
-  | 'otlp-logs'
-  | 'otlp-metrics'
-  | 'cloudwatch-logs'
-  | 'cloudtrail'
-  | 'firehose';

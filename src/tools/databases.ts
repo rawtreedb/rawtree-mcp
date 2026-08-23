@@ -1,9 +1,11 @@
 import type { McpServer } from '@modelcontextprotocol/server';
+import { z } from 'zod';
 import type { RawTreeClient } from '../client.js';
 import {
   clusterScopeInput,
-  databaseScopeInput,
   jsonResult,
+  namedJsonResult,
+  organizationScopeInput,
   requestScope,
   type ToolScopeOptions,
 } from './common.js';
@@ -33,27 +35,29 @@ export function addDatabaseTools(
   );
 
   server.registerTool(
-    'get_database',
+    'delete-database',
     {
-      title: 'Get Database',
-      description: `**Purpose:** Verify and return a RawTree database identity using the current credential. RawTree uses the default database when database is omitted.
+      title: 'Delete Database',
+      description: `**Purpose:** Permanently delete a RawTree database and all data it contains.
 
-**NOT for:** Listing tables inside a database. Use list-tables for database data.
+**Returns:** RawTree's deletion result, usually { "deleted": true }.
 
-**Returns:** A compact database shape: { "name": "...", "organization": { "name": "..." } }.
+**Safety:** You MUST list databases first and ask the user to confirm the exact organization and database name before calling this tool. This action cannot be undone.
 
-**Auth:** Uses GET /v1/keys and parses the database and organization from that response. If the current database API key cannot list keys, it falls back to GET /v1/tables, which exposes the same database identity for read-capable keys.
-
-**When to use:**
-- You want to verify that the current credential can access a specific database
-- You need the normalized database and organization identity returned by RawTree`,
-      inputSchema: databaseScopeInput(scopeOptions),
+**Auth:** Authorization is enforced by the RawTree API.`,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+      },
+      inputSchema: {
+        ...organizationScopeInput(scopeOptions),
+        database: z.string().min(1).describe('Database name to delete.'),
+      },
     },
-    async ({ organization, cluster, database }) =>
-      jsonResult(
-        await rawtree.getDatabase(
-          requestScope({ organization, cluster, database }),
-        ),
+    async ({ organization, database }) =>
+      namedJsonResult(
+        'Delete database result',
+        await rawtree.deleteDatabase(database, { organization }),
       ),
   );
 }

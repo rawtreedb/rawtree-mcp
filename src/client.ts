@@ -113,39 +113,6 @@ function encodePathPart(part: string): string {
   return encodeURIComponent(part);
 }
 
-function objectRecord(value: unknown): Record<string, unknown> | null {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-  return null;
-}
-
-function namedRef(value: unknown): { name: string } | null {
-  const record = objectRecord(value);
-  if (!record || typeof record.name !== 'string' || !record.name) return null;
-  return { name: record.name };
-}
-
-function databaseIdentityFromResponse(response: unknown): {
-  name: string;
-  organization: { name: string };
-} {
-  const record = objectRecord(response);
-  const database = namedRef(record?.database) ?? namedRef(record?.project);
-  const organization = namedRef(record?.organization);
-
-  if (!database || !organization) {
-    throw new Error(
-      'RawTree response did not include database and organization names.',
-    );
-  }
-
-  return {
-    name: database.name,
-    organization,
-  };
-}
-
 export class RawTreeClient {
   private readonly apiUrl: string;
   private readonly cluster?: string;
@@ -167,10 +134,6 @@ export class RawTreeClient {
 
   apiPath(path: `/${string}`): string {
     return `/v1${path}`;
-  }
-
-  async health(): Promise<unknown> {
-    return this.requestJson('GET', '/health');
   }
 
   async listOrganizations(): Promise<unknown> {
@@ -208,30 +171,16 @@ export class RawTreeClient {
     {
       table,
       data,
-      transform,
-      columns,
     }: {
       table: string;
       data: JsonValue;
-      transform?: string;
-      columns?: readonly string[];
     },
     scope: RawTreeScope = {},
   ): Promise<unknown> {
     return this.requestJson(
       'POST',
       `${this.apiPath('/tables')}/${encodePathPart(table)}`,
-      this.scoped(
-        {
-          body: data,
-          query: {
-            transform,
-            columns:
-              columns && columns.length > 0 ? columns.join(',') : undefined,
-          },
-        },
-        scope,
-      ),
+      this.scoped({ body: data }, scope),
     );
   }
 
@@ -366,30 +315,18 @@ export class RawTreeClient {
     });
   }
 
-  async getDatabase(scope: RawTreeScope = {}): Promise<{
-    name: string;
-    organization: { name: string };
-  }> {
-    try {
-      return databaseIdentityFromResponse(
-        await this.requestJson(
-          'GET',
-          this.apiPath('/keys'),
-          this.scoped({}, scope),
-        ),
-      );
-    } catch (error) {
-      if (!(error instanceof RawTreeApiError) || error.status !== 403) {
-        throw error;
-      }
-    }
-
-    return databaseIdentityFromResponse(
-      await this.requestJson(
-        'GET',
-        this.apiPath('/tables'),
-        this.scoped({}, scope),
-      ),
+  async deleteDatabase(
+    database: string,
+    scope: Pick<RawTreeScope, 'organization'> = {},
+  ): Promise<unknown> {
+    return this.requestJson(
+      'DELETE',
+      `${this.apiPath('/databases')}/${encodePathPart(database)}`,
+      {
+        query: {
+          organization: scope.organization ?? this.organization,
+        },
+      },
     );
   }
 
