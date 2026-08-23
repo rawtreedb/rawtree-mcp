@@ -6,7 +6,6 @@ import {
   jsonResult,
   namedJsonResult,
   requestScope,
-  requireConfirmation,
   type ToolScopeOptions,
 } from './common.js';
 
@@ -78,21 +77,16 @@ export function addTableTools(
 **Returns:** Deletion confirmation.
 
 **Safety:** You MUST ask the user to confirm the exact table name before calling this tool. This action requires an admin key and cannot be undone.`,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+      },
       inputSchema: {
         ...databaseScopeInput(scopeOptions),
         table: z.string().min(1).describe('Table name to delete.'),
-        confirm: z
-          .boolean()
-          .describe(
-            'Set to true only after the user explicitly confirms deletion of this exact table.',
-          ),
       },
     },
-    async ({ organization, cluster, database, table, confirm }) => {
-      requireConfirmation(
-        confirm,
-        'Refusing to delete table without explicit confirmation.',
-      );
+    async ({ organization, cluster, database, table }) => {
       return namedJsonResult(
         'Delete table result',
         await rawtree.deleteTable(

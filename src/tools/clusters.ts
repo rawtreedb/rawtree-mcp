@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { RawTreeClient } from '../client.js';
-import { jsonResult, namedJsonResult, requireConfirmation } from './common.js';
+import { jsonResult, namedJsonResult } from './common.js';
 
 const positiveUint32 = z.number().int().min(1).max(4_294_967_295);
 
@@ -56,18 +56,9 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
         replicas: positiveUint32.describe('Number of cluster replicas.'),
         cpuCores: positiveUint32.describe('CPU cores per replica.'),
         memoryGiB: positiveUint32.describe('Memory in GiB per replica.'),
-        confirm: z
-          .boolean()
-          .describe(
-            'Set to true only after the user confirms the exact cluster configuration and understands that it provisions billable infrastructure.',
-          ),
       },
     },
-    async ({ organization, name, replicas, cpuCores, memoryGiB, confirm }) => {
-      requireConfirmation(
-        confirm,
-        'Refusing to create cluster without explicit confirmation.',
-      );
+    async ({ organization, name, replicas, cpuCores, memoryGiB }) => {
       return namedJsonResult(
         'Create cluster result',
         await rawtree.createCluster({
@@ -138,18 +129,9 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
           .string()
           .min(1)
           .describe('Dedicated cluster ID returned by list-clusters.'),
-        confirm: z
-          .boolean()
-          .describe(
-            'Set to true only after the user confirms the exact organization and cluster ID and understands that the cluster will become unavailable.',
-          ),
       },
     },
-    async ({ organization, clusterId, confirm }) => {
-      requireConfirmation(
-        confirm,
-        'Refusing to pause cluster without explicit confirmation.',
-      );
+    async ({ organization, clusterId }) => {
       return namedJsonResult(
         'Pause cluster result',
         await rawtree.pauseCluster({ organization, clusterId }),
@@ -181,18 +163,9 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
           .string()
           .min(1)
           .describe('Dedicated cluster ID returned by list-clusters.'),
-        confirm: z
-          .boolean()
-          .describe(
-            'Set to true only after the user confirms the exact organization and cluster ID and acknowledges that resuming can generate usage charges.',
-          ),
       },
     },
-    async ({ organization, clusterId, confirm }) => {
-      requireConfirmation(
-        confirm,
-        'Refusing to resume cluster without explicit confirmation.',
-      );
+    async ({ organization, clusterId }) => {
       return namedJsonResult(
         'Resume cluster result',
         await rawtree.resumeCluster({ organization, clusterId }),

@@ -98,10 +98,3 @@ export function asJsonRows(value: unknown): JsonObject | JsonObject[] {
     'data must be a JSON object or a non-empty array of JSON objects.',
   );
 }
-
-export function requireConfirmation(
-  confirmed: boolean | undefined,
-  message: string,
-): void {
-  if (confirmed !== true) throw new Error(message);
-}
