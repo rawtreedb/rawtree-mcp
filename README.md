@@ -9,7 +9,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 - **Tables** — List tables, describe table columns and sizes, and delete tables after explicit confirmation.
 - **Logs** — Inspect RawTree query and insert history with structured filters for type, status, origin, table, hints, time window, and pagination.
 - **API Keys** — List, create, and revoke RawTree API keys for a database. Creation responses include the one-time API key value.
-- **Organizations** — List organizations available to an OAuth-authenticated user.
+- **Organizations** — List organizations and manage their members and roles with an OAuth-authenticated user.
 - **Databases** — List databases in a cluster and delete a named database.
 - **Clusters** — List, inspect, pause, resume, and provision dedicated clusters after explicit confirmation where required. RawTree enforces user and organization-admin authorization.
 - **Transports** — Supports stdio for local MCP clients and dual-era Streamable HTTP for remote or multi-client deployments, including stateless MCP 2026-07-28 requests and legacy initialize-handshake clients.
@@ -173,6 +173,10 @@ Structured log filters include:
 ### Organizations
 
 - `list-organizations` — List organizations available to the authenticated user. Requires a user credential such as OAuth.
+- `list-organization-members` — List accepted members of an organization with their user IDs and roles.
+- `add-organization-member` — Send an organization member invitation after confirming the organization and email address. Membership starts after acceptance.
+- `update-organization-member` — Change an accepted member's role to `admin` or `member` after explicit confirmation.
+- `remove-organization-member` — Remove an accepted member and revoke organization access after explicit confirmation.
 
 ### Clusters
 

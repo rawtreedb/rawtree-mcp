@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add organization-scoped tools to list, invite, update, and remove members.
 - Remove the unnecessary `check-health` and `get_database` tools.
 - Simplify `insert-json` to accept only raw JSON objects and arrays.
 - Add confirmation-instruction-based `delete-database` for removing a database and its data.
