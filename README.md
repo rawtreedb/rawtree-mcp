@@ -12,6 +12,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 - **Organizations** — List organizations and manage their members and roles with an OAuth-authenticated user.
 - **Databases** — List databases in a cluster and delete a named database.
 - **Clusters** — List, inspect, pause, resume, and provision dedicated clusters after explicit confirmation where required. RawTree enforces user and organization-admin authorization.
+- **Apps** — List the app catalog for a cluster, inspect installation state, and install or uninstall apps after explicit confirmation.
 - **Transports** — Supports stdio for local MCP clients and dual-era Streamable HTTP for remote or multi-client deployments, including stateless MCP 2026-07-28 requests and legacy initialize-handshake clients.
 
 ## Setup
@@ -187,6 +188,14 @@ Structured log filters include:
 - `resume-cluster` — Resume a paused dedicated cluster after explicit confirmation. Resuming can generate usage charges.
 
 Cluster tools are advertised to every MCP client. The RawTree API remains the authorization boundary: cluster access requires a user access token, and cluster creation, pausing, and resuming additionally require organization-admin access.
+
+### Apps
+
+- `list-apps` — List the available apps and installation state for one cluster.
+- `install-app` — Install an app on a cluster after confirming the organization, cluster ID, and app ID.
+- `uninstall-app` — Uninstall an app and disable its native endpoints after confirming the organization, cluster ID, and app ID. Existing cluster data is not deleted.
+
+App tools require a user credential. Organization members can list apps; installing and uninstalling require organization-admin access. Use the app IDs returned by `list-apps`.
 
 Programmatic hosted deployments can require explicit resource selection on
 every applicable tool. Organization and cluster identify the resource boundary;

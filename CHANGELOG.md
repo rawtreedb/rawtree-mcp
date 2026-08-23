@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add cluster-scoped tools to list, install, and uninstall apps.
 - Add organization-scoped tools to list, invite, update, and remove members.
 - Remove the unnecessary `check-health` and `get_database` tools.
 - Simplify `insert-json` to accept only raw JSON objects and arrays.

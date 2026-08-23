@@ -3,6 +3,7 @@ import packageJson from '../package.json' with { type: 'json' };
 import type { RawTreeClient } from './client.js';
 import {
   addApiKeyTools,
+  addAppTools,
   addClusterTools,
   addDatabaseTools,
   addDataTools,
@@ -34,6 +35,7 @@ export function createMcpServer(
   addApiKeyTools(server, rawtree, options);
   addDatabaseTools(server, rawtree, options);
   addClusterTools(server, rawtree);
+  addAppTools(server, rawtree);
 
   return server;
 }

@@ -1,4 +1,5 @@
 export * from './api-keys.js';
+export * from './apps.js';
 export * from './clusters.js';
 export * from './data.js';
 export * from './databases.js';

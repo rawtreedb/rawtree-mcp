@@ -354,6 +354,52 @@ export class RawTreeClient {
     );
   }
 
+  async listApps({
+    organization,
+    clusterId,
+  }: {
+    organization: string;
+    clusterId: string;
+  }): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}/apps`,
+      { query: { organization } },
+    );
+  }
+
+  async installApp({
+    organization,
+    clusterId,
+    appId,
+  }: {
+    organization: string;
+    clusterId: string;
+    appId: string;
+  }): Promise<unknown> {
+    return this.requestJson(
+      'PUT',
+      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}/apps/${encodePathPart(appId)}`,
+      { query: { organization } },
+    );
+  }
+
+  async uninstallApp({
+    organization,
+    clusterId,
+    appId,
+  }: {
+    organization: string;
+    clusterId: string;
+    appId: string;
+  }): Promise<unknown> {
+    return this.requestJson(
+      'DELETE',
+      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}/apps/${encodePathPart(appId)}`,
+      { query: { organization } },
+    );
+  }
+
   async listDatabases(
     scope: Omit<RawTreeScope, 'database'> = {},
   ): Promise<unknown> {
