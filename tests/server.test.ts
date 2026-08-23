@@ -37,9 +37,47 @@ describe('createMcpServer', () => {
         'list-organizations',
         'list-clusters',
         'create-cluster',
+        'get-cluster',
+        'pause-cluster',
+        'resume-cluster',
+        'delete-table',
+        'delete-api-key',
         'list-databases',
       ]),
     );
+
+    const getCluster = tools.find(
+      (candidate) => candidate.name === 'get-cluster',
+    );
+    expect(getCluster?.inputSchema.required).toEqual([
+      'organization',
+      'clusterId',
+    ]);
+    expect(getCluster?.annotations).toMatchObject({
+      readOnlyHint: true,
+      destructiveHint: false,
+    });
+
+    for (const name of [
+      'create-cluster',
+      'pause-cluster',
+      'resume-cluster',
+      'delete-table',
+      'delete-api-key',
+    ]) {
+      const tool = tools.find((candidate) => candidate.name === name);
+      expect(tool).toBeDefined();
+      expect(tool?.inputSchema.properties).not.toHaveProperty('confirm');
+    }
+
+    for (const name of ['pause-cluster', 'resume-cluster']) {
+      const tool = tools.find((candidate) => candidate.name === name);
+      expect(tool?.inputSchema.required).toEqual(['organization', 'clusterId']);
+      expect(tool?.annotations).toMatchObject({
+        readOnlyHint: false,
+        destructiveHint: true,
+      });
+    }
   });
 
   it('requires resource scope in explicitly scoped deployments', async () => {

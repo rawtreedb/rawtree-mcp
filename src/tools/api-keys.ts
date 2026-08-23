@@ -6,7 +6,6 @@ import {
   jsonResult,
   namedJsonResult,
   requestScope,
-  requireConfirmation,
   type ToolScopeOptions,
   textResult,
 } from './common.js';
@@ -108,24 +107,19 @@ export function addApiKeyTools(
 **Returns:** Deletion confirmation.
 
 **Safety:** You MUST list or identify the key first, ask the user to confirm the exact key name or ID, and warn that services using it will lose access. This action cannot be undone.`,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+      },
       inputSchema: {
         ...clusterScopeInput(scopeOptions),
         idOrApiKey: z
           .string()
           .min(1)
           .describe('API key UUID or full rt_ API key value to delete.'),
-        confirm: z
-          .boolean()
-          .describe(
-            'Set to true only after the user explicitly confirms revocation of this exact API key.',
-          ),
       },
     },
-    async ({ organization, cluster, idOrApiKey, confirm }) => {
-      requireConfirmation(
-        confirm,
-        'Refusing to delete API key without explicit confirmation.',
-      );
+    async ({ organization, cluster, idOrApiKey }) => {
       return namedJsonResult(
         'Delete API key result',
         await rawtree.deleteApiKey(

@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Add `list-clusters` and confirmation-gated `create-cluster` tools.
+- Add `list-clusters` and `create-cluster` tools with explicit client confirmation instructions.
+- Add `pause-cluster` and `resume-cluster` tools with explicit client confirmation instructions.
+- Add read-only `get-cluster` tool for checking one cluster's lifecycle status.
 - Bind the default fetch implementation to the runtime global so API calls work in Cloudflare Workers.
 - Add MCP 2026-07-28 stateless protocol support while preserving legacy initialize-handshake clients over stdio and HTTP.
 - Rename MCP project terminology to database terminology and expose `get_database`.

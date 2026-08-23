@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { RawTreeClient } from '../client.js';
-import { jsonResult, namedJsonResult, requireConfirmation } from './common.js';
+import { jsonResult, namedJsonResult } from './common.js';
 
 const positiveUint32 = z.number().int().min(1).max(4_294_967_295);
 
@@ -56,18 +56,9 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
         replicas: positiveUint32.describe('Number of cluster replicas.'),
         cpuCores: positiveUint32.describe('CPU cores per replica.'),
         memoryGiB: positiveUint32.describe('Memory in GiB per replica.'),
-        confirm: z
-          .boolean()
-          .describe(
-            'Set to true only after the user confirms the exact cluster configuration and understands that it provisions billable infrastructure.',
-          ),
       },
     },
-    async ({ organization, name, replicas, cpuCores, memoryGiB, confirm }) => {
-      requireConfirmation(
-        confirm,
-        'Refusing to create cluster without explicit confirmation.',
-      );
+    async ({ organization, name, replicas, cpuCores, memoryGiB }) => {
       return namedJsonResult(
         'Create cluster result',
         await rawtree.createCluster({
@@ -77,6 +68,107 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
           cpuCores,
           memoryGiB,
         }),
+      );
+    },
+  );
+
+  server.registerTool(
+    'get-cluster',
+    {
+      title: 'Get Cluster',
+      description: `**Purpose:** Get one RawTree dedicated cluster and its current lifecycle status.
+
+**Returns:** The cluster ID, name, creation time, lifecycle status, resources, and whether it can be paused or resumed.
+
+**Auth:** The RawTree API requires a user access token and organization membership. Authorization is enforced by the API.
+
+**When to use:**
+- User asks for the current status of one cluster
+- You need to check progress after pausing or resuming a cluster
+- You already have a cluster ID and do not need the full organization cluster list`,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
+      inputSchema: {
+        organization: z
+          .string()
+          .min(1)
+          .describe('Organization containing the cluster.'),
+        clusterId: z
+          .string()
+          .min(1)
+          .describe('Dedicated cluster ID returned by list-clusters.'),
+      },
+    },
+    async ({ organization, clusterId }) =>
+      jsonResult(await rawtree.getCluster({ organization, clusterId })),
+  );
+
+  server.registerTool(
+    'pause-cluster',
+    {
+      title: 'Pause Cluster',
+      description: `**Purpose:** Request that a RawTree dedicated cluster pause.
+
+**Returns:** The updated cluster, including its lifecycle status. Pausing continues asynchronously after the request is accepted. Use get-cluster to check one cluster's progress.
+
+**Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
+
+**Safety:** Pausing makes the cluster's databases unavailable until it is resumed. You MUST confirm the exact organization and cluster ID before calling this tool.`,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+      },
+      inputSchema: {
+        organization: z
+          .string()
+          .min(1)
+          .describe('Organization containing the cluster to pause.'),
+        clusterId: z
+          .string()
+          .min(1)
+          .describe('Dedicated cluster ID returned by list-clusters.'),
+      },
+    },
+    async ({ organization, clusterId }) => {
+      return namedJsonResult(
+        'Pause cluster result',
+        await rawtree.pauseCluster({ organization, clusterId }),
+      );
+    },
+  );
+
+  server.registerTool(
+    'resume-cluster',
+    {
+      title: 'Resume Cluster',
+      description: `**Purpose:** Request that a paused RawTree dedicated cluster resume.
+
+**Returns:** The updated cluster, including its lifecycle status. Resuming continues asynchronously after the request is accepted. Use get-cluster to check one cluster's progress.
+
+**Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
+
+**Safety:** Resuming a cluster can generate usage charges. You MUST confirm the exact organization and cluster ID and acknowledge the possible charges before calling this tool.`,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+      },
+      inputSchema: {
+        organization: z
+          .string()
+          .min(1)
+          .describe('Organization containing the cluster to resume.'),
+        clusterId: z
+          .string()
+          .min(1)
+          .describe('Dedicated cluster ID returned by list-clusters.'),
+      },
+    },
+    async ({ organization, clusterId }) => {
+      return namedJsonResult(
+        'Resume cluster result',
+        await rawtree.resumeCluster({ organization, clusterId }),
       );
     },
   );
