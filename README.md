@@ -11,7 +11,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 - **API Keys** — List, create, and revoke RawTree API keys for a database. Creation responses include the one-time API key value.
 - **Organizations** — List organizations available to an OAuth-authenticated user.
 - **Databases** — List databases in a cluster and verify access to a selected database.
-- **Clusters** — List, pause, resume, and provision dedicated clusters after explicit confirmation. RawTree enforces user and organization-admin authorization.
+- **Clusters** — List, inspect, pause, resume, and provision dedicated clusters after explicit confirmation where required. RawTree enforces user and organization-admin authorization.
 - **Transports** — Supports stdio for local MCP clients and dual-era Streamable HTTP for remote or multi-client deployments, including stateless MCP 2026-07-28 requests and legacy initialize-handshake clients.
 
 ## Setup
@@ -181,6 +181,7 @@ Structured log filters include:
 
 - `list-clusters` — List dedicated clusters accessible in an organization.
 - `create-cluster` — Provision a dedicated cluster after explicit confirmation of its organization and billable resource configuration.
+- `get-cluster` — Get one dedicated cluster and its current lifecycle status by ID.
 - `pause-cluster` — Pause a dedicated cluster after explicit confirmation. Its databases become unavailable until the cluster is resumed.
 - `resume-cluster` — Resume a paused dedicated cluster after explicit confirmation. Resuming can generate usage charges.
 

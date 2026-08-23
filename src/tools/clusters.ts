@@ -82,12 +82,45 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
   );
 
   server.registerTool(
+    'get-cluster',
+    {
+      title: 'Get Cluster',
+      description: `**Purpose:** Get one RawTree dedicated cluster and its current lifecycle status.
+
+**Returns:** The cluster ID, name, creation time, lifecycle status, resources, and whether it can be paused or resumed.
+
+**Auth:** The RawTree API requires a user access token and organization membership. Authorization is enforced by the API.
+
+**When to use:**
+- User asks for the current status of one cluster
+- You need to check progress after pausing or resuming a cluster
+- You already have a cluster ID and do not need the full organization cluster list`,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
+      inputSchema: {
+        organization: z
+          .string()
+          .min(1)
+          .describe('Organization containing the cluster.'),
+        clusterId: z
+          .string()
+          .min(1)
+          .describe('Dedicated cluster ID returned by list-clusters.'),
+      },
+    },
+    async ({ organization, clusterId }) =>
+      jsonResult(await rawtree.getCluster({ organization, clusterId })),
+  );
+
+  server.registerTool(
     'pause-cluster',
     {
       title: 'Pause Cluster',
       description: `**Purpose:** Request that a RawTree dedicated cluster pause.
 
-**Returns:** The updated cluster, including its lifecycle status. Pausing continues asynchronously after the request is accepted.
+**Returns:** The updated cluster, including its lifecycle status. Pausing continues asynchronously after the request is accepted. Use get-cluster to check one cluster's progress.
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 
@@ -130,7 +163,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
       title: 'Resume Cluster',
       description: `**Purpose:** Request that a paused RawTree dedicated cluster resume.
 
-**Returns:** The updated cluster, including its lifecycle status. Resuming continues asynchronously after the request is accepted.
+**Returns:** The updated cluster, including its lifecycle status. Resuming continues asynchronously after the request is accepted. Use get-cluster to check one cluster's progress.
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 

@@ -362,6 +362,30 @@ describe('RawTreeClient', () => {
     );
   });
 
+  it('gets one cluster by ID in an organization', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(
+        jsonResponse({ id: 'cluster/id', name: 'production' }),
+        calls,
+      ),
+    });
+
+    await expect(
+      client.getCluster({
+        organization: 'acme team',
+        clusterId: 'cluster/id',
+      }),
+    ).resolves.toEqual({ id: 'cluster/id', name: 'production' });
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/clusters/cluster%2Fid?organization=acme+team',
+    );
+    expect(calls[0].init.method).toBe('GET');
+    expect(calls[0].init.body).toBeUndefined();
+  });
+
   it('pauses a cluster by ID in an organization', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({

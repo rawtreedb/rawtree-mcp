@@ -313,6 +313,20 @@ export class RawTreeClient {
     });
   }
 
+  async getCluster({
+    organization,
+    clusterId,
+  }: {
+    organization: string;
+    clusterId: string;
+  }): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}`,
+      { query: { organization } },
+    );
+  }
+
   async pauseCluster({
     organization,
     clusterId,

@@ -37,11 +37,24 @@ describe('createMcpServer', () => {
         'list-organizations',
         'list-clusters',
         'create-cluster',
+        'get-cluster',
         'pause-cluster',
         'resume-cluster',
         'list-databases',
       ]),
     );
+
+    const getCluster = tools.find(
+      (candidate) => candidate.name === 'get-cluster',
+    );
+    expect(getCluster?.inputSchema.required).toEqual([
+      'organization',
+      'clusterId',
+    ]);
+    expect(getCluster?.annotations).toMatchObject({
+      readOnlyHint: true,
+      destructiveHint: false,
+    });
 
     for (const name of ['pause-cluster', 'resume-cluster']) {
       const tool = tools.find((candidate) => candidate.name === name);
