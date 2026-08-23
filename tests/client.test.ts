@@ -364,7 +364,30 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.method).toBe('GET');
   });
 
-  it('creates a cluster with organization and resource configuration', async () => {
+  it('lists current cluster creation sizes and replica limits', async () => {
+    const calls: RecordedCall[] = [];
+    const response = {
+      min_number_of_replicas: 1,
+      max_number_of_replicas: 2,
+      sizes: [{ size: 'large', cpu_cores: 2, memory_gib: 8 }],
+      default_min_size: { size: 'large', cpu_cores: 2, memory_gib: 8 },
+      default_max_size: { size: 'xlarge', cpu_cores: 4, memory_gib: 16 },
+    };
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      database: 'analytics',
+      organization: 'configured-org',
+      fetchFn: recordingFetch(jsonResponse(response), calls),
+    });
+
+    await expect(client.listClusterSizes()).resolves.toEqual(response);
+
+    expect(calls[0].url).toBe('https://api.rawtree.com/v1/clusters/sizes');
+    expect(calls[0].init.method).toBe('GET');
+    expect(calls[0].init.body).toBeUndefined();
+  });
+
+  it('creates a cluster with frontend-aligned autoscaling configuration', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({
       apiKey: 'jwt_test',
@@ -379,8 +402,8 @@ describe('RawTreeClient', () => {
         organization: 'acme',
         name: 'production',
         replicas: 2,
-        cpuCores: 4,
-        memoryGiB: 16,
+        minimumSize: { cpuCores: 4, memoryGiB: 16 },
+        maximumSize: { cpuCores: 8, memoryGiB: 32 },
       }),
     ).resolves.toEqual({ id: 'cluster-id', name: 'production' });
 
@@ -395,6 +418,16 @@ describe('RawTreeClient', () => {
         size: {
           cpu_cores: 4,
           memory_gib: 16,
+        },
+        autoscaling: {
+          min_size: {
+            cpu_cores: 4,
+            memory_gib: 16,
+          },
+          max_size: {
+            cpu_cores: 8,
+            memory_gib: 32,
+          },
         },
       }),
     );

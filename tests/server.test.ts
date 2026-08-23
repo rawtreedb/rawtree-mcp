@@ -40,6 +40,7 @@ describe('createMcpServer', () => {
         'update-organization-member',
         'remove-organization-member',
         'list-clusters',
+        'list-cluster-sizes',
         'create-cluster',
         'get-cluster',
         'pause-cluster',
@@ -66,6 +67,43 @@ describe('createMcpServer', () => {
     expect(getCluster?.annotations).toMatchObject({
       readOnlyHint: true,
       destructiveHint: false,
+    });
+
+    const listClusterSizes = tools.find(
+      (candidate) => candidate.name === 'list-cluster-sizes',
+    );
+    expect(listClusterSizes?.inputSchema.properties).toEqual({});
+    expect(listClusterSizes?.annotations).toMatchObject({
+      readOnlyHint: true,
+      destructiveHint: false,
+    });
+
+    const createCluster = tools.find(
+      (candidate) => candidate.name === 'create-cluster',
+    );
+    expect(createCluster?.inputSchema.required).toEqual([
+      'organization',
+      'name',
+      'replicas',
+      'minimumSize',
+      'maximumSize',
+    ]);
+    expect(createCluster?.inputSchema.properties).not.toHaveProperty(
+      'cpuCores',
+    );
+    expect(createCluster?.inputSchema.properties).not.toHaveProperty(
+      'memoryGiB',
+    );
+    for (const field of ['minimumSize', 'maximumSize']) {
+      expect(createCluster?.inputSchema.properties[field]).toMatchObject({
+        type: 'object',
+        required: ['cpuCores', 'memoryGiB'],
+      });
+    }
+    expect(createCluster?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
     });
 
     const listOrganizationMembers = tools.find(

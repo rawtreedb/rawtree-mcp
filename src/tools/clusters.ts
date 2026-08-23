@@ -5,6 +5,15 @@ import { jsonResult, namedJsonResult } from './common.js';
 
 const positiveUint32 = z.number().int().min(1).max(4_294_967_295);
 
+function clusterSizeInput(description: string) {
+  return z
+    .object({
+      cpuCores: positiveUint32.describe('CPU cores per replica.'),
+      memoryGiB: positiveUint32.describe('Memory in GiB per replica.'),
+    })
+    .describe(description);
+}
+
 export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
   server.registerTool(
     'list-clusters',
@@ -32,16 +41,45 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
   );
 
   server.registerTool(
+    'list-cluster-sizes',
+    {
+      title: 'List Cluster Sizes',
+      description: `**Purpose:** List the current RawTree cluster creation options.
+
+**Returns:** Supported per-replica sizes, minimum and maximum replica counts, and the default minimum and maximum vertical autoscaling sizes.
+
+**Auth:** Requires a user credential such as OAuth. Authorization is enforced by the RawTree API.
+
+**When to use:** You MUST call this tool before create-cluster so replicas and both sizes come from the current backend-controlled catalog.`,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
+      inputSchema: {},
+    },
+    async () => jsonResult(await rawtree.listClusterSizes()),
+  );
+
+  server.registerTool(
     'create-cluster',
     {
       title: 'Create Cluster',
       description: `**Purpose:** Provision a new RawTree dedicated cluster in an organization.
 
-**Returns:** The newly created cluster, including its ID, lifecycle status, and resources. Provisioning continues asynchronously after the request is accepted.
+**Returns:** The newly created cluster, including its ID, lifecycle status, and initial resources. Provisioning continues asynchronously after the request is accepted; use get-cluster to check progress.
+
+**Behavior:** The cluster starts at minimumSize and can vertically autoscale per replica up to maximumSize. The replica count remains fixed.
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 
-**Safety:** Creating a dedicated cluster provisions billable infrastructure. You MUST confirm the exact organization, name, replica count, CPU cores, and memory GiB with the user before calling this tool. The selected replica count and size must be supported by RawTree.`,
+**Safety:** You MUST first call list-cluster-sizes, then confirm the exact organization, name, replica count, minimum per-replica size, maximum per-replica size, and vertical autoscaling behavior with the user. For one replica, warn that the cluster has no redundancy.
+
+**Reliability:** This operation is not idempotent. If the response is ambiguous, call list-clusters to reconcile by organization and name before retrying.`,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+      },
       inputSchema: {
         organization: z
           .string()
@@ -54,19 +92,23 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
             "URL-friendly cluster name using letters, numbers, '_' or '-'.",
           ),
         replicas: positiveUint32.describe('Number of cluster replicas.'),
-        cpuCores: positiveUint32.describe('CPU cores per replica.'),
-        memoryGiB: positiveUint32.describe('Memory in GiB per replica.'),
+        minimumSize: clusterSizeInput(
+          'Initial and minimum vertical autoscaling size returned by list-cluster-sizes.',
+        ),
+        maximumSize: clusterSizeInput(
+          'Maximum vertical autoscaling size returned by list-cluster-sizes. Must be at or above minimumSize in the returned catalog.',
+        ),
       },
     },
-    async ({ organization, name, replicas, cpuCores, memoryGiB }) => {
+    async ({ organization, name, replicas, minimumSize, maximumSize }) => {
       return namedJsonResult(
         'Create cluster result',
         await rawtree.createCluster({
           organization,
           name,
           replicas,
-          cpuCores,
-          memoryGiB,
+          minimumSize,
+          maximumSize,
         }),
       );
     },
@@ -149,7 +191,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 
-**Safety:** Resuming a cluster can generate usage charges. You MUST confirm the exact organization and cluster ID and acknowledge the possible charges before calling this tool.`,
+**Safety:** You MUST confirm the exact organization and cluster ID before calling this tool.`,
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,

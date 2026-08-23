@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `list-cluster-sizes` and align `create-cluster` with the frontend's explicit minimum/maximum vertical autoscaling model.
 - Add cluster-scoped tools to list, install, and uninstall apps.
 - Add organization-scoped tools to list, invite, update, and remove members.
 - Remove the unnecessary `check-health` and `get_database` tools.

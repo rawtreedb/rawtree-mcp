@@ -11,7 +11,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 - **API Keys** — List, create, and revoke RawTree API keys for a database. Creation responses include the one-time API key value.
 - **Organizations** — List organizations and manage their members and roles with an OAuth-authenticated user.
 - **Databases** — List databases in a cluster and delete a named database.
-- **Clusters** — List, inspect, pause, resume, and provision dedicated clusters after explicit confirmation where required. RawTree enforces user and organization-admin authorization.
+- **Clusters** — List, inspect, pause, resume, discover current creation options, and provision vertically autoscaling dedicated clusters after explicit confirmation where required. RawTree enforces user and organization-admin authorization.
 - **Apps** — List the app catalog for a cluster, inspect installation state, and install or uninstall apps after explicit confirmation.
 - **Transports** — Supports stdio for local MCP clients and dual-era Streamable HTTP for remote or multi-client deployments, including stateless MCP 2026-07-28 requests and legacy initialize-handshake clients.
 
@@ -182,12 +182,13 @@ Structured log filters include:
 ### Clusters
 
 - `list-clusters` — List dedicated clusters accessible in an organization.
-- `create-cluster` — Provision a dedicated cluster after explicit confirmation of its organization and billable resource configuration.
+- `list-cluster-sizes` — List current replica limits, supported per-replica sizes, and default vertical autoscaling bounds.
+- `create-cluster` — Provision a dedicated cluster after confirming its organization, replica count, minimum size, maximum size, and autoscaling behavior.
 - `get-cluster` — Get one dedicated cluster and its current lifecycle status by ID.
 - `pause-cluster` — Pause a dedicated cluster after explicit confirmation. Its databases become unavailable until the cluster is resumed.
-- `resume-cluster` — Resume a paused dedicated cluster after explicit confirmation. Resuming can generate usage charges.
+- `resume-cluster` — Resume a paused dedicated cluster after explicit confirmation.
 
-Cluster tools are advertised to every MCP client. The RawTree API remains the authorization boundary: cluster access requires a user access token, and cluster creation, pausing, and resuming additionally require organization-admin access.
+Cluster tools are advertised to every MCP client. Call `list-cluster-sizes` before `create-cluster`; creation starts at the selected minimum per-replica size and can vertically autoscale to the selected maximum. The RawTree API remains the authorization boundary: cluster access requires a user access token, and cluster creation, pausing, and resuming additionally require organization-admin access.
 
 ### Apps
 

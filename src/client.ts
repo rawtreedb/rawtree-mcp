@@ -286,18 +286,22 @@ export class RawTreeClient {
     });
   }
 
+  async listClusterSizes(): Promise<unknown> {
+    return this.requestJson('GET', this.apiPath('/clusters/sizes'));
+  }
+
   async createCluster({
     organization,
     name,
     replicas,
-    cpuCores,
-    memoryGiB,
+    minimumSize,
+    maximumSize,
   }: {
     organization: string;
     name: string;
     replicas: number;
-    cpuCores: number;
-    memoryGiB: number;
+    minimumSize: { cpuCores: number; memoryGiB: number };
+    maximumSize: { cpuCores: number; memoryGiB: number };
   }): Promise<unknown> {
     return this.requestJson('POST', this.apiPath('/clusters'), {
       query: { organization },
@@ -305,8 +309,18 @@ export class RawTreeClient {
         name,
         replicas,
         size: {
-          cpu_cores: cpuCores,
-          memory_gib: memoryGiB,
+          cpu_cores: minimumSize.cpuCores,
+          memory_gib: minimumSize.memoryGiB,
+        },
+        autoscaling: {
+          min_size: {
+            cpu_cores: minimumSize.cpuCores,
+            memory_gib: minimumSize.memoryGiB,
+          },
+          max_size: {
+            cpu_cores: maximumSize.cpuCores,
+            memory_gib: maximumSize.memoryGiB,
+          },
         },
       },
     });
