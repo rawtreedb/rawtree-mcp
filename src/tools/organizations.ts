@@ -77,7 +77,10 @@ export function addOrganizationTools(
           .string()
           .min(1)
           .describe('Organization to which the person should be invited.'),
-        email: z.email().describe('Email address to invite.'),
+        email: z
+          .string()
+          .min(1)
+          .describe('Email address to invite. Validated by the RawTree API.'),
       },
     },
     async ({ organization, email }) =>

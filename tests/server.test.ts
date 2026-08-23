@@ -103,6 +103,17 @@ describe('createMcpServer', () => {
       });
     }
 
+    const addOrganizationMember = tools.find(
+      (tool) => tool.name === 'add-organization-member',
+    );
+    expect(addOrganizationMember?.inputSchema.properties.email).toMatchObject({
+      type: 'string',
+      minLength: 1,
+    });
+    expect(
+      addOrganizationMember?.inputSchema.properties.email,
+    ).not.toHaveProperty('pattern');
+
     for (const name of [
       'create-cluster',
       'pause-cluster',
