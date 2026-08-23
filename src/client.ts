@@ -356,47 +356,45 @@ export class RawTreeClient {
 
   async listApps({
     organization,
-    clusterId,
+    cluster,
   }: {
     organization: string;
-    clusterId: string;
+    cluster: string;
   }): Promise<unknown> {
-    return this.requestJson(
-      'GET',
-      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}/apps`,
-      { query: { organization } },
-    );
+    return this.requestJson('GET', this.apiPath('/apps'), {
+      query: { organization, cluster },
+    });
   }
 
   async installApp({
     organization,
-    clusterId,
+    cluster,
     appId,
   }: {
     organization: string;
-    clusterId: string;
+    cluster: string;
     appId: string;
   }): Promise<unknown> {
     return this.requestJson(
       'PUT',
-      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}/apps/${encodePathPart(appId)}`,
-      { query: { organization } },
+      `${this.apiPath('/apps')}/${encodePathPart(appId)}`,
+      { query: { organization, cluster } },
     );
   }
 
   async uninstallApp({
     organization,
-    clusterId,
+    cluster,
     appId,
   }: {
     organization: string;
-    clusterId: string;
+    cluster: string;
     appId: string;
   }): Promise<unknown> {
     return this.requestJson(
       'DELETE',
-      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}/apps/${encodePathPart(appId)}`,
-      { query: { organization } },
+      `${this.apiPath('/apps')}/${encodePathPart(appId)}`,
+      { query: { organization, cluster } },
     );
   }
 

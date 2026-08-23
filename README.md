@@ -192,8 +192,8 @@ Cluster tools are advertised to every MCP client. The RawTree API remains the au
 ### Apps
 
 - `list-apps` — List the available apps and installation state for one cluster.
-- `install-app` — Install an app on a cluster after confirming the organization, cluster ID, and app ID.
-- `uninstall-app` — Uninstall an app and disable its native endpoints after confirming the organization, cluster ID, and app ID. Existing cluster data is not deleted.
+- `install-app` — Install an app on a cluster after confirming the organization, cluster name, and app ID.
+- `uninstall-app` — Uninstall an app and disable its native endpoints after confirming the organization, cluster name, and app ID. Existing cluster data is not deleted.
 
 App tools require a user credential. Organization members can list apps; installing and uninstalling require organization-admin access. Use the app IDs returned by `list-apps`.
 

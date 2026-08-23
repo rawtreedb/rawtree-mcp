@@ -152,10 +152,7 @@ describe('createMcpServer', () => {
     }
 
     const listApps = tools.find((candidate) => candidate.name === 'list-apps');
-    expect(listApps?.inputSchema.required).toEqual([
-      'organization',
-      'clusterId',
-    ]);
+    expect(listApps?.inputSchema.required).toEqual(['organization', 'cluster']);
     expect(listApps?.annotations).toMatchObject({
       readOnlyHint: true,
       destructiveHint: false,
@@ -168,7 +165,7 @@ describe('createMcpServer', () => {
       const tool = tools.find((candidate) => candidate.name === expected.name);
       expect(tool?.inputSchema.required).toEqual([
         'organization',
-        'clusterId',
+        'cluster',
         'appId',
       ]);
       expect(tool?.inputSchema.properties.appId).not.toHaveProperty('enum');

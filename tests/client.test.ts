@@ -494,14 +494,14 @@ describe('RawTreeClient', () => {
     await expect(
       client.listApps({
         organization: 'acme team',
-        clusterId: 'cluster/id',
+        cluster: 'production cluster',
       }),
     ).resolves.toMatchObject({
       apps: [{ id: 'prometheus', installed: true }],
     });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters/cluster%2Fid/apps?organization=acme+team',
+      'https://api.rawtree.com/v1/apps?organization=acme+team&cluster=production+cluster',
     );
     expect(calls[0].init.method).toBe('GET');
     expect(calls[0].init.body).toBeUndefined();
@@ -524,13 +524,13 @@ describe('RawTreeClient', () => {
     await expect(
       client.installApp({
         organization: 'acme team',
-        clusterId: 'cluster/id',
+        cluster: 'production cluster',
         appId: 'opentelemetry/app',
       }),
     ).resolves.toMatchObject({ installed: true });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters/cluster%2Fid/apps/opentelemetry%2Fapp?organization=acme+team',
+      'https://api.rawtree.com/v1/apps/opentelemetry%2Fapp?organization=acme+team&cluster=production+cluster',
     );
     expect(calls[0].init.method).toBe('PUT');
     expect(calls[0].init.body).toBeUndefined();
@@ -553,13 +553,13 @@ describe('RawTreeClient', () => {
     await expect(
       client.uninstallApp({
         organization: 'acme team',
-        clusterId: 'cluster/id',
+        cluster: 'production cluster',
         appId: 'prometheus/app',
       }),
     ).resolves.toMatchObject({ installed: false });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters/cluster%2Fid/apps/prometheus%2Fapp?organization=acme+team',
+      'https://api.rawtree.com/v1/apps/prometheus%2Fapp?organization=acme+team&cluster=production+cluster',
     );
     expect(calls[0].init.method).toBe('DELETE');
     expect(calls[0].init.body).toBeUndefined();

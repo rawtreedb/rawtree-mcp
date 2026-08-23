@@ -8,10 +8,10 @@ const appScopeInput = {
     .string()
     .min(1)
     .describe('Organization containing the target cluster.'),
-  clusterId: z
+  cluster: z
     .string()
     .min(1)
-    .describe('Cluster ID returned by list-clusters.'),
+    .describe('Cluster name returned by list-clusters.'),
 };
 
 const appIdInput = z.string().min(1).describe('App ID returned by list-apps.');
@@ -37,8 +37,8 @@ export function addAppTools(server: McpServer, rawtree: RawTreeClient) {
       },
       inputSchema: appScopeInput,
     },
-    async ({ organization, clusterId }) =>
-      jsonResult(await rawtree.listApps({ organization, clusterId })),
+    async ({ organization, cluster }) =>
+      jsonResult(await rawtree.listApps({ organization, cluster })),
   );
 
   server.registerTool(
@@ -51,7 +51,7 @@ export function addAppTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Auth:** Requires a user credential with organization admin access. Authorization is enforced by the RawTree API.
 
-**Safety:** This changes the app functionality enabled for the cluster. You MUST confirm the exact organization, cluster ID, and app ID with the user before calling this tool.`,
+**Safety:** This changes the app functionality enabled for the cluster. You MUST confirm the exact organization, cluster name, and app ID with the user before calling this tool.`,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -62,10 +62,10 @@ export function addAppTools(server: McpServer, rawtree: RawTreeClient) {
         appId: appIdInput,
       },
     },
-    async ({ organization, clusterId, appId }) =>
+    async ({ organization, cluster, appId }) =>
       namedJsonResult(
         'Install app result',
-        await rawtree.installApp({ organization, clusterId, appId }),
+        await rawtree.installApp({ organization, cluster, appId }),
       ),
   );
 
@@ -81,7 +81,7 @@ export function addAppTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Auth:** Requires a user credential with organization admin access. Authorization is enforced by the RawTree API.
 
-**Safety:** This makes the app's native endpoints unavailable for the cluster. You MUST confirm the exact organization, cluster ID, and app ID with the user before calling this tool.`,
+**Safety:** This makes the app's native endpoints unavailable for the cluster. You MUST confirm the exact organization, cluster name, and app ID with the user before calling this tool.`,
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
@@ -92,10 +92,10 @@ export function addAppTools(server: McpServer, rawtree: RawTreeClient) {
         appId: appIdInput,
       },
     },
-    async ({ organization, clusterId, appId }) =>
+    async ({ organization, cluster, appId }) =>
       namedJsonResult(
         'Uninstall app result',
-        await rawtree.uninstallApp({ organization, clusterId, appId }),
+        await rawtree.uninstallApp({ organization, cluster, appId }),
       ),
   );
 }
