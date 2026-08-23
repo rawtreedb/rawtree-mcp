@@ -72,7 +72,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 
-**Safety:** Creating a dedicated cluster provisions billable infrastructure. You MUST first call list-cluster-sizes, then confirm the exact organization, name, replica count, minimum per-replica size, maximum per-replica size, vertical autoscaling behavior, and billing impact with the user. For one replica, warn that the cluster has no redundancy.
+**Safety:** You MUST first call list-cluster-sizes, then confirm the exact organization, name, replica count, minimum per-replica size, maximum per-replica size, and vertical autoscaling behavior with the user. For one replica, warn that the cluster has no redundancy.
 
 **Reliability:** This operation is not idempotent. If the response is ambiguous, call list-clusters to reconcile by organization and name before retrying.`,
       annotations: {
@@ -191,7 +191,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 
-**Safety:** Resuming a cluster can generate usage charges. You MUST confirm the exact organization and cluster ID and acknowledge the possible charges before calling this tool.`,
+**Safety:** You MUST confirm the exact organization and cluster ID before calling this tool.`,
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,

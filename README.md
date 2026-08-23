@@ -183,10 +183,10 @@ Structured log filters include:
 
 - `list-clusters` — List dedicated clusters accessible in an organization.
 - `list-cluster-sizes` — List current replica limits, supported per-replica sizes, and default vertical autoscaling bounds.
-- `create-cluster` — Provision a dedicated cluster after confirming its organization, replica count, minimum size, maximum size, autoscaling behavior, and billing impact.
+- `create-cluster` — Provision a dedicated cluster after confirming its organization, replica count, minimum size, maximum size, and autoscaling behavior.
 - `get-cluster` — Get one dedicated cluster and its current lifecycle status by ID.
 - `pause-cluster` — Pause a dedicated cluster after explicit confirmation. Its databases become unavailable until the cluster is resumed.
-- `resume-cluster` — Resume a paused dedicated cluster after explicit confirmation. Resuming can generate usage charges.
+- `resume-cluster` — Resume a paused dedicated cluster after explicit confirmation.
 
 Cluster tools are advertised to every MCP client. Call `list-cluster-sizes` before `create-cluster`; creation starts at the selected minimum per-replica size and can vertically autoscale to the selected maximum. The RawTree API remains the authorization boundary: cluster access requires a user access token, and cluster creation, pausing, and resuming additionally require organization-admin access.
 
