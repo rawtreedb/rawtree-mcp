@@ -35,6 +35,10 @@ describe('createMcpServer', () => {
     expect(tools.map((tool) => tool.name)).toEqual(
       expect.arrayContaining([
         'list-organizations',
+        'list-organization-members',
+        'add-organization-member',
+        'update-organization-member',
+        'remove-organization-member',
         'list-clusters',
         'create-cluster',
         'get-cluster',
@@ -60,6 +64,55 @@ describe('createMcpServer', () => {
       readOnlyHint: true,
       destructiveHint: false,
     });
+
+    const listOrganizationMembers = tools.find(
+      (tool) => tool.name === 'list-organization-members',
+    );
+    expect(listOrganizationMembers?.inputSchema.required).toEqual([
+      'organization',
+    ]);
+    expect(listOrganizationMembers?.annotations).toMatchObject({
+      readOnlyHint: true,
+      destructiveHint: false,
+    });
+
+    const organizationMemberMutations = [
+      {
+        name: 'add-organization-member',
+        required: ['organization', 'email'],
+        destructiveHint: false,
+      },
+      {
+        name: 'update-organization-member',
+        required: ['organization', 'userId', 'role'],
+        destructiveHint: true,
+      },
+      {
+        name: 'remove-organization-member',
+        required: ['organization', 'userId'],
+        destructiveHint: true,
+      },
+    ];
+    for (const expected of organizationMemberMutations) {
+      const tool = tools.find((candidate) => candidate.name === expected.name);
+      expect(tool?.inputSchema.required).toEqual(expected.required);
+      expect(tool?.inputSchema.properties).not.toHaveProperty('confirm');
+      expect(tool?.annotations).toMatchObject({
+        readOnlyHint: false,
+        destructiveHint: expected.destructiveHint,
+      });
+    }
+
+    const addOrganizationMember = tools.find(
+      (tool) => tool.name === 'add-organization-member',
+    );
+    expect(addOrganizationMember?.inputSchema.properties.email).toMatchObject({
+      type: 'string',
+      minLength: 1,
+    });
+    expect(
+      addOrganizationMember?.inputSchema.properties.email,
+    ).not.toHaveProperty('pattern');
 
     for (const name of [
       'create-cluster',

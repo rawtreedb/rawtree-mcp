@@ -140,6 +140,56 @@ export class RawTreeClient {
     return this.requestJson('GET', this.apiPath('/organizations'));
   }
 
+  async listOrganizationMembers(organization: string): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      `${this.apiPath('/organizations')}/${encodePathPart(organization)}/members`,
+    );
+  }
+
+  async addOrganizationMember({
+    organization,
+    email,
+  }: {
+    organization: string;
+    email: string;
+  }): Promise<unknown> {
+    return this.requestJson(
+      'POST',
+      `${this.apiPath('/organizations')}/${encodePathPart(organization)}/members`,
+      { body: { email } },
+    );
+  }
+
+  async updateOrganizationMember({
+    organization,
+    userId,
+    role,
+  }: {
+    organization: string;
+    userId: string;
+    role: 'admin' | 'member';
+  }): Promise<unknown> {
+    return this.requestJson(
+      'PATCH',
+      `${this.apiPath('/organizations')}/${encodePathPart(organization)}/members/${encodePathPart(userId)}`,
+      { body: { role } },
+    );
+  }
+
+  async removeOrganizationMember({
+    organization,
+    userId,
+  }: {
+    organization: string;
+    userId: string;
+  }): Promise<unknown> {
+    return this.requestJson(
+      'DELETE',
+      `${this.apiPath('/organizations')}/${encodePathPart(organization)}/members/${encodePathPart(userId)}`,
+    );
+  }
+
   async listTables(scope: RawTreeScope = {}): Promise<unknown> {
     return this.requestJson(
       'GET',

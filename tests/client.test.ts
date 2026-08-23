@@ -171,6 +171,90 @@ describe('RawTreeClient', () => {
     expect(calls[0].url).toBe('https://api.rawtree.com/v1/organizations');
   });
 
+  it('lists accepted members of an organization', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(jsonResponse({ members: [] }), calls),
+    });
+
+    await expect(client.listOrganizationMembers('acme/team')).resolves.toEqual({
+      members: [],
+    });
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/organizations/acme%2Fteam/members',
+    );
+    expect(calls[0].init.method).toBe('GET');
+  });
+
+  it('starts adding an organization member by email invitation', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(
+        jsonResponse({
+          invited: true,
+          invite_link: 'https://rawtree.com/invite/token',
+          expires_at_unix: 123,
+        }),
+        calls,
+      ),
+    });
+
+    await client.addOrganizationMember({
+      organization: 'acme team',
+      email: 'member@example.com',
+    });
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/organizations/acme%20team/members',
+    );
+    expect(calls[0].init.method).toBe('POST');
+    expect(calls[0].init.body).toBe(
+      JSON.stringify({ email: 'member@example.com' }),
+    );
+  });
+
+  it('updates an organization member role by user ID', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(jsonResponse({ role: 'admin' }), calls),
+    });
+
+    await client.updateOrganizationMember({
+      organization: 'acme/team',
+      userId: 'user/id',
+      role: 'admin',
+    });
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/organizations/acme%2Fteam/members/user%2Fid',
+    );
+    expect(calls[0].init.method).toBe('PATCH');
+    expect(calls[0].init.body).toBe(JSON.stringify({ role: 'admin' }));
+  });
+
+  it('removes an organization member by user ID', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(jsonResponse({ removed: true }), calls),
+    });
+
+    await client.removeOrganizationMember({
+      organization: 'acme team',
+      userId: 'user/id',
+    });
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/organizations/acme%20team/members/user%2Fid',
+    );
+    expect(calls[0].init.method).toBe('DELETE');
+    expect(calls[0].init.body).toBeUndefined();
+  });
+
   it('lists databases in an explicit organization and cluster', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({
