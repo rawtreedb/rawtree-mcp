@@ -80,4 +80,90 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
       );
     },
   );
+
+  server.registerTool(
+    'pause-cluster',
+    {
+      title: 'Pause Cluster',
+      description: `**Purpose:** Request that a RawTree dedicated cluster pause.
+
+**Returns:** The updated cluster, including its lifecycle status. Pausing continues asynchronously after the request is accepted.
+
+**Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
+
+**Safety:** Pausing makes the cluster's databases unavailable until it is resumed. You MUST confirm the exact organization and cluster ID before calling this tool.`,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+      },
+      inputSchema: {
+        organization: z
+          .string()
+          .min(1)
+          .describe('Organization containing the cluster to pause.'),
+        clusterId: z
+          .string()
+          .min(1)
+          .describe('Dedicated cluster ID returned by list-clusters.'),
+        confirm: z
+          .boolean()
+          .describe(
+            'Set to true only after the user confirms the exact organization and cluster ID and understands that the cluster will become unavailable.',
+          ),
+      },
+    },
+    async ({ organization, clusterId, confirm }) => {
+      requireConfirmation(
+        confirm,
+        'Refusing to pause cluster without explicit confirmation.',
+      );
+      return namedJsonResult(
+        'Pause cluster result',
+        await rawtree.pauseCluster({ organization, clusterId }),
+      );
+    },
+  );
+
+  server.registerTool(
+    'resume-cluster',
+    {
+      title: 'Resume Cluster',
+      description: `**Purpose:** Request that a paused RawTree dedicated cluster resume.
+
+**Returns:** The updated cluster, including its lifecycle status. Resuming continues asynchronously after the request is accepted.
+
+**Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
+
+**Safety:** Resuming a cluster can generate usage charges. You MUST confirm the exact organization and cluster ID and acknowledge the possible charges before calling this tool.`,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+      },
+      inputSchema: {
+        organization: z
+          .string()
+          .min(1)
+          .describe('Organization containing the cluster to resume.'),
+        clusterId: z
+          .string()
+          .min(1)
+          .describe('Dedicated cluster ID returned by list-clusters.'),
+        confirm: z
+          .boolean()
+          .describe(
+            'Set to true only after the user confirms the exact organization and cluster ID and acknowledges that resuming can generate usage charges.',
+          ),
+      },
+    },
+    async ({ organization, clusterId, confirm }) => {
+      requireConfirmation(
+        confirm,
+        'Refusing to resume cluster without explicit confirmation.',
+      );
+      return namedJsonResult(
+        'Resume cluster result',
+        await rawtree.resumeCluster({ organization, clusterId }),
+      );
+    },
+  );
 }

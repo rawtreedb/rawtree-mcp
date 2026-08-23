@@ -313,6 +313,34 @@ export class RawTreeClient {
     });
   }
 
+  async pauseCluster({
+    organization,
+    clusterId,
+  }: {
+    organization: string;
+    clusterId: string;
+  }): Promise<unknown> {
+    return this.requestJson(
+      'POST',
+      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}/stop`,
+      { query: { organization } },
+    );
+  }
+
+  async resumeCluster({
+    organization,
+    clusterId,
+  }: {
+    organization: string;
+    clusterId: string;
+  }): Promise<unknown> {
+    return this.requestJson(
+      'POST',
+      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}/resume`,
+      { query: { organization } },
+    );
+  }
+
   async listDatabases(
     scope: Omit<RawTreeScope, 'database'> = {},
   ): Promise<unknown> {

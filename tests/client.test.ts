@@ -362,6 +362,60 @@ describe('RawTreeClient', () => {
     );
   });
 
+  it('pauses a cluster by ID in an organization', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(
+        jsonResponse({ id: 'cluster/id', status: { phase: 'pausing' } }),
+        calls,
+      ),
+    });
+
+    await expect(
+      client.pauseCluster({
+        organization: 'acme team',
+        clusterId: 'cluster/id',
+      }),
+    ).resolves.toEqual({
+      id: 'cluster/id',
+      status: { phase: 'pausing' },
+    });
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/clusters/cluster%2Fid/stop?organization=acme+team',
+    );
+    expect(calls[0].init.method).toBe('POST');
+    expect(calls[0].init.body).toBeUndefined();
+  });
+
+  it('resumes a cluster by ID in an organization', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(
+        jsonResponse({ id: 'cluster-id', status: { phase: 'resuming' } }),
+        calls,
+      ),
+    });
+
+    await expect(
+      client.resumeCluster({
+        organization: 'acme',
+        clusterId: 'cluster-id',
+      }),
+    ).resolves.toEqual({
+      id: 'cluster-id',
+      status: { phase: 'resuming' },
+    });
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/clusters/cluster-id/resume?organization=acme',
+    );
+    expect(calls[0].init.method).toBe('POST');
+    expect(calls[0].init.body).toBeUndefined();
+  });
+
   it('throws RawTreeApiError with API message and hint', async () => {
     const client = new RawTreeClient({
       apiKey: 'rt_test',

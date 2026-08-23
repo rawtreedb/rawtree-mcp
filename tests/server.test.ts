@@ -37,9 +37,24 @@ describe('createMcpServer', () => {
         'list-organizations',
         'list-clusters',
         'create-cluster',
+        'pause-cluster',
+        'resume-cluster',
         'list-databases',
       ]),
     );
+
+    for (const name of ['pause-cluster', 'resume-cluster']) {
+      const tool = tools.find((candidate) => candidate.name === name);
+      expect(tool?.inputSchema.required).toEqual([
+        'organization',
+        'clusterId',
+        'confirm',
+      ]);
+      expect(tool?.annotations).toMatchObject({
+        readOnlyHint: false,
+        destructiveHint: true,
+      });
+    }
   });
 
   it('requires resource scope in explicitly scoped deployments', async () => {

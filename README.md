@@ -11,7 +11,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 - **API Keys** — List, create, and revoke RawTree API keys for a database. Creation responses include the one-time API key value.
 - **Organizations** — List organizations available to an OAuth-authenticated user.
 - **Databases** — List databases in a cluster and verify access to a selected database.
-- **Clusters** — List dedicated clusters and provision a cluster after explicit confirmation. RawTree enforces user and organization-admin authorization.
+- **Clusters** — List, pause, resume, and provision dedicated clusters after explicit confirmation. RawTree enforces user and organization-admin authorization.
 - **Transports** — Supports stdio for local MCP clients and dual-era Streamable HTTP for remote or multi-client deployments, including stateless MCP 2026-07-28 requests and legacy initialize-handshake clients.
 
 ## Setup
@@ -181,8 +181,10 @@ Structured log filters include:
 
 - `list-clusters` — List dedicated clusters accessible in an organization.
 - `create-cluster` — Provision a dedicated cluster after explicit confirmation of its organization and billable resource configuration.
+- `pause-cluster` — Pause a dedicated cluster after explicit confirmation. Its databases become unavailable until the cluster is resumed.
+- `resume-cluster` — Resume a paused dedicated cluster after explicit confirmation. Resuming can generate usage charges.
 
-Cluster tools are advertised to every MCP client. The RawTree API remains the authorization boundary: cluster access requires a user access token, and cluster creation additionally requires organization-admin access.
+Cluster tools are advertised to every MCP client. The RawTree API remains the authorization boundary: cluster access requires a user access token, and cluster creation, pausing, and resuming additionally require organization-admin access.
 
 Programmatic hosted deployments can require explicit resource selection on
 every applicable tool. Organization and cluster identify the resource boundary;
