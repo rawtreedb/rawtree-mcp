@@ -43,6 +43,7 @@ describe('createMcpServer', () => {
         'list-cluster-sizes',
         'create-cluster',
         'get-cluster',
+        'update-cluster',
         'pause-cluster',
         'resume-cluster',
         'list-apps',
@@ -94,6 +95,16 @@ describe('createMcpServer', () => {
     expect(createCluster?.inputSchema.properties).not.toHaveProperty(
       'memoryGiB',
     );
+    expect(createCluster?.inputSchema.required).not.toContain(
+      'idleTimeoutMinutes',
+    );
+    expect(
+      createCluster?.inputSchema.properties.idleTimeoutMinutes,
+    ).toMatchObject({
+      type: 'integer',
+      minimum: 0,
+      maximum: 43200,
+    });
     for (const field of ['minimumSize', 'maximumSize']) {
       expect(createCluster?.inputSchema.properties[field]).toMatchObject({
         type: 'object',
@@ -104,6 +115,27 @@ describe('createMcpServer', () => {
       readOnlyHint: false,
       destructiveHint: false,
       idempotentHint: false,
+    });
+
+    const updateCluster = tools.find(
+      (candidate) => candidate.name === 'update-cluster',
+    );
+    expect(updateCluster?.inputSchema.required).toEqual([
+      'organization',
+      'clusterId',
+      'idleTimeoutMinutes',
+    ]);
+    expect(
+      updateCluster?.inputSchema.properties.idleTimeoutMinutes,
+    ).toMatchObject({
+      type: 'integer',
+      minimum: 0,
+      maximum: 43200,
+    });
+    expect(updateCluster?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
     });
 
     const listOrganizationMembers = tools.find(
@@ -157,6 +189,7 @@ describe('createMcpServer', () => {
 
     for (const name of [
       'create-cluster',
+      'update-cluster',
       'pause-cluster',
       'resume-cluster',
       'delete-table',

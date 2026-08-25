@@ -404,6 +404,7 @@ describe('RawTreeClient', () => {
         replicas: 2,
         minimumSize: { cpuCores: 4, memoryGiB: 16 },
         maximumSize: { cpuCores: 8, memoryGiB: 32 },
+        idleTimeoutMinutes: 30,
       }),
     ).resolves.toEqual({ id: 'cluster-id', name: 'production' });
 
@@ -429,6 +430,7 @@ describe('RawTreeClient', () => {
             memory_gib: 32,
           },
         },
+        idle_timeout_minutes: 30,
       }),
     );
   });
@@ -455,6 +457,40 @@ describe('RawTreeClient', () => {
     );
     expect(calls[0].init.method).toBe('GET');
     expect(calls[0].init.body).toBeUndefined();
+  });
+
+  it('updates a cluster idle timeout by ID in an organization', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(
+        jsonResponse({
+          id: 'cluster/id',
+          name: 'production',
+          idle_timeout_minutes: 0,
+        }),
+        calls,
+      ),
+    });
+
+    await expect(
+      client.updateCluster({
+        organization: 'acme team',
+        clusterId: 'cluster/id',
+        idleTimeoutMinutes: 0,
+      }),
+    ).resolves.toMatchObject({
+      id: 'cluster/id',
+      idle_timeout_minutes: 0,
+    });
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/clusters/cluster%2Fid?organization=acme+team',
+    );
+    expect(calls[0].init.method).toBe('PATCH');
+    expect(calls[0].init.body).toBe(
+      JSON.stringify({ idle_timeout_minutes: 0 }),
+    );
   });
 
   it('pauses a cluster by ID in an organization', async () => {
