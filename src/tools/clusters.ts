@@ -4,6 +4,17 @@ import type { RawTreeClient } from '../client.js';
 import { jsonResult, namedJsonResult } from './common.js';
 
 const positiveUint32 = z.number().int().min(1).max(4_294_967_295);
+const idleTimeoutMinutesInput = z
+  .number()
+  .int()
+  .min(0)
+  .max(43_200)
+  .refine((value) => value === 0 || value >= 15, {
+    message: 'Idle timeout must be 0 or between 15 and 43200 minutes.',
+  })
+  .describe(
+    'Minutes of inactivity before automatically pausing. Use 0 to disable idling.',
+  );
 
 function clusterSizeInput(description: string) {
   return z
@@ -72,7 +83,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 
-**Safety:** You MUST first call list-cluster-sizes, then confirm the exact organization, name, replica count, minimum per-replica size, maximum per-replica size, and vertical autoscaling behavior with the user. For one replica, warn that the cluster has no redundancy.
+**Safety:** You MUST first call list-cluster-sizes, then confirm the exact organization, name, replica count, minimum per-replica size, maximum per-replica size, vertical autoscaling behavior, and idle timeout with the user. If idleTimeoutMinutes is omitted, explain that the server default will apply. For one replica, warn that the cluster has no redundancy.
 
 **Reliability:** This operation is not idempotent. If the response is ambiguous, call list-clusters to reconcile by organization and name before retrying.`,
       annotations: {
@@ -98,9 +109,21 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
         maximumSize: clusterSizeInput(
           'Maximum vertical autoscaling size returned by list-cluster-sizes. Must be at or above minimumSize in the returned catalog.',
         ),
+        idleTimeoutMinutes: idleTimeoutMinutesInput
+          .optional()
+          .describe(
+            'Minutes of inactivity before automatically pausing. Use 0 to disable idling. Omit to use the server default.',
+          ),
       },
     },
-    async ({ organization, name, replicas, minimumSize, maximumSize }) => {
+    async ({
+      organization,
+      name,
+      replicas,
+      minimumSize,
+      maximumSize,
+      idleTimeoutMinutes,
+    }) => {
       return namedJsonResult(
         'Create cluster result',
         await rawtree.createCluster({
@@ -109,6 +132,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
           replicas,
           minimumSize,
           maximumSize,
+          idleTimeoutMinutes,
         }),
       );
     },
@@ -145,6 +169,48 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
     },
     async ({ organization, clusterId }) =>
       jsonResult(await rawtree.getCluster({ organization, clusterId })),
+  );
+
+  server.registerTool(
+    'update-cluster',
+    {
+      title: 'Update Cluster Settings',
+      description: `**Purpose:** Update the idle timeout for a RawTree dedicated cluster.
+
+**Returns:** The updated cluster, including its effective idle timeout and current lifecycle status.
+
+**Behavior:** idleTimeoutMinutes controls how many minutes of inactivity pass before the cluster automatically pauses. Use 0 to disable idling. Values from 15 through 43200 minutes are supported.
+
+**Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
+
+**Safety:** You MUST confirm the exact organization, cluster ID, and new idle timeout with the user before calling this tool.`,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        organization: z
+          .string()
+          .min(1)
+          .describe('Organization containing the cluster to update.'),
+        clusterId: z
+          .string()
+          .min(1)
+          .describe('Dedicated cluster ID returned by list-clusters.'),
+        idleTimeoutMinutes: idleTimeoutMinutesInput,
+      },
+    },
+    async ({ organization, clusterId, idleTimeoutMinutes }) => {
+      return namedJsonResult(
+        'Update cluster result',
+        await rawtree.updateCluster({
+          organization,
+          clusterId,
+          idleTimeoutMinutes,
+        }),
+      );
+    },
   );
 
   server.registerTool(

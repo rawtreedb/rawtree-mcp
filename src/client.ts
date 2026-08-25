@@ -296,12 +296,14 @@ export class RawTreeClient {
     replicas,
     minimumSize,
     maximumSize,
+    idleTimeoutMinutes,
   }: {
     organization: string;
     name: string;
     replicas: number;
     minimumSize: { cpuCores: number; memoryGiB: number };
     maximumSize: { cpuCores: number; memoryGiB: number };
+    idleTimeoutMinutes?: number;
   }): Promise<unknown> {
     return this.requestJson('POST', this.apiPath('/clusters'), {
       query: { organization },
@@ -322,6 +324,9 @@ export class RawTreeClient {
             memory_gib: maximumSize.memoryGiB,
           },
         },
+        ...(idleTimeoutMinutes === undefined
+          ? {}
+          : { idle_timeout_minutes: idleTimeoutMinutes }),
       },
     });
   }
@@ -337,6 +342,25 @@ export class RawTreeClient {
       'GET',
       `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}`,
       { query: { organization } },
+    );
+  }
+
+  async updateCluster({
+    organization,
+    clusterId,
+    idleTimeoutMinutes,
+  }: {
+    organization: string;
+    clusterId: string;
+    idleTimeoutMinutes: number;
+  }): Promise<unknown> {
+    return this.requestJson(
+      'PATCH',
+      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}`,
+      {
+        query: { organization },
+        body: { idle_timeout_minutes: idleTimeoutMinutes },
+      },
     );
   }
 
