@@ -55,13 +55,13 @@ const byoS3Input = z.object({
     .describe(
       'External ID required by the IAM role trust policy. It must exactly match the value configured in AWS.',
     ),
-  databaseBucketPrefix: z
+  tableBucketPrefix: z
     .string()
     .min(1)
     .max(62)
     .optional()
     .describe(
-      'Optional bucket-name prefix for separate customer-owned per-database buckets. The same IAM role must allow buckets matching this prefix. Omit when databases should use the cluster data destination.',
+      'Optional bucket-name prefix for customer-owned per-table buckets. The same IAM role must allow buckets matching this prefix. Omit when tables should use the cluster data destination.',
     ),
 });
 
@@ -72,7 +72,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
       title: 'List Clusters',
       description: `**Purpose:** List RawTree dedicated clusters accessible in an organization.
 
-**Returns:** Cluster IDs, names, creation times, lifecycle status, resources, and whether each cluster can be paused or resumed.
+**Returns:** Cluster IDs, names, creation times, lifecycle status, resources, whether each cluster can be paused or resumed, and the optional immutable table_bucket_prefix used by per-table customer-owned S3.
 
 **Auth:** The RawTree API requires a user access token and organization membership. Authorization is enforced by the API.
 
@@ -119,13 +119,13 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Returns:** Whether access was verified and a human-readable result message.
 
-**Behavior:** RawTree assumes roleArn using externalId, checks the data and backup bucket locations, lists each configured path, and writes, reads, then removes a temporary probe object under each path. Paths are optional and default to the bucket root. databaseBucketPrefix is optional; it enables separate customer-owned buckets for future databases, but this preflight does not create or probe those future buckets. Both configured buckets must be in the cluster environment's AWS region.
+**Behavior:** RawTree assumes roleArn using externalId, checks the data and backup bucket locations, lists each configured path, and writes, reads, then removes a temporary probe object under each path. Paths are optional and default to the bucket root. tableBucketPrefix is optional; it enables customer-owned buckets for individual tables, but this preflight does not create or probe those future buckets. Both configured buckets must be in the cluster environment's AWS region.
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 
 **When to use:** Use this tool after the IAM trust and permissions policies are configured and immediately before create-cluster whenever its optional byoS3 field will be provided. It is unnecessary when RawTree-managed storage will be used.
 
-**Safety:** This check temporarily writes to and deletes from both configured destinations. Confirm the exact organization, buckets, paths, role ARN, and optional database bucket prefix before running it. The IAM trust policy's External ID must match externalId exactly.
+**Safety:** This check temporarily writes to and deletes from both configured destinations. Confirm the exact organization, buckets, paths, role ARN, and optional table bucket prefix before running it. The IAM trust policy's External ID must match externalId exactly.
 
 **Reliability:** The check is safe to retry. Newly changed IAM policies may require a short propagation delay before verification succeeds.`,
       annotations: {
@@ -158,11 +158,11 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Returns:** The newly created cluster, including its ID, lifecycle status, and initial resources. Provisioning continues asynchronously after the request is accepted; use get-cluster to check progress.
 
-**Behavior:** The cluster starts at minimumSize and can vertically autoscale per replica up to maximumSize. The replica count remains fixed. byoS3 is optional: omit it to use RawTree-managed storage. When provided, it configures customer-owned data and backup destinations through a customer IAM role. Destination paths and databaseBucketPrefix are individually optional; the buckets, roleArn, and externalId are required inside byoS3.
+**Behavior:** The cluster starts at minimumSize and can vertically autoscale per replica up to maximumSize. The replica count remains fixed. byoS3 is optional: omit it to use RawTree-managed storage. When provided, it configures customer-owned data and backup destinations through a customer IAM role. Destination paths and tableBucketPrefix are individually optional; the buckets, roleArn, and externalId are required inside byoS3.
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 
-**Safety:** You MUST first call list-cluster-sizes, then confirm the exact organization, name, replica count, minimum per-replica size, maximum per-replica size, vertical autoscaling behavior, and idle timeout with the user. If idleTimeoutMinutes is omitted, explain that the server default will apply. For one replica, warn that the cluster has no redundancy. If byoS3 is provided, first call verify-cluster-s3-access with the identical configuration and confirm the data and backup buckets, optional paths, role ARN, and optional database bucket prefix. Never reuse a successful verification after changing any byoS3 field.
+**Safety:** You MUST first call list-cluster-sizes, then confirm the exact organization, name, replica count, minimum per-replica size, maximum per-replica size, vertical autoscaling behavior, and idle timeout with the user. If idleTimeoutMinutes is omitted, explain that the server default will apply. For one replica, warn that the cluster has no redundancy. If byoS3 is provided, first call verify-cluster-s3-access with the identical configuration and confirm the data and backup buckets, optional paths, role ARN, and optional table bucket prefix. Never reuse a successful verification after changing any byoS3 field.
 
 **Reliability:** This operation is not idempotent. If the response is ambiguous, call list-clusters to reconcile by organization and name before retrying.`,
       annotations: {
@@ -230,7 +230,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
       title: 'Get Cluster',
       description: `**Purpose:** Get one RawTree dedicated cluster and its current lifecycle status.
 
-**Returns:** The cluster ID, name, creation time, lifecycle status, resources, and whether it can be paused or resumed.
+**Returns:** The cluster ID, name, creation time, lifecycle status, resources, whether it can be paused or resumed, and the optional immutable table_bucket_prefix used by per-table customer-owned S3.
 
 **Auth:** The RawTree API requires a user access token and organization membership. Authorization is enforced by the API.
 

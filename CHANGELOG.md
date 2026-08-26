@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `create-table` with optional per-table customer-owned S3 storage and expose the public `tableBucketPrefix` cluster setting.
 - Add optional idle timeout configuration to `create-cluster` and a new `update-cluster` tool for changing it later.
 - Add `list-cluster-sizes` and align `create-cluster` with the frontend's explicit minimum/maximum vertical autoscaling model.
 - Add cluster-scoped tools to list, install, and uninstall apps.
