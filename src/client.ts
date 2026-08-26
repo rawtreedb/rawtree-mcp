@@ -46,7 +46,13 @@ export interface ByoS3Input {
   backups: S3DestinationInput;
   roleArn: string;
   externalId: string;
-  databaseBucketPrefix?: string;
+  tableBucketPrefix?: string;
+}
+
+export interface CreateTableStorageInput {
+  type: 's3';
+  bucketSuffix: string;
+  path?: string;
 }
 
 export class RawTreeApiError extends Error {
@@ -138,9 +144,9 @@ function byoS3RequestBody(byoS3: ByoS3Input) {
     },
     role_arn: byoS3.roleArn,
     external_id: byoS3.externalId,
-    ...(byoS3.databaseBucketPrefix === undefined
+    ...(byoS3.tableBucketPrefix === undefined
       ? {}
-      : { database_bucket_prefix: byoS3.databaseBucketPrefix }),
+      : { table_bucket_prefix: byoS3.tableBucketPrefix }),
   };
 }
 
@@ -226,6 +232,41 @@ export class RawTreeClient {
       'GET',
       this.apiPath('/tables'),
       this.scoped({}, scope),
+    );
+  }
+
+  async createTable(
+    {
+      name,
+      storage,
+    }: {
+      name: string;
+      storage?: CreateTableStorageInput;
+    },
+    scope: RawTreeScope = {},
+  ): Promise<unknown> {
+    return this.requestJson(
+      'POST',
+      this.apiPath('/tables'),
+      this.scoped(
+        {
+          body: {
+            name,
+            ...(storage === undefined
+              ? {}
+              : {
+                  storage: {
+                    type: storage.type,
+                    bucket_suffix: storage.bucketSuffix,
+                    ...(storage.path === undefined
+                      ? {}
+                      : { path: storage.path }),
+                  },
+                }),
+          },
+        },
+        scope,
+      ),
     );
   }
 

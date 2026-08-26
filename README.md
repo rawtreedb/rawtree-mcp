@@ -140,8 +140,11 @@ Environment variables:
 ### Tables
 
 - `list-tables` — List tables in the configured database.
+- `create-table` — Create an empty table with cluster-default storage or an optional per-table customer-owned S3 bucket.
 - `describe-table` — Inspect columns, row count, byte count, database, and organization.
 - `delete-table` — Delete a table after explicit confirmation. Requires admin permission.
+
+`create-table.storage` is optional. Omit it to use the cluster's default storage. For a cluster whose `list-tables` response includes `table_bucket_prefix`, use `{ "type": "s3", "bucketSuffix": "events" }` to create a table in the existing bucket formed by that server-owned prefix plus `events`. `path` is optional and defaults to `rawtree/{database}/{table}`. The AWS region, IAM role ARN, external ID, and bucket prefix come from the cluster configuration and are not create-table inputs.
 
 ### Logs
 
@@ -192,7 +195,7 @@ Structured log filters include:
 
 Cluster tools are advertised to every MCP client. Call `list-cluster-sizes` before `create-cluster`; creation starts at the selected minimum per-replica size and can vertically autoscale to the selected maximum. `idleTimeoutMinutes` accepts `0` to disable idling or a value from 15 through 43200; omit it during creation to use the server default.
 
-`create-cluster.byoS3` is optional. Omit it to use RawTree-managed storage. When provided, `data` and `backups` each require a bucket and accept an optional object-key path; `roleArn` identifies the customer IAM role RawTree may assume, and `externalId` must exactly match the role trust policy. `databaseBucketPrefix` is optional and enables separate customer-owned buckets for future databases; the same IAM role must allow buckets matching that prefix. Call `verify-cluster-s3-access` with the identical configuration before creation. Verification checks only the configured data and backup destinations, not future per-database buckets, and should be repeated after changing any `byoS3` field.
+`create-cluster.byoS3` is optional. Omit it to use RawTree-managed storage. When provided, `data` and `backups` each require a bucket and accept an optional object-key path; `roleArn` identifies the customer IAM role RawTree may assume, and `externalId` must exactly match the role trust policy. `tableBucketPrefix` is optional and enables customer-owned buckets for individual tables; the same IAM role must allow buckets matching that prefix. Call `verify-cluster-s3-access` with the identical configuration before creation. Verification checks only the configured data and backup destinations, not future per-table buckets, and should be repeated after changing any `byoS3` field.
 
 The RawTree API remains the authorization boundary: cluster access requires a user access token, and cluster creation, S3 verification, updates, pausing, and resuming additionally require organization-admin access.
 

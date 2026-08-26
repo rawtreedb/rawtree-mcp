@@ -43,6 +43,7 @@ describe('createMcpServer', () => {
         'list-cluster-sizes',
         'verify-cluster-s3-access',
         'create-cluster',
+        'create-table',
         'get-cluster',
         'update-cluster',
         'pause-cluster',
@@ -119,7 +120,7 @@ describe('createMcpServer', () => {
     });
     expect(
       createCluster?.inputSchema.properties.byoS3.properties,
-    ).toHaveProperty('databaseBucketPrefix');
+    ).toHaveProperty('tableBucketPrefix');
     expect(createCluster?.annotations).toMatchObject({
       readOnlyHint: false,
       destructiveHint: false,
@@ -232,6 +233,29 @@ describe('createMcpServer', () => {
     expect(insertJson?.inputSchema.properties).not.toHaveProperty('transform');
     expect(insertJson?.inputSchema.properties).not.toHaveProperty('columns');
 
+    const createTable = tools.find((tool) => tool.name === 'create-table');
+    expect(createTable?.inputSchema.required).toEqual(['name']);
+    expect(createTable?.inputSchema.properties.storage).toMatchObject({
+      type: 'object',
+      required: ['type', 'bucketSuffix'],
+    });
+    expect(createTable?.inputSchema.properties.storage.properties).toEqual(
+      expect.objectContaining({
+        type: expect.objectContaining({ const: 's3' }),
+        bucketSuffix: expect.objectContaining({
+          type: 'string',
+          minLength: 1,
+          maxLength: 63,
+        }),
+        path: expect.objectContaining({ type: 'string' }),
+      }),
+    );
+    expect(createTable?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    });
+
     const deleteDatabase = tools.find(
       (tool) => tool.name === 'delete-database',
     );
@@ -308,6 +332,12 @@ describe('createMcpServer', () => {
     expect(deleteDatabase?.inputSchema.required).toEqual([
       'organization',
       'database',
+    ]);
+    const createTable = tools.find((tool) => tool.name === 'create-table');
+    expect(createTable?.inputSchema.required).toEqual([
+      'organization',
+      'cluster',
+      'name',
     ]);
   });
 });

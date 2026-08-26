@@ -120,6 +120,84 @@ describe('RawTreeClient', () => {
     );
   });
 
+  it('creates a table with cluster default storage', async () => {
+    const calls: RecordedCall[] = [];
+    const response = {
+      database: 'analytics',
+      table: 'events',
+      storage: { type: 'default' },
+    };
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(jsonResponse(response), calls),
+    });
+
+    await expect(
+      client.createTable(
+        { name: 'events' },
+        {
+          organization: 'acme team',
+          cluster: 'production',
+          database: 'analytics',
+        },
+      ),
+    ).resolves.toEqual(response);
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/tables?database=analytics&organization=acme+team&cluster=production',
+    );
+    expect(calls[0].init.method).toBe('POST');
+    expect(calls[0].init.body).toBe(JSON.stringify({ name: 'events' }));
+  });
+
+  it('creates a table with an optional customer-owned S3 override', async () => {
+    const calls: RecordedCall[] = [];
+    const response = {
+      database: 'analytics',
+      table: 'events',
+      storage: {
+        type: 's3',
+        bucket: 'acme-rawtree-table-events',
+        path: 'custom/events',
+        endpoint:
+          'https://acme-rawtree-table-events.s3.us-east-1.amazonaws.com/custom/events/',
+      },
+    };
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(jsonResponse(response), calls),
+    });
+
+    await expect(
+      client.createTable(
+        {
+          name: 'events',
+          storage: {
+            type: 's3',
+            bucketSuffix: 'events',
+            path: 'custom/events',
+          },
+        },
+        {
+          organization: 'acme',
+          cluster: 'production',
+          database: 'analytics',
+        },
+      ),
+    ).resolves.toEqual(response);
+
+    expect(calls[0].init.body).toBe(
+      JSON.stringify({
+        name: 'events',
+        storage: {
+          type: 's3',
+          bucket_suffix: 'events',
+          path: 'custom/events',
+        },
+      }),
+    );
+  });
+
   it('uses per-request organization, cluster, and database scope', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({
@@ -456,7 +534,7 @@ describe('RawTreeClient', () => {
         backups: { bucket: 'acme-rawtree-backups' },
         roleArn: 'arn:aws:iam::123456789012:role/RawTreeS3',
         externalId: 'rawtree-acme-production',
-        databaseBucketPrefix: 'acme-rawtree-db-',
+        tableBucketPrefix: 'acme-rawtree-table-',
       },
     });
 
@@ -483,7 +561,7 @@ describe('RawTreeClient', () => {
           backups: { bucket: 'acme-rawtree-backups' },
           role_arn: 'arn:aws:iam::123456789012:role/RawTreeS3',
           external_id: 'rawtree-acme-production',
-          database_bucket_prefix: 'acme-rawtree-db-',
+          table_bucket_prefix: 'acme-rawtree-table-',
         },
       }),
     );
@@ -505,6 +583,7 @@ describe('RawTreeClient', () => {
           backups: { bucket: 'acme-rawtree-backups', path: 'backups' },
           roleArn: 'arn:aws:iam::123456789012:role/RawTreeS3',
           externalId: 'rawtree-acme-production',
+          tableBucketPrefix: 'acme-rawtree-table-',
         },
       }),
     ).resolves.toEqual(response);
@@ -520,6 +599,7 @@ describe('RawTreeClient', () => {
           backups: { bucket: 'acme-rawtree-backups', path: 'backups' },
           role_arn: 'arn:aws:iam::123456789012:role/RawTreeS3',
           external_id: 'rawtree-acme-production',
+          table_bucket_prefix: 'acme-rawtree-table-',
         },
       }),
     );
