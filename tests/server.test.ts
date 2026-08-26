@@ -41,6 +41,7 @@ describe('createMcpServer', () => {
         'remove-organization-member',
         'list-clusters',
         'list-cluster-sizes',
+        'verify-cluster-s3-access',
         'create-cluster',
         'get-cluster',
         'update-cluster',
@@ -98,6 +99,7 @@ describe('createMcpServer', () => {
     expect(createCluster?.inputSchema.required).not.toContain(
       'idleTimeoutMinutes',
     );
+    expect(createCluster?.inputSchema.required).not.toContain('byoS3');
     expect(
       createCluster?.inputSchema.properties.idleTimeoutMinutes,
     ).toMatchObject({
@@ -111,10 +113,34 @@ describe('createMcpServer', () => {
         required: ['cpuCores', 'memoryGiB'],
       });
     }
+    expect(createCluster?.inputSchema.properties.byoS3).toMatchObject({
+      type: 'object',
+      required: ['data', 'backups', 'roleArn', 'externalId'],
+    });
+    expect(
+      createCluster?.inputSchema.properties.byoS3.properties,
+    ).toHaveProperty('databaseBucketPrefix');
     expect(createCluster?.annotations).toMatchObject({
       readOnlyHint: false,
       destructiveHint: false,
       idempotentHint: false,
+    });
+
+    const verifyClusterS3Access = tools.find(
+      (candidate) => candidate.name === 'verify-cluster-s3-access',
+    );
+    expect(verifyClusterS3Access?.inputSchema.required).toEqual([
+      'organization',
+      'byoS3',
+    ]);
+    expect(verifyClusterS3Access?.inputSchema.properties.byoS3).toMatchObject({
+      type: 'object',
+      required: ['data', 'backups', 'roleArn', 'externalId'],
+    });
+    expect(verifyClusterS3Access?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
     });
 
     const updateCluster = tools.find(
@@ -189,6 +215,7 @@ describe('createMcpServer', () => {
 
     for (const name of [
       'create-cluster',
+      'verify-cluster-s3-access',
       'update-cluster',
       'pause-cluster',
       'resume-cluster',

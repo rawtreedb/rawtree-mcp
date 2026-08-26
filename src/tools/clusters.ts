@@ -25,6 +25,46 @@ function clusterSizeInput(description: string) {
     .describe(description);
 }
 
+const s3DestinationInput = z.object({
+  bucket: z.string().min(3).max(63).describe('Customer-owned S3 bucket name.'),
+  path: z
+    .string()
+    .optional()
+    .describe(
+      'Optional object key prefix inside the bucket. Omit or use an empty string for the bucket root. RawTree trims leading and trailing slashes.',
+    ),
+});
+
+const byoS3Input = z.object({
+  data: s3DestinationInput.describe(
+    'Customer-owned bucket and optional key prefix for cluster data.',
+  ),
+  backups: s3DestinationInput.describe(
+    'Customer-owned bucket and optional key prefix for cluster backups.',
+  ),
+  roleArn: z
+    .string()
+    .min(1)
+    .describe(
+      'ARN of the customer IAM role that RawTree may assume to access the configured buckets.',
+    ),
+  externalId: z
+    .string()
+    .min(2)
+    .max(1224)
+    .describe(
+      'External ID required by the IAM role trust policy. It must exactly match the value configured in AWS.',
+    ),
+  databaseBucketPrefix: z
+    .string()
+    .min(1)
+    .max(62)
+    .optional()
+    .describe(
+      'Optional bucket-name prefix for separate customer-owned per-database buckets. The same IAM role must allow buckets matching this prefix. Omit when databases should use the cluster data destination.',
+    ),
+});
+
 export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
   server.registerTool(
     'list-clusters',
@@ -72,6 +112,45 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
   );
 
   server.registerTool(
+    'verify-cluster-s3-access',
+    {
+      title: 'Verify Cluster S3 Access',
+      description: `**Purpose:** Verify that RawTree can use a customer IAM role to access customer-owned S3 storage before cluster creation.
+
+**Returns:** Whether access was verified and a human-readable result message.
+
+**Behavior:** RawTree assumes roleArn using externalId, checks the data and backup bucket locations, lists each configured path, and writes, reads, then removes a temporary probe object under each path. Paths are optional and default to the bucket root. databaseBucketPrefix is optional; it enables separate customer-owned buckets for future databases, but this preflight does not create or probe those future buckets. Both configured buckets must be in the cluster environment's AWS region.
+
+**Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
+
+**When to use:** Use this tool after the IAM trust and permissions policies are configured and immediately before create-cluster whenever its optional byoS3 field will be provided. It is unnecessary when RawTree-managed storage will be used.
+
+**Safety:** This check temporarily writes to and deletes from both configured destinations. Confirm the exact organization, buckets, paths, role ARN, and optional database bucket prefix before running it. The IAM trust policy's External ID must match externalId exactly.
+
+**Reliability:** The check is safe to retry. Newly changed IAM policies may require a short propagation delay before verification succeeds.`,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        organization: z
+          .string()
+          .min(1)
+          .describe('Organization that will own the cluster.'),
+        byoS3: byoS3Input.describe(
+          'Customer-owned S3 configuration to verify before cluster creation.',
+        ),
+      },
+    },
+    async ({ organization, byoS3 }) =>
+      namedJsonResult(
+        'S3 access verification result',
+        await rawtree.verifyClusterS3Access({ organization, byoS3 }),
+      ),
+  );
+
+  server.registerTool(
     'create-cluster',
     {
       title: 'Create Cluster',
@@ -79,11 +158,11 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Returns:** The newly created cluster, including its ID, lifecycle status, and initial resources. Provisioning continues asynchronously after the request is accepted; use get-cluster to check progress.
 
-**Behavior:** The cluster starts at minimumSize and can vertically autoscale per replica up to maximumSize. The replica count remains fixed.
+**Behavior:** The cluster starts at minimumSize and can vertically autoscale per replica up to maximumSize. The replica count remains fixed. byoS3 is optional: omit it to use RawTree-managed storage. When provided, it configures customer-owned data and backup destinations through a customer IAM role. Destination paths and databaseBucketPrefix are individually optional; the buckets, roleArn, and externalId are required inside byoS3.
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 
-**Safety:** You MUST first call list-cluster-sizes, then confirm the exact organization, name, replica count, minimum per-replica size, maximum per-replica size, vertical autoscaling behavior, and idle timeout with the user. If idleTimeoutMinutes is omitted, explain that the server default will apply. For one replica, warn that the cluster has no redundancy.
+**Safety:** You MUST first call list-cluster-sizes, then confirm the exact organization, name, replica count, minimum per-replica size, maximum per-replica size, vertical autoscaling behavior, and idle timeout with the user. If idleTimeoutMinutes is omitted, explain that the server default will apply. For one replica, warn that the cluster has no redundancy. If byoS3 is provided, first call verify-cluster-s3-access with the identical configuration and confirm the data and backup buckets, optional paths, role ARN, and optional database bucket prefix. Never reuse a successful verification after changing any byoS3 field.
 
 **Reliability:** This operation is not idempotent. If the response is ambiguous, call list-clusters to reconcile by organization and name before retrying.`,
       annotations: {
@@ -114,6 +193,11 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
           .describe(
             'Minutes of inactivity before automatically pausing. Use 0 to disable idling. Omit to use the server default.',
           ),
+        byoS3: byoS3Input
+          .optional()
+          .describe(
+            'Optional customer-owned S3 configuration. Omit to use RawTree-managed storage. Verify the identical configuration with verify-cluster-s3-access before creation.',
+          ),
       },
     },
     async ({
@@ -123,6 +207,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
       minimumSize,
       maximumSize,
       idleTimeoutMinutes,
+      byoS3,
     }) => {
       return namedJsonResult(
         'Create cluster result',
@@ -133,6 +218,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
           minimumSize,
           maximumSize,
           idleTimeoutMinutes,
+          byoS3,
         }),
       );
     },

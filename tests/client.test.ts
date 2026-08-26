@@ -435,6 +435,96 @@ describe('RawTreeClient', () => {
     );
   });
 
+  it('creates a cluster with optional customer-owned S3 configuration', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(
+        jsonResponse({ id: 'cluster-id', name: 'production' }),
+        calls,
+      ),
+    });
+
+    await client.createCluster({
+      organization: 'acme',
+      name: 'production',
+      replicas: 2,
+      minimumSize: { cpuCores: 4, memoryGiB: 16 },
+      maximumSize: { cpuCores: 8, memoryGiB: 32 },
+      byoS3: {
+        data: { bucket: 'acme-rawtree-data', path: 'cluster-data' },
+        backups: { bucket: 'acme-rawtree-backups' },
+        roleArn: 'arn:aws:iam::123456789012:role/RawTreeS3',
+        externalId: 'rawtree-acme-production',
+        databaseBucketPrefix: 'acme-rawtree-db-',
+      },
+    });
+
+    expect(calls[0].init.body).toBe(
+      JSON.stringify({
+        name: 'production',
+        replicas: 2,
+        size: {
+          cpu_cores: 4,
+          memory_gib: 16,
+        },
+        autoscaling: {
+          min_size: {
+            cpu_cores: 4,
+            memory_gib: 16,
+          },
+          max_size: {
+            cpu_cores: 8,
+            memory_gib: 32,
+          },
+        },
+        byo_s3: {
+          data: { bucket: 'acme-rawtree-data', path: 'cluster-data' },
+          backups: { bucket: 'acme-rawtree-backups' },
+          role_arn: 'arn:aws:iam::123456789012:role/RawTreeS3',
+          external_id: 'rawtree-acme-production',
+          database_bucket_prefix: 'acme-rawtree-db-',
+        },
+      }),
+    );
+  });
+
+  it('verifies customer-owned S3 access before cluster creation', async () => {
+    const calls: RecordedCall[] = [];
+    const response = { verified: true, message: 'S3 access verified.' };
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(jsonResponse(response), calls),
+    });
+
+    await expect(
+      client.verifyClusterS3Access({
+        organization: 'acme team',
+        byoS3: {
+          data: { bucket: 'acme-rawtree-data', path: 'cluster-data' },
+          backups: { bucket: 'acme-rawtree-backups', path: 'backups' },
+          roleArn: 'arn:aws:iam::123456789012:role/RawTreeS3',
+          externalId: 'rawtree-acme-production',
+        },
+      }),
+    ).resolves.toEqual(response);
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/clusters/verify-s3-access?organization=acme+team',
+    );
+    expect(calls[0].init.method).toBe('POST');
+    expect(calls[0].init.body).toBe(
+      JSON.stringify({
+        byo_s3: {
+          data: { bucket: 'acme-rawtree-data', path: 'cluster-data' },
+          backups: { bucket: 'acme-rawtree-backups', path: 'backups' },
+          role_arn: 'arn:aws:iam::123456789012:role/RawTreeS3',
+          external_id: 'rawtree-acme-production',
+        },
+      }),
+    );
+  });
+
   it('gets one cluster by ID in an organization', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({

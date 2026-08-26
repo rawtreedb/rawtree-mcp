@@ -36,6 +36,19 @@ export interface RawTreeScope {
   organization?: string;
 }
 
+export interface S3DestinationInput {
+  bucket: string;
+  path?: string;
+}
+
+export interface ByoS3Input {
+  data: S3DestinationInput;
+  backups: S3DestinationInput;
+  roleArn: string;
+  externalId: string;
+  databaseBucketPrefix?: string;
+}
+
 export class RawTreeApiError extends Error {
   readonly status: number;
   readonly method: string;
@@ -111,6 +124,24 @@ function appendQuery(url: URL, query: QueryParams | undefined): void {
 
 function encodePathPart(part: string): string {
   return encodeURIComponent(part);
+}
+
+function byoS3RequestBody(byoS3: ByoS3Input) {
+  return {
+    data: {
+      bucket: byoS3.data.bucket,
+      ...(byoS3.data.path === undefined ? {} : { path: byoS3.data.path }),
+    },
+    backups: {
+      bucket: byoS3.backups.bucket,
+      ...(byoS3.backups.path === undefined ? {} : { path: byoS3.backups.path }),
+    },
+    role_arn: byoS3.roleArn,
+    external_id: byoS3.externalId,
+    ...(byoS3.databaseBucketPrefix === undefined
+      ? {}
+      : { database_bucket_prefix: byoS3.databaseBucketPrefix }),
+  };
 }
 
 export class RawTreeClient {
@@ -297,6 +328,7 @@ export class RawTreeClient {
     minimumSize,
     maximumSize,
     idleTimeoutMinutes,
+    byoS3,
   }: {
     organization: string;
     name: string;
@@ -304,6 +336,7 @@ export class RawTreeClient {
     minimumSize: { cpuCores: number; memoryGiB: number };
     maximumSize: { cpuCores: number; memoryGiB: number };
     idleTimeoutMinutes?: number;
+    byoS3?: ByoS3Input;
   }): Promise<unknown> {
     return this.requestJson('POST', this.apiPath('/clusters'), {
       query: { organization },
@@ -327,8 +360,26 @@ export class RawTreeClient {
         ...(idleTimeoutMinutes === undefined
           ? {}
           : { idle_timeout_minutes: idleTimeoutMinutes }),
+        ...(byoS3 === undefined ? {} : { byo_s3: byoS3RequestBody(byoS3) }),
       },
     });
+  }
+
+  async verifyClusterS3Access({
+    organization,
+    byoS3,
+  }: {
+    organization: string;
+    byoS3: ByoS3Input;
+  }): Promise<unknown> {
+    return this.requestJson(
+      'POST',
+      this.apiPath('/clusters/verify-s3-access'),
+      {
+        query: { organization },
+        body: { byo_s3: byoS3RequestBody(byoS3) },
+      },
+    );
   }
 
   async getCluster({
