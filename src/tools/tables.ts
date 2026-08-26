@@ -22,7 +22,7 @@ export function addTableTools(
 
 **NOT for:** Reading table rows. Use run-query for data and describe-table for columns.
 
-**Returns:** Tables plus database and organization context. For clusters configured with per-table customer-owned S3 storage, table_bucket_prefix contains the immutable bucket prefix used by create-table.
+**Returns:** Tables plus database and organization context.
 
 **When to use:**
 - User asks what data exists
@@ -46,7 +46,7 @@ export function addTableTools(
 
 **Returns:** The database and table names plus the resolved storage destination. S3 responses include the full bucket, object path, and endpoint.
 
-**Behavior:** Omit storage to use the cluster's default storage. To use a per-table customer-owned bucket, first call list-tables and confirm its table_bucket_prefix is present. Set storage.type to s3 and provide only the bucket suffix appended to that immutable prefix. The resulting bucket must already exist. path is optional and defaults server-side to rawtree/{database}/{table}.
+**Behavior:** Omit storage to use the cluster's default storage. To use a per-table customer-owned bucket, first call get-cluster and confirm its table_bucket_prefix is present. Set storage.type to s3 and provide only the bucket suffix appended to that immutable prefix. The resulting bucket must already exist. path is optional and defaults server-side to rawtree/{database}/{table}.
 
 **Server-owned configuration:** Do not ask for or send the AWS region, IAM role ARN, external ID, or table bucket prefix. RawTree reads those values from the cluster configuration.
 

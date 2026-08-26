@@ -72,7 +72,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
       title: 'List Clusters',
       description: `**Purpose:** List RawTree dedicated clusters accessible in an organization.
 
-**Returns:** Cluster IDs, names, creation times, lifecycle status, resources, and whether each cluster can be paused or resumed.
+**Returns:** Cluster IDs, names, creation times, lifecycle status, resources, whether each cluster can be paused or resumed, and the optional immutable table_bucket_prefix used by per-table customer-owned S3.
 
 **Auth:** The RawTree API requires a user access token and organization membership. Authorization is enforced by the API.
 
@@ -230,7 +230,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
       title: 'Get Cluster',
       description: `**Purpose:** Get one RawTree dedicated cluster and its current lifecycle status.
 
-**Returns:** The cluster ID, name, creation time, lifecycle status, resources, and whether it can be paused or resumed.
+**Returns:** The cluster ID, name, creation time, lifecycle status, resources, whether it can be paused or resumed, and the optional immutable table_bucket_prefix used by per-table customer-owned S3.
 
 **Auth:** The RawTree API requires a user access token and organization membership. Authorization is enforced by the API.
 

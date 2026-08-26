@@ -144,7 +144,7 @@ Environment variables:
 - `describe-table` — Inspect columns, row count, byte count, database, and organization.
 - `delete-table` — Delete a table after explicit confirmation. Requires admin permission.
 
-`create-table.storage` is optional. Omit it to use the cluster's default storage. For a cluster whose `list-tables` response includes `table_bucket_prefix`, use `{ "type": "s3", "bucketSuffix": "events" }` to create a table in the existing bucket formed by that server-owned prefix plus `events`. `path` is optional and defaults to `rawtree/{database}/{table}`. The AWS region, IAM role ARN, external ID, and bucket prefix come from the cluster configuration and are not create-table inputs.
+`create-table.storage` is optional. Omit it to use the cluster's default storage. For a cluster whose `get-cluster` response includes `table_bucket_prefix`, use `{ "type": "s3", "bucketSuffix": "events" }` to create a table in the existing bucket formed by that server-owned prefix plus `events`. `path` is optional and defaults to `rawtree/{database}/{table}`. The AWS region, IAM role ARN, external ID, and bucket prefix come from the cluster configuration and are not create-table inputs.
 
 ### Logs
 
