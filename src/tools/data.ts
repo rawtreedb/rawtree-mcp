@@ -25,7 +25,7 @@ export function addDataTools(
 
 **Allowed writes:** Only ALTER TABLE <table> MODIFY ORDER BY (...), ALTER TABLE <table> UPDATE ... WHERE ..., and ALTER TABLE <table> DELETE WHERE .... UPDATE and DELETE are asynchronous and require a bounded WHERE condition.
 
-**NOT for:** INSERT, standard UPDATE or DELETE FROM syntax, schema changes other than MODIFY ORDER BY, multiple statements, qualified/cross-database tables, ON CLUSTER, SETTINGS, or subqueries in mutations.
+**NOT for:** INSERT, standard UPDATE or DELETE FROM syntax, schema changes other than MODIFY ORDER BY, multiple statements, qualified/cross-database tables, ON CLUSTER, SETTINGS, SQL comments, function calls, IN/GLOBAL/EXISTS expressions, or subqueries in mutations.
 
 **Returns:** RawTree's query response: meta, data, rows, statistics, and optional hints.
 
