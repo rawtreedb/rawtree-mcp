@@ -41,18 +41,11 @@ export interface S3DestinationInput {
   path?: string;
 }
 
-export interface ByoS3Input {
+export interface S3StorageInput {
   data: S3DestinationInput;
   backups: S3DestinationInput;
   roleArn: string;
   externalId: string;
-  tableBucketPrefix?: string;
-}
-
-export interface CreateTableStorageInput {
-  type: 's3';
-  bucketSuffix: string;
-  path?: string;
 }
 
 export class RawTreeApiError extends Error {
@@ -132,21 +125,22 @@ function encodePathPart(part: string): string {
   return encodeURIComponent(part);
 }
 
-function byoS3RequestBody(byoS3: ByoS3Input) {
+function s3StorageRequestBody(s3Storage: S3StorageInput) {
   return {
     data: {
-      bucket: byoS3.data.bucket,
-      ...(byoS3.data.path === undefined ? {} : { path: byoS3.data.path }),
+      bucket: s3Storage.data.bucket,
+      ...(s3Storage.data.path === undefined
+        ? {}
+        : { path: s3Storage.data.path }),
     },
     backups: {
-      bucket: byoS3.backups.bucket,
-      ...(byoS3.backups.path === undefined ? {} : { path: byoS3.backups.path }),
+      bucket: s3Storage.backups.bucket,
+      ...(s3Storage.backups.path === undefined
+        ? {}
+        : { path: s3Storage.backups.path }),
     },
-    role_arn: byoS3.roleArn,
-    external_id: byoS3.externalId,
-    ...(byoS3.tableBucketPrefix === undefined
-      ? {}
-      : { table_bucket_prefix: byoS3.tableBucketPrefix }),
+    role_arn: s3Storage.roleArn,
+    external_id: s3Storage.externalId,
   };
 }
 
@@ -238,10 +232,10 @@ export class RawTreeClient {
   async createTable(
     {
       name,
-      storage,
+      s3Storage,
     }: {
       name: string;
-      storage?: CreateTableStorageInput;
+      s3Storage?: S3StorageInput;
     },
     scope: RawTreeScope = {},
   ): Promise<unknown> {
@@ -252,17 +246,9 @@ export class RawTreeClient {
         {
           body: {
             name,
-            ...(storage === undefined
+            ...(s3Storage === undefined
               ? {}
-              : {
-                  storage: {
-                    type: storage.type,
-                    bucket_suffix: storage.bucketSuffix,
-                    ...(storage.path === undefined
-                      ? {}
-                      : { path: storage.path }),
-                  },
-                }),
+              : { s3_storage: s3StorageRequestBody(s3Storage) }),
           },
         },
         scope,
@@ -369,7 +355,7 @@ export class RawTreeClient {
     minimumSize,
     maximumSize,
     idleTimeoutMinutes,
-    byoS3,
+    s3Storage,
   }: {
     organization: string;
     name: string;
@@ -377,7 +363,7 @@ export class RawTreeClient {
     minimumSize: { cpuCores: number; memoryGiB: number };
     maximumSize: { cpuCores: number; memoryGiB: number };
     idleTimeoutMinutes?: number;
-    byoS3?: ByoS3Input;
+    s3Storage?: S3StorageInput;
   }): Promise<unknown> {
     return this.requestJson('POST', this.apiPath('/clusters'), {
       query: { organization },
@@ -401,24 +387,26 @@ export class RawTreeClient {
         ...(idleTimeoutMinutes === undefined
           ? {}
           : { idle_timeout_minutes: idleTimeoutMinutes }),
-        ...(byoS3 === undefined ? {} : { byo_s3: byoS3RequestBody(byoS3) }),
+        ...(s3Storage === undefined
+          ? {}
+          : { s3_storage: s3StorageRequestBody(s3Storage) }),
       },
     });
   }
 
   async verifyClusterS3Access({
     organization,
-    byoS3,
+    s3Storage,
   }: {
     organization: string;
-    byoS3: ByoS3Input;
+    s3Storage: S3StorageInput;
   }): Promise<unknown> {
     return this.requestJson(
       'POST',
       this.apiPath('/clusters/verify-s3-access'),
       {
         query: { organization },
-        body: { byo_s3: byoS3RequestBody(byoS3) },
+        body: { s3_storage: s3StorageRequestBody(s3Storage) },
       },
     );
   }
@@ -539,9 +527,56 @@ export class RawTreeClient {
     });
   }
 
+  async createDatabase(
+    {
+      name,
+      s3Storage,
+    }: {
+      name: string;
+      s3Storage?: S3StorageInput;
+    },
+    scope: Omit<RawTreeScope, 'database'> = {},
+  ): Promise<unknown> {
+    return this.requestJson('POST', this.apiPath('/databases'), {
+      query: {
+        organization: scope.organization ?? this.organization,
+        cluster: scope.cluster ?? this.cluster,
+      },
+      body: {
+        name,
+        ...(s3Storage === undefined
+          ? {}
+          : { s3_storage: s3StorageRequestBody(s3Storage) }),
+      },
+    });
+  }
+
+  async verifyDatabaseS3Access(
+    {
+      name,
+      s3Storage,
+    }: {
+      name: string;
+      s3Storage: S3StorageInput;
+    },
+    scope: Omit<RawTreeScope, 'database'> = {},
+  ): Promise<unknown> {
+    return this.requestJson(
+      'POST',
+      this.apiPath('/databases/verify-s3-access'),
+      {
+        query: {
+          organization: scope.organization ?? this.organization,
+          cluster: scope.cluster ?? this.cluster,
+        },
+        body: { name, s3_storage: s3StorageRequestBody(s3Storage) },
+      },
+    );
+  }
+
   async deleteDatabase(
     database: string,
-    scope: Pick<RawTreeScope, 'organization'> = {},
+    scope: Pick<RawTreeScope, 'organization' | 'cluster'> = {},
   ): Promise<unknown> {
     return this.requestJson(
       'DELETE',
@@ -549,6 +584,7 @@ export class RawTreeClient {
       {
         query: {
           organization: scope.organization ?? this.organization,
+          cluster: scope.cluster ?? this.cluster,
         },
       },
     );

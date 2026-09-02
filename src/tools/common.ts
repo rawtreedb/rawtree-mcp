@@ -6,6 +6,34 @@ export interface ToolScopeOptions {
   requireExplicitScope?: boolean;
 }
 
+export const s3StorageInput = z.object({
+  data: z
+    .object({
+      bucket: z.string().min(3).max(63),
+      path: z.string().optional(),
+    })
+    .describe('Customer-owned bucket and optional key prefix for data.'),
+  backups: z
+    .object({
+      bucket: z.string().min(3).max(63),
+      path: z.string().optional(),
+    })
+    .describe('Customer-owned bucket and optional key prefix for backups.'),
+  roleArn: z
+    .string()
+    .min(1)
+    .describe(
+      'ARN of the customer IAM role that RawTree may assume to access the configured buckets.',
+    ),
+  externalId: z
+    .string()
+    .min(2)
+    .max(1224)
+    .describe(
+      'External ID required by the IAM role trust policy. It must exactly match the value configured in AWS.',
+    ),
+});
+
 function scopeName(options: ToolScopeOptions, description: string) {
   const schema = z.string().min(1).describe(description);
   return options.requireExplicitScope ? schema : schema.optional();

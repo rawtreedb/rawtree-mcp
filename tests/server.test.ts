@@ -54,6 +54,8 @@ describe('createMcpServer', () => {
         'delete-table',
         'delete-api-key',
         'list-databases',
+        'verify-database-s3-access',
+        'create-database',
         'delete-database',
       ]),
     );
@@ -100,7 +102,7 @@ describe('createMcpServer', () => {
     expect(createCluster?.inputSchema.required).not.toContain(
       'idleTimeoutMinutes',
     );
-    expect(createCluster?.inputSchema.required).not.toContain('byoS3');
+    expect(createCluster?.inputSchema.required).not.toContain('s3Storage');
     expect(
       createCluster?.inputSchema.properties.idleTimeoutMinutes,
     ).toMatchObject({
@@ -114,13 +116,13 @@ describe('createMcpServer', () => {
         required: ['cpuCores', 'memoryGiB'],
       });
     }
-    expect(createCluster?.inputSchema.properties.byoS3).toMatchObject({
+    expect(createCluster?.inputSchema.properties.s3Storage).toMatchObject({
       type: 'object',
       required: ['data', 'backups', 'roleArn', 'externalId'],
     });
     expect(
-      createCluster?.inputSchema.properties.byoS3.properties,
-    ).toHaveProperty('tableBucketPrefix');
+      createCluster?.inputSchema.properties.s3Storage.properties,
+    ).not.toHaveProperty('tableBucketPrefix');
     expect(createCluster?.annotations).toMatchObject({
       readOnlyHint: false,
       destructiveHint: false,
@@ -132,9 +134,11 @@ describe('createMcpServer', () => {
     );
     expect(verifyClusterS3Access?.inputSchema.required).toEqual([
       'organization',
-      'byoS3',
+      's3Storage',
     ]);
-    expect(verifyClusterS3Access?.inputSchema.properties.byoS3).toMatchObject({
+    expect(
+      verifyClusterS3Access?.inputSchema.properties.s3Storage,
+    ).toMatchObject({
       type: 'object',
       required: ['data', 'backups', 'roleArn', 'externalId'],
     });
@@ -235,25 +239,50 @@ describe('createMcpServer', () => {
 
     const createTable = tools.find((tool) => tool.name === 'create-table');
     expect(createTable?.inputSchema.required).toEqual(['name']);
-    expect(createTable?.inputSchema.properties.storage).toMatchObject({
+    expect(createTable?.inputSchema.properties.s3Storage).toMatchObject({
       type: 'object',
-      required: ['type', 'bucketSuffix'],
+      required: ['data', 'backups', 'roleArn', 'externalId'],
     });
-    expect(createTable?.inputSchema.properties.storage.properties).toEqual(
-      expect.objectContaining({
-        type: expect.objectContaining({ const: 's3' }),
-        bucketSuffix: expect.objectContaining({
-          type: 'string',
-          minLength: 1,
-          maxLength: 63,
-        }),
-        path: expect.objectContaining({ type: 'string' }),
-      }),
-    );
+    expect(
+      createTable?.inputSchema.properties.s3Storage.properties,
+    ).not.toHaveProperty('bucketSuffix');
     expect(createTable?.annotations).toMatchObject({
       readOnlyHint: false,
       destructiveHint: false,
       idempotentHint: true,
+    });
+
+    const verifyDatabaseS3Access = tools.find(
+      (tool) => tool.name === 'verify-database-s3-access',
+    );
+    expect(verifyDatabaseS3Access?.inputSchema.required).toEqual([
+      'name',
+      's3Storage',
+    ]);
+    expect(
+      verifyDatabaseS3Access?.inputSchema.properties.s3Storage,
+    ).toMatchObject({
+      type: 'object',
+      required: ['data', 'backups', 'roleArn', 'externalId'],
+    });
+    expect(verifyDatabaseS3Access?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    });
+
+    const createDatabase = tools.find(
+      (tool) => tool.name === 'create-database',
+    );
+    expect(createDatabase?.inputSchema.required).toEqual(['name']);
+    expect(createDatabase?.inputSchema.properties.s3Storage).toMatchObject({
+      type: 'object',
+      required: ['data', 'backups', 'roleArn', 'externalId'],
+    });
+    expect(createDatabase?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
     });
 
     const deleteDatabase = tools.find(
@@ -315,6 +344,12 @@ describe('createMcpServer', () => {
     const runQuery = tools.find((tool) => tool.name === 'run-query');
     const listClusters = tools.find((tool) => tool.name === 'list-clusters');
     const listDatabases = tools.find((tool) => tool.name === 'list-databases');
+    const verifyDatabaseS3Access = tools.find(
+      (tool) => tool.name === 'verify-database-s3-access',
+    );
+    const createDatabase = tools.find(
+      (tool) => tool.name === 'create-database',
+    );
     const deleteDatabase = tools.find(
       (tool) => tool.name === 'delete-database',
     );
@@ -331,7 +366,19 @@ describe('createMcpServer', () => {
     ]);
     expect(deleteDatabase?.inputSchema.required).toEqual([
       'organization',
+      'cluster',
       'database',
+    ]);
+    expect(verifyDatabaseS3Access?.inputSchema.required).toEqual([
+      'organization',
+      'cluster',
+      'name',
+      's3Storage',
+    ]);
+    expect(createDatabase?.inputSchema.required).toEqual([
+      'organization',
+      'cluster',
+      'name',
     ]);
     const createTable = tools.find((tool) => tool.name === 'create-table');
     expect(createTable?.inputSchema.required).toEqual([

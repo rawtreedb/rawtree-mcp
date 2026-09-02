@@ -6,6 +6,7 @@ import {
   jsonResult,
   namedJsonResult,
   requestScope,
+  s3StorageInput,
   type ToolScopeOptions,
 } from './common.js';
 
@@ -46,9 +47,9 @@ export function addTableTools(
 
 **Returns:** The database and table names plus the resolved storage destination. S3 responses include the full bucket, object path, and endpoint.
 
-**Behavior:** Omit storage to use the cluster's default storage. To use a per-table customer-owned bucket, first call get-cluster and confirm its table_bucket_prefix is present. Set storage.type to s3 and provide only the bucket suffix appended to that immutable prefix. The resulting bucket must already exist. path is optional and defaults server-side to rawtree/{database}/{table}.
+**Behavior:** Omit s3Storage to inherit database-level storage when configured, then the cluster's default storage. To use an explicit per-table customer-owned S3 configuration, provide the complete s3Storage object with data and backup buckets, optional paths, roleArn, and externalId. Paths default to the bucket root when omitted.
 
-**Server-owned configuration:** Do not ask for or send the AWS region, IAM role ARN, external ID, or table bucket prefix. RawTree reads those values from the cluster configuration.
+**Credentials:** The API does not return S3 credentials in cluster metadata. Confirm the exact buckets, paths, role ARN, and External ID before using an explicit s3Storage override.
 
 **Auth:** Requires organization admin access. Authorization is enforced by the RawTree API.
 
@@ -61,36 +62,18 @@ export function addTableTools(
       inputSchema: {
         ...databaseScopeInput(scopeOptions),
         name: z.string().min(1).describe('Name of the table to create.'),
-        storage: z
-          .object({
-            type: z
-              .literal('s3')
-              .describe('Use a customer-owned S3 bucket for this table.'),
-            bucketSuffix: z
-              .string()
-              .min(1)
-              .max(63)
-              .describe(
-                'Suffix appended to table_bucket_prefix. The complete bucket must already exist.',
-              ),
-            path: z
-              .string()
-              .optional()
-              .describe(
-                'Optional object path inside the bucket. Omit to use the server default rawtree/{database}/{table}.',
-              ),
-          })
+        s3Storage: s3StorageInput
           .optional()
           .describe(
-            "Optional per-table storage override. Omit to use the cluster's default storage.",
+            "Optional per-table S3 override. Omit to inherit the database or cluster's default storage.",
           ),
       },
     },
-    async ({ organization, cluster, database, name, storage }) =>
+    async ({ organization, cluster, database, name, s3Storage }) =>
       namedJsonResult(
         'Create table result',
         await rawtree.createTable(
-          { name, storage },
+          { name, s3Storage },
           requestScope({ organization, cluster, database }),
         ),
       ),
