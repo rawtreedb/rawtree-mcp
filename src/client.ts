@@ -48,6 +48,11 @@ export interface S3StorageInput {
   externalId: string;
 }
 
+export interface DatabaseS3AccessInput {
+  externalId: string;
+  databaseBucketTag: string;
+}
+
 export class RawTreeApiError extends Error {
   readonly status: number;
   readonly method: string;
@@ -141,6 +146,13 @@ function s3StorageRequestBody(s3Storage: S3StorageInput) {
     },
     role_arn: s3Storage.roleArn,
     external_id: s3Storage.externalId,
+  };
+}
+
+function databaseS3AccessRequestBody(databaseS3Access: DatabaseS3AccessInput) {
+  return {
+    external_id: databaseS3Access.externalId,
+    database_bucket_tag: databaseS3Access.databaseBucketTag,
   };
 }
 
@@ -356,6 +368,7 @@ export class RawTreeClient {
     maximumSize,
     idleTimeoutMinutes,
     s3Storage,
+    databaseS3Access,
   }: {
     organization: string;
     name: string;
@@ -364,6 +377,7 @@ export class RawTreeClient {
     maximumSize: { cpuCores: number; memoryGiB: number };
     idleTimeoutMinutes?: number;
     s3Storage?: S3StorageInput;
+    databaseS3Access?: DatabaseS3AccessInput;
   }): Promise<unknown> {
     return this.requestJson('POST', this.apiPath('/clusters'), {
       query: { organization },
@@ -390,6 +404,11 @@ export class RawTreeClient {
         ...(s3Storage === undefined
           ? {}
           : { s3_storage: s3StorageRequestBody(s3Storage) }),
+        ...(databaseS3Access === undefined
+          ? {}
+          : {
+              database_s3_access: databaseS3AccessRequestBody(databaseS3Access),
+            }),
       },
     });
   }

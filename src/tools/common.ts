@@ -29,8 +29,28 @@ export const s3StorageInput = z.object({
     .string()
     .min(2)
     .max(1224)
+    .regex(/^[A-Za-z0-9_+=,.@:/-]+$/)
     .describe(
       'External ID required by the IAM role trust policy. It must exactly match the value configured in AWS.',
+    ),
+});
+
+export const databaseS3AccessInput = z.object({
+  externalId: z
+    .string()
+    .min(2)
+    .max(1224)
+    .regex(/^[A-Za-z0-9_+=,.@:/-]+$/)
+    .describe(
+      'External ID used by customer IAM role trust policies. It must exactly match the cluster S3 storage External ID when both are configured.',
+    ),
+  databaseBucketTag: z
+    .string()
+    .min(1)
+    .max(256)
+    .regex(/^[a-z0-9][a-z0-9-]*$/)
+    .describe(
+      'Lowercase tag value applied to every customer-owned database bucket as rawtree.com/cluster=<value>.',
     ),
 });
 

@@ -103,6 +103,9 @@ describe('createMcpServer', () => {
       'idleTimeoutMinutes',
     );
     expect(createCluster?.inputSchema.required).not.toContain('s3Storage');
+    expect(createCluster?.inputSchema.required).not.toContain(
+      'databaseS3Access',
+    );
     expect(
       createCluster?.inputSchema.properties.idleTimeoutMinutes,
     ).toMatchObject({
@@ -123,6 +126,30 @@ describe('createMcpServer', () => {
     expect(
       createCluster?.inputSchema.properties.s3Storage.properties,
     ).not.toHaveProperty('tableBucketPrefix');
+    expect(
+      createCluster?.inputSchema.properties.databaseS3Access,
+    ).toMatchObject({
+      type: 'object',
+      required: ['externalId', 'databaseBucketTag'],
+    });
+    expect(
+      createCluster?.inputSchema.properties.databaseS3Access.properties
+        .databaseBucketTag,
+    ).toMatchObject({
+      type: 'string',
+      minLength: 1,
+      maxLength: 256,
+      pattern: '^[a-z0-9][a-z0-9-]*$',
+    });
+    expect(
+      createCluster?.inputSchema.properties.databaseS3Access.properties
+        .externalId,
+    ).toMatchObject({
+      type: 'string',
+      minLength: 2,
+      maxLength: 1224,
+      pattern: '^[A-Za-z0-9_+=,.@:/-]+$',
+    });
     expect(createCluster?.annotations).toMatchObject({
       readOnlyHint: false,
       destructiveHint: false,

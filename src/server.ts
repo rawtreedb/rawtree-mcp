@@ -12,7 +12,13 @@ import {
   addTableTools,
 } from './tools/index.js';
 
-export type { RawTreeClientOptions, RawTreeScope } from './client.js';
+export type {
+  DatabaseS3AccessInput,
+  RawTreeClientOptions,
+  RawTreeScope,
+  S3DestinationInput,
+  S3StorageInput,
+} from './client.js';
 export { RawTreeClient } from './client.js';
 
 export interface McpServerOptions {

@@ -581,6 +581,10 @@ describe('RawTreeClient', () => {
               path: 'rawtree/backups',
             },
           },
+          database_s3_access: {
+            external_id: 'rawtree-acme-production',
+            database_bucket_tag: 'rawtree-acme-database',
+          },
         },
       ],
     };
@@ -685,6 +689,10 @@ describe('RawTreeClient', () => {
         roleArn: 'arn:aws:iam::123456789012:role/RawTreeS3',
         externalId: 'rawtree-acme-production',
       },
+      databaseS3Access: {
+        externalId: 'rawtree-acme-production',
+        databaseBucketTag: 'rawtree-acme-database',
+      },
     });
 
     expect(calls[0].init.body).toBe(
@@ -710,6 +718,58 @@ describe('RawTreeClient', () => {
           backups: { bucket: 'acme-rawtree-backups' },
           role_arn: 'arn:aws:iam::123456789012:role/RawTreeS3',
           external_id: 'rawtree-acme-production',
+        },
+        database_s3_access: {
+          external_id: 'rawtree-acme-production',
+          database_bucket_tag: 'rawtree-acme-database',
+        },
+      }),
+    );
+  });
+
+  it('creates a cluster with independent database S3 access', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(
+        jsonResponse({ id: 'cluster-id', name: 'production' }),
+        calls,
+      ),
+    });
+
+    await client.createCluster({
+      organization: 'acme',
+      name: 'production',
+      replicas: 1,
+      minimumSize: { cpuCores: 2, memoryGiB: 8 },
+      maximumSize: { cpuCores: 4, memoryGiB: 16 },
+      databaseS3Access: {
+        externalId: 'rawtree-acme-production',
+        databaseBucketTag: 'rawtree-acme-database',
+      },
+    });
+
+    expect(calls[0].init.body).toBe(
+      JSON.stringify({
+        name: 'production',
+        replicas: 1,
+        size: {
+          cpu_cores: 2,
+          memory_gib: 8,
+        },
+        autoscaling: {
+          min_size: {
+            cpu_cores: 2,
+            memory_gib: 8,
+          },
+          max_size: {
+            cpu_cores: 4,
+            memory_gib: 16,
+          },
+        },
+        database_s3_access: {
+          external_id: 'rawtree-acme-production',
+          database_bucket_tag: 'rawtree-acme-database',
         },
       }),
     );
