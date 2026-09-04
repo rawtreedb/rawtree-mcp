@@ -5,6 +5,7 @@ import {
   addApiKeyTools,
   addAppTools,
   addClusterTools,
+  addConnectorTools,
   addDatabaseTools,
   addDataTools,
   addLogTools,
@@ -12,7 +13,15 @@ import {
   addTableTools,
 } from './tools/index.js';
 
-export type { RawTreeClientOptions, RawTreeScope } from './client.js';
+export type {
+  ConnectorDestinationInput,
+  ConnectorStatus,
+  CreateConnectorInput,
+  KafkaConnectorSettingsInput,
+  NewConnectorDestinationInput,
+  RawTreeClientOptions,
+  RawTreeScope,
+} from './client.js';
 export { RawTreeClient } from './client.js';
 
 export interface McpServerOptions {
@@ -35,6 +44,7 @@ export function createMcpServer(
   addApiKeyTools(server, rawtree, options);
   addDatabaseTools(server, rawtree, options);
   addClusterTools(server, rawtree);
+  addConnectorTools(server, rawtree, options);
   addAppTools(server, rawtree);
 
   return server;

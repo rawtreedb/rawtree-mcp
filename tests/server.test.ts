@@ -49,6 +49,12 @@ describe('createMcpServer', () => {
         'pause-cluster',
         'resume-cluster',
         'list-apps',
+        'list-connectors',
+        'get-connector',
+        'create-connector',
+        'get-connector-metrics',
+        'add-connector-destination',
+        'set-connector-status',
         'install-app',
         'uninstall-app',
         'delete-table',
@@ -298,6 +304,69 @@ describe('createMcpServer', () => {
         idempotentHint: true,
       });
     }
+
+    const createConnector = tools.find(
+      (candidate) => candidate.name === 'create-connector',
+    );
+    expect(createConnector?.inputSchema.required).toEqual([
+      'name',
+      'type',
+      'destinations',
+      'settings',
+    ]);
+    expect(createConnector?.inputSchema.properties.settings).toMatchObject({
+      type: 'object',
+      required: ['bootstrap_servers'],
+    });
+    expect(createConnector?.inputSchema.properties.destinations).toMatchObject({
+      type: 'array',
+      minItems: 1,
+      maxItems: 32,
+    });
+    expect(createConnector?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    });
+
+    const connectorMetrics = tools.find(
+      (candidate) => candidate.name === 'get-connector-metrics',
+    );
+    expect(connectorMetrics?.inputSchema.required).toEqual(['connectorId']);
+    expect(connectorMetrics?.annotations).toMatchObject({
+      readOnlyHint: true,
+      destructiveHint: false,
+    });
+
+    const addDestination = tools.find(
+      (candidate) => candidate.name === 'add-connector-destination',
+    );
+    expect(addDestination?.inputSchema.required).toEqual([
+      'connectorId',
+      'destination',
+    ]);
+    expect(addDestination?.inputSchema.properties.destination).toMatchObject({
+      type: 'object',
+      required: ['topics', 'database', 'table'],
+    });
+    expect(addDestination?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    });
+
+    const setConnectorStatus = tools.find(
+      (candidate) => candidate.name === 'set-connector-status',
+    );
+    expect(setConnectorStatus?.inputSchema.required).toEqual([
+      'connectorId',
+      'status',
+    ]);
+    expect(setConnectorStatus?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+    });
   });
 
   it('requires resource scope in explicitly scoped deployments', async () => {
@@ -338,6 +407,14 @@ describe('createMcpServer', () => {
       'organization',
       'cluster',
       'name',
+    ]);
+    const connectorMetrics = tools.find(
+      (tool) => tool.name === 'get-connector-metrics',
+    );
+    expect(connectorMetrics?.inputSchema.required).toEqual([
+      'organization',
+      'cluster',
+      'connectorId',
     ]);
   });
 });
