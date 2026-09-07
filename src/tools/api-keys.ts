@@ -52,7 +52,7 @@ export function addApiKeyTools(
       title: 'Create API Key',
       description: `**Purpose:** Create a new RawTree API key for a cluster.
 
-**NOT for:** User login or creating databases. Use RawTree auth/CLI or the dashboard for those workflows.
+**NOT for:** User login. Use RawTree auth/CLI or the dashboard for that workflow.
 
 **Returns:** The new API key value. The API key is only shown once, so you MUST display it to the user.
 

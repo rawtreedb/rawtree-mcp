@@ -6,6 +6,54 @@ export interface ToolScopeOptions {
   requireExplicitScope?: boolean;
 }
 
+export const s3StorageInput = z.object({
+  data: z
+    .object({
+      bucket: z.string().min(3).max(63),
+      path: z.string().optional(),
+    })
+    .describe('Customer-owned bucket and optional key prefix for data.'),
+  backups: z
+    .object({
+      bucket: z.string().min(3).max(63),
+      path: z.string().optional(),
+    })
+    .describe('Customer-owned bucket and optional key prefix for backups.'),
+  roleArn: z
+    .string()
+    .min(1)
+    .describe(
+      'ARN of the customer IAM role that RawTree may assume to access the configured buckets.',
+    ),
+  externalId: z
+    .string()
+    .min(2)
+    .max(1224)
+    .regex(/^[A-Za-z0-9_+=,.@:/-]+$/)
+    .describe(
+      'External ID required by the IAM role trust policy. It must exactly match the value configured in AWS.',
+    ),
+});
+
+export const databaseS3AccessInput = z.object({
+  externalId: z
+    .string()
+    .min(2)
+    .max(1224)
+    .regex(/^[A-Za-z0-9_+=,.@:/-]+$/)
+    .describe(
+      'External ID used by customer IAM role trust policies. It must exactly match the cluster S3 storage External ID when both are configured.',
+    ),
+  databaseBucketTag: z
+    .string()
+    .min(1)
+    .max(256)
+    .regex(/^[a-z0-9][a-z0-9-]*$/)
+    .describe(
+      'Lowercase tag value applied to every customer-owned database bucket as rawtree.com/cluster=<value>.',
+    ),
+});
+
 function scopeName(options: ToolScopeOptions, description: string) {
   const schema = z.string().min(1).describe(description);
   return options.requireExplicitScope ? schema : schema.optional();
