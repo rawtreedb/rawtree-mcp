@@ -72,7 +72,7 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.headers).toMatchObject({
       Authorization: 'Bearer rt_test',
       'Content-Type': 'application/json',
-      'User-Agent': 'rawtree-mcp/0.3.0',
+      'User-Agent': 'rawtree-mcp/0.3.1',
     });
   });
 
@@ -500,7 +500,7 @@ describe('RawTreeClient', () => {
       apiKey: 'jwt_test',
       database: 'analytics',
       organization: 'acme',
-      fetchFn: recordingFetch(new Response('{"event":"started"}\n'), calls),
+      fetchFn: recordingFetch(jsonResponse({ inserted: 1 }), calls),
     });
 
     await client.insertFromUrl({
@@ -529,11 +529,14 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.body).toBe(JSON.stringify([{ event: 'signup' }]));
   });
 
-  it('returns URL insert streams as text', async () => {
+  it.each([
+    1,
+    null,
+  ])('returns the completed URL insert result with count %s', async (inserted) => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({
       apiKey: 'rt_test',
-      fetchFn: recordingFetch(new Response('{"event":"started"}\n'), calls),
+      fetchFn: recordingFetch(jsonResponse({ inserted }), calls),
     });
 
     await expect(
@@ -541,7 +544,7 @@ describe('RawTreeClient', () => {
         table: 'events',
         url: 'https://example.com/events.jsonl',
       }),
-    ).resolves.toBe('{"event":"started"}\n');
+    ).resolves.toEqual({ inserted });
 
     expect(calls[0].url).toBe(
       'https://api.rawtree.com/v1/tables/events?url=https%3A%2F%2Fexample.com%2Fevents.jsonl',

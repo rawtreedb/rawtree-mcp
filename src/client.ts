@@ -400,8 +400,8 @@ export class RawTreeClient {
       url: string;
     },
     scope: RawTreeScope = {},
-  ): Promise<string> {
-    return this.requestText(
+  ): Promise<unknown> {
+    return this.requestJson(
       'POST',
       `${this.apiPath('/tables')}/${encodePathPart(table)}`,
       this.scoped(
