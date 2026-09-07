@@ -135,7 +135,7 @@ Environment variables:
 
 - `run-query` — Run read-only SQL and return RawTree's JSON query response. Accepts organization, cluster, and database overrides.
 - `insert-json` — Insert JSON object(s) into a table.
-- `insert-from-url` — Ingest data from a public URL and return RawTree's NDJSON progress stream.
+- `insert-from-url` — Ingest data from a public URL and wait for completion, returning the inserted row count (or `null` when unavailable).
 
 ### Tables
 

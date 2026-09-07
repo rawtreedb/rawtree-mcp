@@ -104,11 +104,11 @@ export function addDataTools(
     'insert-from-url',
     {
       title: 'Insert From URL',
-      description: `**Purpose:** Ask RawTree to ingest JSON/JSONL data from a public URL into a table. RawTree streams progress as NDJSON.
+      description: `**Purpose:** Ask RawTree to ingest JSON/JSONL data from a public URL into a table. Waits for the import to complete.
 
 **NOT for:** Private files on your machine or authenticated URLs. Normalize or transform data before making it available at the public URL.
 
-**Returns:** The RawTree NDJSON progress stream as text.
+**Returns:** The completed import result as JSON: inserted is the row count, or null when unavailable.
 
 **When to use:**
 - User has a public JSON or JSONL file URL
@@ -125,11 +125,11 @@ export function addDataTools(
       },
     },
     async ({ organization, cluster, database, table, url }) => {
-      const stream = await rawtree.insertFromUrl(
+      const inserted = await rawtree.insertFromUrl(
         { table, url },
         requestScope({ organization, cluster, database }),
       );
-      return namedJsonResult('URL insert event stream', stream);
+      return namedJsonResult('URL insert result', inserted);
     },
   );
 }
