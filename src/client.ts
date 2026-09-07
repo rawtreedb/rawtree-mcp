@@ -53,6 +53,48 @@ export interface DatabaseS3AccessInput {
   databaseBucketTag: string;
 }
 
+export interface ConnectorDestinationInput {
+  id?: string;
+  topics: string[];
+  group_id?: string;
+  database: string;
+  table: string;
+}
+
+export type NewConnectorDestinationInput = Omit<
+  ConnectorDestinationInput,
+  'id'
+>;
+
+export interface KafkaConnectorSettingsInput {
+  bootstrap_servers: string;
+  auto_offset_reset?: 'largest' | 'smallest';
+  tls?: {
+    enabled: true;
+    verify_certificate?: boolean;
+    verify_hostname?: boolean;
+  };
+  sasl?: {
+    enabled: true;
+    mechanism: 'PLAIN' | 'SCRAM-SHA-256' | 'SCRAM-SHA-512';
+    username: string;
+    password: string;
+  };
+  batch?: {
+    max_events?: number;
+    timeout_secs?: number;
+  };
+}
+
+export interface CreateConnectorInput {
+  name: string;
+  type: 'kafka';
+  destinations: NewConnectorDestinationInput[];
+  settings: KafkaConnectorSettingsInput;
+}
+
+export type ConnectorStatus = 'active' | 'paused';
+
 export class RawTreeApiError extends Error {
   readonly status: number;
   readonly method: string;
@@ -154,6 +196,51 @@ function databaseS3AccessRequestBody(databaseS3Access: DatabaseS3AccessInput) {
     external_id: databaseS3Access.externalId,
     database_bucket_tag: databaseS3Access.databaseBucketTag,
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function connectorDestinations(value: unknown): ConnectorDestinationInput[] {
+  if (!isRecord(value) || !Array.isArray(value.destinations)) {
+    throw new Error('RawTree returned an invalid connector response.');
+  }
+
+  return value.destinations.map((candidate) => {
+    if (
+      !isRecord(candidate) ||
+      typeof candidate.id !== 'string' ||
+      !Array.isArray(candidate.topics) ||
+      !candidate.topics.every((topic) => typeof topic === 'string') ||
+      typeof candidate.group_id !== 'string' ||
+      typeof candidate.database !== 'string' ||
+      typeof candidate.table !== 'string'
+    ) {
+      throw new Error('RawTree returned an invalid connector destination.');
+    }
+    return {
+      id: candidate.id,
+      topics: candidate.topics,
+      group_id: candidate.group_id,
+      database: candidate.database,
+      table: candidate.table,
+    };
+  });
+}
+
+function sameDestination(
+  existing: ConnectorDestinationInput,
+  requested: NewConnectorDestinationInput,
+): boolean {
+  return (
+    existing.topics.length === requested.topics.length &&
+    existing.topics.every(
+      (topic, index) => topic === requested.topics[index],
+    ) &&
+    (requested.group_id === undefined ||
+      existing.group_id === requested.group_id)
+  );
 }
 
 export class RawTreeClient {
@@ -535,6 +622,90 @@ export class RawTreeClient {
     );
   }
 
+  async listConnectors(
+    scope: Omit<RawTreeScope, 'database'> = {},
+  ): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      this.apiPath('/connectors'),
+      this.clusterScoped({}, scope),
+    );
+  }
+
+  async createConnector(
+    input: CreateConnectorInput,
+    scope: Omit<RawTreeScope, 'database'> = {},
+  ): Promise<unknown> {
+    return this.requestJson(
+      'POST',
+      this.apiPath('/connectors'),
+      this.clusterScoped({ body: { ...input } }, scope),
+    );
+  }
+
+  async getConnector(
+    connectorId: string,
+    scope: Omit<RawTreeScope, 'database'> = {},
+  ): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      `${this.apiPath('/connectors')}/${encodePathPart(connectorId)}`,
+      this.clusterScoped({}, scope),
+    );
+  }
+
+  async getConnectorMetrics(
+    connectorId: string,
+    scope: Omit<RawTreeScope, 'database'> = {},
+  ): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      `${this.apiPath('/connectors')}/${encodePathPart(connectorId)}/metrics`,
+      this.clusterScoped({}, scope),
+    );
+  }
+
+  async addConnectorDestination(
+    connectorId: string,
+    destination: NewConnectorDestinationInput,
+    scope: Omit<RawTreeScope, 'database'> = {},
+  ): Promise<unknown> {
+    const connector = await this.getConnector(connectorId, scope);
+    const destinations = connectorDestinations(connector);
+    const existing = destinations.find(
+      (candidate) =>
+        candidate.database === destination.database &&
+        candidate.table === destination.table,
+    );
+    if (existing) {
+      if (sameDestination(existing, destination)) return connector;
+      throw new Error(
+        `Connector already has a destination for ${destination.database}.${destination.table} with different topics or group_id.`,
+      );
+    }
+
+    return this.requestJson(
+      'PATCH',
+      `${this.apiPath('/connectors')}/${encodePathPart(connectorId)}`,
+      this.clusterScoped(
+        { body: { destinations: [...destinations, destination] } },
+        scope,
+      ),
+    );
+  }
+
+  async setConnectorStatus(
+    connectorId: string,
+    status: ConnectorStatus,
+    scope: Omit<RawTreeScope, 'database'> = {},
+  ): Promise<unknown> {
+    return this.requestJson(
+      'PATCH',
+      `${this.apiPath('/connectors')}/${encodePathPart(connectorId)}`,
+      this.clusterScoped({ body: { status } }, scope),
+    );
+  }
+
   async listDatabases(
     scope: Omit<RawTreeScope, 'database'> = {},
   ): Promise<unknown> {
@@ -664,6 +835,23 @@ export class RawTreeClient {
       query: {
         ...options.query,
         database,
+        organization,
+        cluster,
+      },
+    };
+  }
+
+  private clusterScoped(
+    options: RequestOptions = {},
+    scope: Omit<RawTreeScope, 'database'> = {},
+  ): RequestOptions {
+    const cluster = scope.cluster ?? this.cluster;
+    const organization = scope.organization ?? this.organization;
+    if (!cluster && !organization) return options;
+    return {
+      ...options,
+      query: {
+        ...options.query,
         organization,
         cluster,
       },

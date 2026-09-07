@@ -213,6 +213,52 @@ The RawTree API remains the authorization boundary: cluster access requires a us
 
 App tools require a user credential. Organization members can list apps; installing and uninstalling require organization-admin access. Use the app IDs returned by `list-apps`.
 
+### Connectors
+
+- `list-connectors` — List the managed connectors and destinations in a cluster.
+- `get-connector` — Get one connector's status and sanitized configuration.
+- `create-connector` — Create an active Kafka connector with one or more destinations.
+- `get-connector-metrics` — Read connector and per-destination health, lag, buffers, delivery counters, errors, source lag, and HTTP latency counters.
+- `add-connector-destination` — Preserve the existing routes and add another topic-to-table destination.
+- `set-connector-status` — Pause or resume all destinations in a connector.
+
+Connector tools use the same nested field names as the RawTree API. A minimal
+Kafka connector request looks like:
+
+```json
+{
+  "organization": "acme",
+  "cluster": "production",
+  "name": "orders",
+  "type": "kafka",
+  "destinations": [
+    {
+      "topics": ["orders"],
+      "database": "default",
+      "table": "orders"
+    }
+  ],
+  "settings": {
+    "bootstrap_servers": "kafka.example.com:9092",
+    "auto_offset_reset": "largest",
+    "tls": { "enabled": true },
+    "sasl": {
+      "enabled": true,
+      "mechanism": "PLAIN",
+      "username": "connector-user",
+      "password": "secret"
+    },
+    "batch": { "max_events": 1000, "timeout_secs": 1 }
+  }
+}
+```
+
+Creating connectors, adding destinations, and changing status require
+organization-admin access. Credentials are encrypted by RawTree and omitted
+from connector responses. `get-connector-metrics` returns cumulative counters;
+take two samples and divide counter differences by elapsed time to calculate
+event rates.
+
 Programmatic hosted deployments can require explicit resource selection on
 every applicable tool. Organization and cluster identify the resource boundary;
 database remains an optional override and defaults to `default` when omitted.

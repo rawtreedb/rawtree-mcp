@@ -5,6 +5,7 @@ import {
   addApiKeyTools,
   addAppTools,
   addClusterTools,
+  addConnectorTools,
   addDatabaseTools,
   addDataTools,
   addLogTools,
@@ -13,7 +14,12 @@ import {
 } from './tools/index.js';
 
 export type {
+  ConnectorDestinationInput,
+  ConnectorStatus,
+  CreateConnectorInput,
   DatabaseS3AccessInput,
+  KafkaConnectorSettingsInput,
+  NewConnectorDestinationInput,
   RawTreeClientOptions,
   RawTreeScope,
   S3DestinationInput,
@@ -41,6 +47,7 @@ export function createMcpServer(
   addApiKeyTools(server, rawtree, options);
   addDatabaseTools(server, rawtree, options);
   addClusterTools(server, rawtree);
+  addConnectorTools(server, rawtree, options);
   addAppTools(server, rawtree);
 
   return server;
