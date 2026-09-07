@@ -21,9 +21,11 @@ export function addDataTools(
     'run-query',
     {
       title: 'Run Query',
-      description: `**Purpose:** Execute a read-only SQL query against a RawTree database and return JSON rows, column metadata, statistics, and hints.
+      description: `**Purpose:** Execute a SQL query against a RawTree database. Read queries return JSON rows, column metadata, statistics, and hints. Supported ALTER TABLE mutations return an accepted response and hints.
 
-**NOT for:** Inserting, updating, deleting, or mutating data. RawTree validates queries as read-only and rejects unsafe statements.
+**Allowed writes:** Only ALTER TABLE <table> MODIFY ORDER BY (...), ALTER TABLE <table> UPDATE ... WHERE ..., and ALTER TABLE <table> DELETE WHERE .... UPDATE and DELETE are asynchronous and require a bounded WHERE condition.
+
+**NOT for:** INSERT, standard UPDATE or DELETE FROM syntax, schema changes other than MODIFY ORDER BY, multiple statements, qualified/cross-database tables, ON CLUSTER, SETTINGS, SQL comments, function calls, IN/GLOBAL/EXISTS expressions, or subqueries in mutations.
 
 **Returns:** RawTree's query response: meta, data, rows, statistics, and optional hints.
 
@@ -32,17 +34,18 @@ export function addDataTools(
 - You need to verify an insert
 - You need a quick aggregate, sample, or schema-oriented SELECT
 - You need RawTree query hints after an error
+- The user explicitly asks to change a sorting key, update matching rows, or delete matching rows
 
-**Workflow:** Start with a bounded SELECT. For exploratory queries, include LIMIT and order by a time column when available.
+**Workflow:** Start with a bounded SELECT. For exploratory queries, include LIMIT and order by a time column when available. Before UPDATE or DELETE, preview the same WHERE condition with SELECT and confirm the requested mutation scope.
 
-**Key trigger phrases:** "query RawTree", "run SQL", "count rows", "show sample rows", "check the data"`,
+**Key trigger phrases:** "query RawTree", "run SQL", "count rows", "show sample rows", "check the data", "change sorting key", "update rows", "delete rows"`,
       inputSchema: {
         ...databaseScopeInput(scopeOptions),
         sql: z
           .string()
           .min(1)
           .describe(
-            'Read-only SQL to execute. Prefer bounded SELECT queries with LIMIT for exploration.',
+            'SQL to execute. Prefer bounded SELECT queries for exploration. Writes are limited to ALTER TABLE MODIFY ORDER BY, UPDATE ... WHERE, and DELETE WHERE.',
           ),
       },
     },

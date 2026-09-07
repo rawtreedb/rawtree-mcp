@@ -455,6 +455,12 @@ describe('createMcpServer', () => {
       'cluster',
       'sql',
     ]);
+    expect(runQuery?.description).toContain(
+      'ALTER TABLE <table> UPDATE ... WHERE ...',
+    );
+    expect(runQuery?.description).toContain(
+      'ALTER TABLE <table> DELETE WHERE ...',
+    );
     expect(listClusters?.inputSchema.required).toEqual(['organization']);
     expect(listDatabases?.inputSchema.required).toEqual([
       'organization',
