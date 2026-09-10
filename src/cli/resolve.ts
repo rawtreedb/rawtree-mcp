@@ -34,12 +34,7 @@ export function resolveConfig(
 ): ResolveResult {
   const apiKey = firstString(parsed['api-key'], env.RAWTREE_API_KEY);
   const apiUrl = firstString(parsed['api-url'], env.RAWTREE_API_URL);
-  const database = firstString(
-    parsed.database,
-    parsed.project,
-    env.RAWTREE_DATABASE,
-    env.RAWTREE_PROJECT,
-  );
+  const database = firstString(parsed.database, env.RAWTREE_DATABASE);
   const organization = firstString(
     parsed.org,
     parsed.organization,

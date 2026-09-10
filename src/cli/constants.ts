@@ -7,5 +7,4 @@ export const CLI_STRING_OPTIONS = [
   'org',
   'organization',
   'port',
-  'project',
 ] as const;
