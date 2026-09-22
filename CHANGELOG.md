@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add an optional sorting key to `create-table`, report it from `describe-table`, and add `update-table` for changing it later.
 - Add tools to create, inspect, monitor, pause, resume, and extend managed Kafka connectors.
 - Add `create-table` with optional per-table customer-owned S3 storage and expose the public `tableBucketPrefix` cluster setting.
 - Add optional idle timeout configuration to `create-cluster` and a new `update-cluster` tool for changing it later.

@@ -6,7 +6,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 
 - **Queries** — Run read-only SQL against a RawTree database and receive JSON rows, metadata, statistics, and hints.
 - **Ingest** — Insert a single JSON object, arrays of JSON objects, or public URL data.
-- **Tables** — List tables, describe table columns and sizes, and delete tables after explicit confirmation.
+- **Tables** — List tables, describe table columns, sizes, and sorting keys, set and change a table's sorting key, and delete tables after explicit confirmation.
 - **Logs** — Inspect RawTree query and insert history with structured filters for type, status, origin, table, hints, time window, and pagination.
 - **API Keys** — List, create, and revoke RawTree API keys for a database. Creation responses include the one-time API key value.
 - **Organizations** — List organizations and manage their members and roles with an OAuth-authenticated user.
@@ -140,9 +140,12 @@ Environment variables:
 ### Tables
 
 - `list-tables` — List tables in the configured database.
-- `create-table` — Create an empty table with cluster-default storage or an optional per-table customer-owned S3 bucket.
-- `describe-table` — Inspect columns, row count, byte count, database, and organization.
+- `create-table` — Create an empty table with an optional sorting key, and with cluster-default storage or an optional per-table customer-owned S3 bucket.
+- `describe-table` — Inspect columns, row count, byte count, sorting key, database, and organization.
+- `update-table` — Change a table's sorting key. Requires admin permission.
 - `delete-table` — Delete a table after explicit confirmation. Requires admin permission.
+
+`sortingKey` is optional on `create-table`. Omit it and the table picks a sorting key per part from the ingested data; set it to list the key columns in key order, where a bare name such as `user.id` is read as a path into the ingested JSON. `describe-table` reports the current key, and `update-table` changes it: the new key applies to newly inserted parts and wins later merges, so existing parts are re-sorted in the background rather than rewritten by the call. A key must name at least one column; a table's sorting key cannot be removed once set.
 
 `create-table.s3Storage` is optional. Omit it to inherit database-level storage when configured, then the cluster's default storage. To use explicit per-table customer-owned storage, provide the complete `s3Storage` object with data and backup buckets, optional paths, `roleArn`, and `externalId`. Cluster responses expose `s3_storage` metadata with bucket and path values only; credentials are never returned.
 

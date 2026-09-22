@@ -331,9 +331,11 @@ export class RawTreeClient {
   async createTable(
     {
       name,
+      sortingKey,
       s3Storage,
     }: {
       name: string;
+      sortingKey?: string[];
       s3Storage?: S3StorageInput;
     },
     scope: RawTreeScope = {},
@@ -345,6 +347,7 @@ export class RawTreeClient {
         {
           body: {
             name,
+            ...(sortingKey === undefined ? {} : { sorting_key: sortingKey }),
             ...(s3Storage === undefined
               ? {}
               : { s3_storage: s3StorageRequestBody(s3Storage) }),
@@ -363,6 +366,18 @@ export class RawTreeClient {
       'GET',
       `${this.apiPath('/tables')}/${encodePathPart(table)}`,
       this.scoped({}, scope),
+    );
+  }
+
+  async updateTable(
+    table: string,
+    { sortingKey }: { sortingKey: string[] },
+    scope: RawTreeScope = {},
+  ): Promise<unknown> {
+    return this.requestJson(
+      'PATCH',
+      `${this.apiPath('/tables')}/${encodePathPart(table)}`,
+      this.scoped({ body: { sorting_key: sortingKey } }, scope),
     );
   }
 
