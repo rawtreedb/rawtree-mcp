@@ -212,6 +212,61 @@ describe('RawTreeClient', () => {
     );
   });
 
+  it('creates a table with an explicit sorting key', async () => {
+    const calls: RecordedCall[] = [];
+    const response = {
+      database: 'analytics',
+      table: 'events',
+      storage: { type: 'default' },
+      sorting_key: ['region', 'user.id'],
+    };
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(jsonResponse(response), calls),
+    });
+
+    await expect(
+      client.createTable(
+        { name: 'events', sortingKey: ['region', 'user.id'] },
+        { organization: 'acme', cluster: 'production', database: 'analytics' },
+      ),
+    ).resolves.toEqual(response);
+
+    expect(calls[0].init.method).toBe('POST');
+    expect(calls[0].init.body).toBe(
+      JSON.stringify({ name: 'events', sorting_key: ['region', 'user.id'] }),
+    );
+  });
+
+  it('updates a table sorting key by name', async () => {
+    const calls: RecordedCall[] = [];
+    const response = {
+      database: 'analytics',
+      table: 'events',
+      sorting_key: ['timestamp'],
+    };
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      fetchFn: recordingFetch(jsonResponse(response), calls),
+    });
+
+    await expect(
+      client.updateTable(
+        'events',
+        { sortingKey: ['timestamp'] },
+        { organization: 'acme team', cluster: 'production' },
+      ),
+    ).resolves.toEqual(response);
+
+    expect(calls[0].url).toBe(
+      'https://api.rawtree.com/v1/tables/events?organization=acme+team&cluster=production',
+    );
+    expect(calls[0].init.method).toBe('PATCH');
+    expect(calls[0].init.body).toBe(
+      JSON.stringify({ sorting_key: ['timestamp'] }),
+    );
+  });
+
   it('uses per-request organization, cluster, and database scope', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({

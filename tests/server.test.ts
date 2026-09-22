@@ -57,6 +57,7 @@ describe('createMcpServer', () => {
         'set-connector-status',
         'install-app',
         'uninstall-app',
+        'update-table',
         'delete-table',
         'delete-api-key',
         'list-databases',
@@ -257,6 +258,7 @@ describe('createMcpServer', () => {
       'update-cluster',
       'pause-cluster',
       'resume-cluster',
+      'update-table',
       'delete-table',
       'delete-api-key',
       'delete-database',
@@ -280,6 +282,24 @@ describe('createMcpServer', () => {
       createTable?.inputSchema.properties.s3Storage.properties,
     ).not.toHaveProperty('bucketSuffix');
     expect(createTable?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    });
+    expect(createTable?.inputSchema.properties.sortingKey).toMatchObject({
+      type: 'array',
+      minItems: 1,
+      items: { type: 'string', minLength: 1 },
+    });
+
+    const updateTable = tools.find((tool) => tool.name === 'update-table');
+    expect(updateTable?.inputSchema.required).toEqual(['table', 'sortingKey']);
+    expect(updateTable?.inputSchema.properties.sortingKey).toMatchObject({
+      type: 'array',
+      minItems: 1,
+      items: { type: 'string', minLength: 1 },
+    });
+    expect(updateTable?.annotations).toMatchObject({
       readOnlyHint: false,
       destructiveHint: false,
       idempotentHint: true,
@@ -481,6 +501,13 @@ describe('createMcpServer', () => {
       'organization',
       'cluster',
       'name',
+    ]);
+    const updateTable = tools.find((tool) => tool.name === 'update-table');
+    expect(updateTable?.inputSchema.required).toEqual([
+      'organization',
+      'cluster',
+      'table',
+      'sortingKey',
     ]);
     const connectorMetrics = tools.find(
       (tool) => tool.name === 'get-connector-metrics',

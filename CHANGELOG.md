@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add an optional sorting key to `create-table`, report it from `describe-table`, and add `update-table` for changing it later.
+
+## 0.3.2
+
 - Add tools to create, inspect, monitor, pause, resume, and extend managed Kafka connectors.
 - Add `create-table` with optional per-table customer-owned S3 storage and expose the public `tableBucketPrefix` cluster setting.
 - Add optional idle timeout configuration to `create-cluster` and a new `update-cluster` tool for changing it later.
@@ -16,6 +20,9 @@
 - Add read-only `get-cluster` tool for checking one cluster's lifecycle status.
 - Bind the default fetch implementation to the runtime global so API calls work in Cloudflare Workers.
 - Add MCP 2026-07-28 stateless protocol support while preserving legacy initialize-handshake clients over stdio and HTTP.
+
+## 0.2.1
+
 - Add database and organization query scoping with `--database`, `--org`, `RAWTREE_DATABASE`, and `RAWTREE_ORG`.
 - Document `--api-url` and `RAWTREE_API_URL`, and update `.env.example` to the canonical `RAWTREE_API_URL`/`RAWTREE_DATABASE` names.
 
