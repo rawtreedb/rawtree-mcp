@@ -145,7 +145,7 @@ Environment variables:
 - `update-table` — Change a table's sorting key. Requires admin permission.
 - `delete-table` — Delete a table after explicit confirmation. Requires admin permission.
 
-`sortingKey` is optional on `create-table`. Omit it and the table picks a sorting key per part from the ingested data; set it to list the key columns in key order, where a bare name such as `user.id` is read as a path into the ingested JSON. `describe-table` reports the current key, and `update-table` changes it: the new key applies to newly inserted parts and wins later merges, so existing parts are re-sorted in the background rather than rewritten by the call. A key must name at least one column; a table's sorting key cannot be removed once set.
+`sortingKey` is an optional string on `create-table`. Omit it and the table picks a sorting key per part from the ingested data; set it to comma-separated SQL expressions in key order, such as `region, ifNull(cityHash64(host, instanceId), 0)`. A bare name such as `user.id` is read as a path into the ingested JSON. `describe-table` reports the current key as a string, and `update-table` changes it: the new key applies to newly inserted parts and wins later merges, so existing parts are re-sorted in the background rather than rewritten by the call. A key must contain at least one expression; a table's sorting key cannot be removed once set.
 
 Tables have no storage configuration of their own: a table uses its database's storage when the database configures one, and the cluster's default storage otherwise. Customer-owned S3 is configured with `create-cluster.s3Storage` or `create-database.s3Storage`.
 

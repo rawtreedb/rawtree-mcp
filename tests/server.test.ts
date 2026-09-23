@@ -281,17 +281,15 @@ describe('createMcpServer', () => {
       idempotentHint: true,
     });
     expect(createTable?.inputSchema.properties.sortingKey).toMatchObject({
-      type: 'array',
-      minItems: 1,
-      items: { type: 'string', minLength: 1 },
+      type: 'string',
+      minLength: 1,
     });
 
     const updateTable = tools.find((tool) => tool.name === 'update-table');
     expect(updateTable?.inputSchema.required).toEqual(['table', 'sortingKey']);
     expect(updateTable?.inputSchema.properties.sortingKey).toMatchObject({
-      type: 'array',
-      minItems: 1,
-      items: { type: 'string', minLength: 1 },
+      type: 'string',
+      minLength: 1,
     });
     expect(updateTable?.annotations).toMatchObject({
       readOnlyHint: false,
