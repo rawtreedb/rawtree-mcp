@@ -329,7 +329,7 @@ export class RawTreeClient {
   }
 
   async createTable(
-    { name, sortingKey }: { name: string; sortingKey?: string[] },
+    { name, sortingKey }: { name: string; sortingKey?: string },
     scope: RawTreeScope = {},
   ): Promise<unknown> {
     return this.requestJson(
@@ -360,7 +360,7 @@ export class RawTreeClient {
 
   async updateTable(
     table: string,
-    { sortingKey }: { sortingKey: string[] },
+    { sortingKey }: { sortingKey: string },
     scope: RawTreeScope = {},
   ): Promise<unknown> {
     return this.requestJson(

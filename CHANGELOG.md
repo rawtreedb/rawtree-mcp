@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 0.3.3
+
+- Use a single comma-separated SQL expression string for table sorting keys on create and update, including scalar functions.
 - Remove per-table S3 storage from `create-table`; customer-owned S3 is configured on the cluster or the database.
 - Add an optional sorting key to `create-table`, report it from `describe-table`, and add `update-table` for changing it later.
 

@@ -10,10 +10,11 @@ import {
 } from './common.js';
 
 const sortingKeyInput = z
-  .array(z.string().min(1))
+  .string()
+  .trim()
   .min(1)
   .describe(
-    'Sorting key columns in key order. A bare name such as "user.id" is read as a path into the ingested JSON.',
+    'Comma-separated SQL sorting expressions in key order, for example "region, ifNull(cityHash64(host, instanceId), 0)". A bare name such as "user.id" is read as a path into the ingested JSON.',
   );
 
 export function addTableTools(
@@ -55,7 +56,7 @@ export function addTableTools(
 
 **Behavior:** The table uses the database's storage when the database configures one, and the cluster's default storage otherwise. Storage is configured on the cluster or the database, never per table.
 
-**Sorting key:** sortingKey is optional. Omit it and the table picks a sorting key per part from the ingested data, which suits exploratory tables. Set it when the query pattern is known, listing the columns in key order, lowest cardinality first. Use update-table to change it later.
+**Sorting key:** sortingKey is an optional string of comma-separated SQL expressions. Omit it and the table picks a sorting key per part from the ingested data, which suits exploratory tables. Set it when the query pattern is known, listing expressions in key order, lowest cardinality first. Use update-table to change it later.
 
 **Auth:** Requires organization admin access. Authorization is enforced by the RawTree API.
 
@@ -71,7 +72,7 @@ export function addTableTools(
         sortingKey: sortingKeyInput
           .optional()
           .describe(
-            'Optional sorting key columns, in key order. Omit it to let the table pick a key per part from the ingested data.',
+            'Optional comma-separated SQL sorting expressions in key order. Omit it to let the table pick a key per part from the ingested data.',
           ),
       },
     },
@@ -93,7 +94,7 @@ export function addTableTools(
 
 **NOT for:** Sampling actual row values. Use run-query for SELECT queries.
 
-**Returns:** Table metadata and columns. sorting_key lists the key columns in key order, and is empty when the table picks a key per part from the ingested data.
+**Returns:** Table metadata and columns. sorting_key is a comma-separated SQL expression string, empty when the table picks a key per part from the ingested data.
 
 **When to use:**
 - You need to know available fields before writing SQL
@@ -124,13 +125,13 @@ export function addTableTools(
 
 **Returns:** The database and table names plus the new sorting key.
 
-**Behavior:** Columns are listed in key order, lowest cardinality first, and a bare name such as user.id is read as a path into the ingested JSON. The new key applies to newly inserted parts and wins later merges, so existing parts are re-sorted in the background instead of being rewritten by this call. Call describe-table first to see the current key.
+**Behavior:** Provide a comma-separated SQL expression string in key order, lowest cardinality first. A bare name such as user.id is read as a path into the ingested JSON. The new key applies to newly inserted parts and wins later merges, so existing parts are re-sorted in the background instead of being rewritten by this call. Call describe-table first to see the current key.
 
-**Limits:** The key must name at least one column; a table's sorting key cannot be removed once set. RawTree passes the key to the engine as given, so an unusable key, such as one that repeats a column, comes back as the engine's own error.
+**Limits:** The key must contain at least one expression; a table's sorting key cannot be removed once set. RawTree validates the SQL expressions and the engine may reject an unusable key.
 
 **Auth:** Requires organization admin access. Authorization is enforced by the RawTree API.
 
-**Safety:** You MUST confirm the exact table name and column order with the user before calling this tool.`,
+**Safety:** You MUST confirm the exact table name and sorting expression order with the user before calling this tool.`,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,

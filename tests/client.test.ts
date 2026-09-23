@@ -72,7 +72,7 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.headers).toMatchObject({
       Authorization: 'Bearer rt_test',
       'Content-Type': 'application/json',
-      'User-Agent': 'rawtree-mcp/0.3.2',
+      'User-Agent': 'rawtree-mcp/0.3.3',
     });
   });
 
@@ -156,7 +156,7 @@ describe('RawTreeClient', () => {
       database: 'analytics',
       table: 'events',
       storage: { type: 'default' },
-      sorting_key: ['region', 'user.id'],
+      sorting_key: 'region, ifNull(cityHash64(host, instanceId), 0)',
     };
     const client = new RawTreeClient({
       apiKey: 'jwt_test',
@@ -165,14 +165,20 @@ describe('RawTreeClient', () => {
 
     await expect(
       client.createTable(
-        { name: 'events', sortingKey: ['region', 'user.id'] },
+        {
+          name: 'events',
+          sortingKey: 'region, ifNull(cityHash64(host, instanceId), 0)',
+        },
         { organization: 'acme', cluster: 'production', database: 'analytics' },
       ),
     ).resolves.toEqual(response);
 
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBe(
-      JSON.stringify({ name: 'events', sorting_key: ['region', 'user.id'] }),
+      JSON.stringify({
+        name: 'events',
+        sorting_key: 'region, ifNull(cityHash64(host, instanceId), 0)',
+      }),
     );
   });
 
@@ -181,7 +187,7 @@ describe('RawTreeClient', () => {
     const response = {
       database: 'analytics',
       table: 'events',
-      sorting_key: ['timestamp'],
+      sorting_key: 'toStartOfHour(timestamp), region',
     };
     const client = new RawTreeClient({
       apiKey: 'jwt_test',
@@ -191,7 +197,7 @@ describe('RawTreeClient', () => {
     await expect(
       client.updateTable(
         'events',
-        { sortingKey: ['timestamp'] },
+        { sortingKey: 'toStartOfHour(timestamp), region' },
         { organization: 'acme team', cluster: 'production' },
       ),
     ).resolves.toEqual(response);
@@ -201,7 +207,7 @@ describe('RawTreeClient', () => {
     );
     expect(calls[0].init.method).toBe('PATCH');
     expect(calls[0].init.body).toBe(
-      JSON.stringify({ sorting_key: ['timestamp'] }),
+      JSON.stringify({ sorting_key: 'toStartOfHour(timestamp), region' }),
     );
   });
 
