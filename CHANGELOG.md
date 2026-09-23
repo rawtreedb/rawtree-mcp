@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Remove per-table S3 storage from `create-table`; customer-owned S3 is configured on the cluster or the database.
 - Add an optional sorting key to `create-table`, report it from `describe-table`, and add `update-table` for changing it later.
 
 ## 0.3.2

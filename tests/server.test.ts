@@ -274,13 +274,7 @@ describe('createMcpServer', () => {
 
     const createTable = tools.find((tool) => tool.name === 'create-table');
     expect(createTable?.inputSchema.required).toEqual(['name']);
-    expect(createTable?.inputSchema.properties.s3Storage).toMatchObject({
-      type: 'object',
-      required: ['data', 'backups', 'roleArn', 'externalId'],
-    });
-    expect(
-      createTable?.inputSchema.properties.s3Storage.properties,
-    ).not.toHaveProperty('bucketSuffix');
+    expect(createTable?.inputSchema.properties).not.toHaveProperty('s3Storage');
     expect(createTable?.annotations).toMatchObject({
       readOnlyHint: false,
       destructiveHint: false,

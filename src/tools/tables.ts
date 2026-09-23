@@ -6,7 +6,6 @@ import {
   jsonResult,
   namedJsonResult,
   requestScope,
-  s3StorageInput,
   type ToolScopeOptions,
 } from './common.js';
 
@@ -50,15 +49,13 @@ export function addTableTools(
     'create-table',
     {
       title: 'Create Table',
-      description: `**Purpose:** Create an empty RawTree table in a database, optionally using a customer-owned S3 bucket configured for the cluster.
+      description: `**Purpose:** Create an empty RawTree table in a database.
 
-**Returns:** The database and table names, the resolved storage destination, and the table's sorting key. S3 responses include the full bucket, object path, and endpoint.
+**Returns:** The database and table names, the resolved storage destination, and the table's sorting key.
 
-**Behavior:** Omit s3Storage to inherit database-level storage when configured, then the cluster's default storage. To use an explicit per-table customer-owned S3 configuration, provide the complete s3Storage object with data and backup buckets, optional paths, roleArn, and externalId. Paths default to the bucket root when omitted.
+**Behavior:** The table uses the database's storage when the database configures one, and the cluster's default storage otherwise. Storage is configured on the cluster or the database, never per table.
 
 **Sorting key:** sortingKey is optional. Omit it and the table picks a sorting key per part from the ingested data, which suits exploratory tables. Set it when the query pattern is known, listing the columns in key order, lowest cardinality first. Use update-table to change it later.
-
-**Credentials:** The API does not return S3 credentials in cluster metadata. Confirm the exact buckets, paths, role ARN, and External ID before using an explicit s3Storage override.
 
 **Auth:** Requires organization admin access. Authorization is enforced by the RawTree API.
 
@@ -76,18 +73,13 @@ export function addTableTools(
           .describe(
             'Optional sorting key columns, in key order. Omit it to let the table pick a key per part from the ingested data.',
           ),
-        s3Storage: s3StorageInput
-          .optional()
-          .describe(
-            "Optional per-table S3 override. Omit to inherit the database or cluster's default storage.",
-          ),
       },
     },
-    async ({ organization, cluster, database, name, sortingKey, s3Storage }) =>
+    async ({ organization, cluster, database, name, sortingKey }) =>
       namedJsonResult(
         'Create table result',
         await rawtree.createTable(
-          { name, sortingKey, s3Storage },
+          { name, sortingKey },
           requestScope({ organization, cluster, database }),
         ),
       ),

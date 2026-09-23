@@ -140,14 +140,14 @@ Environment variables:
 ### Tables
 
 - `list-tables` — List tables in the configured database.
-- `create-table` — Create an empty table with an optional sorting key, and with cluster-default storage or an optional per-table customer-owned S3 bucket.
+- `create-table` — Create an empty table with an optional sorting key, using the storage configured on its database or cluster.
 - `describe-table` — Inspect columns, row count, byte count, sorting key, database, and organization.
 - `update-table` — Change a table's sorting key. Requires admin permission.
 - `delete-table` — Delete a table after explicit confirmation. Requires admin permission.
 
 `sortingKey` is optional on `create-table`. Omit it and the table picks a sorting key per part from the ingested data; set it to list the key columns in key order, where a bare name such as `user.id` is read as a path into the ingested JSON. `describe-table` reports the current key, and `update-table` changes it: the new key applies to newly inserted parts and wins later merges, so existing parts are re-sorted in the background rather than rewritten by the call. A key must name at least one column; a table's sorting key cannot be removed once set.
 
-`create-table.s3Storage` is optional. Omit it to inherit database-level storage when configured, then the cluster's default storage. To use explicit per-table customer-owned storage, provide the complete `s3Storage` object with data and backup buckets, optional paths, `roleArn`, and `externalId`. Cluster responses expose `s3_storage` metadata with bucket and path values only; credentials are never returned.
+Tables have no storage configuration of their own: a table uses its database's storage when the database configures one, and the cluster's default storage otherwise. Customer-owned S3 is configured with `create-cluster.s3Storage` or `create-database.s3Storage`.
 
 ### Logs
 
@@ -179,7 +179,7 @@ Structured log filters include:
 - `create-database` — Create a database with cluster-default storage or an optional customer-owned S3 configuration.
 - `delete-database` — Delete a database and all its data after explicit confirmation.
 
-`create-database.s3Storage` is optional. Omit it to use the cluster's default storage. When provided, tables inherit that database-level storage unless they specify their own `s3Storage` override. Call `verify-database-s3-access` with the identical configuration before creation. Database listings expose `s3_storage` metadata with bucket and path values only; credentials are never returned.
+`create-database.s3Storage` is optional. Omit it to use the cluster's default storage. When provided, tables in that database inherit its storage. Call `verify-database-s3-access` with the identical configuration before creation. Database listings expose `s3_storage` metadata with bucket and path values only; credentials are never returned.
 
 ### Organizations
 
