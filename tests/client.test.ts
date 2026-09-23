@@ -150,68 +150,6 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.body).toBe(JSON.stringify({ name: 'events' }));
   });
 
-  it('creates a table with an optional customer-owned S3 override', async () => {
-    const calls: RecordedCall[] = [];
-    const response = {
-      database: 'analytics',
-      table: 'events',
-      storage: {
-        type: 's3',
-        bucket: 'acme-rawtree-table-events',
-        path: 'custom/events',
-        endpoint:
-          'https://acme-rawtree-table-events.s3.us-east-1.amazonaws.com/custom/events/',
-      },
-    };
-    const client = new RawTreeClient({
-      apiKey: 'jwt_test',
-      fetchFn: recordingFetch(jsonResponse(response), calls),
-    });
-
-    await expect(
-      client.createTable(
-        {
-          name: 'events',
-          s3Storage: {
-            data: {
-              bucket: 'acme-rawtree-table-events',
-              path: 'custom/events',
-            },
-            backups: {
-              bucket: 'acme-rawtree-table-backups',
-              path: 'custom/backups',
-            },
-            roleArn: 'arn:aws:iam::123456789012:role/RawTreeS3',
-            externalId: 'rawtree-acme-events',
-          },
-        },
-        {
-          organization: 'acme',
-          cluster: 'production',
-          database: 'analytics',
-        },
-      ),
-    ).resolves.toEqual(response);
-
-    expect(calls[0].init.body).toBe(
-      JSON.stringify({
-        name: 'events',
-        s3_storage: {
-          data: {
-            bucket: 'acme-rawtree-table-events',
-            path: 'custom/events',
-          },
-          backups: {
-            bucket: 'acme-rawtree-table-backups',
-            path: 'custom/backups',
-          },
-          role_arn: 'arn:aws:iam::123456789012:role/RawTreeS3',
-          external_id: 'rawtree-acme-events',
-        },
-      }),
-    );
-  });
-
   it('creates a table with an explicit sorting key', async () => {
     const calls: RecordedCall[] = [];
     const response = {
