@@ -5,6 +5,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 ## Features
 
 - **Queries** — Run read-only SQL against a RawTree database and receive JSON rows, metadata, statistics, and hints.
+- **Saved queries** — List, create, update, and delete saved SQL definitions. Run a saved query by passing its SQL and database to `run-query`.
 - **Ingest** — Insert a single JSON object, arrays of JSON objects, or public URL data.
 - **Tables** — List tables, describe table columns, sizes, and sorting keys, set and change a table's sorting key, and delete tables after explicit confirmation.
 - **Logs** — Inspect RawTree query and insert history with structured filters for type, status, origin, table, hints, time window, and pagination.
@@ -136,6 +137,125 @@ Environment variables:
 - `run-query` — Run read-only SQL and return RawTree's JSON query response. Accepts organization, cluster, and database overrides.
 - `insert-json` — Insert JSON object(s) into a table.
 - `insert-from-url` — Ingest data from a public URL and wait for completion, returning the inserted row count (or `null` when unavailable).
+
+### Saved queries
+
+- `list-saved-queries` — Return all visible saved queries in a cluster, across databases, as `{ "queries": [...] }`. There is no cursor or pagination.
+- `save-query` — Create a saved query when `id` is omitted, or update one when `id` is supplied. Returns the saved query as a flat object.
+- `delete-saved-query` — Delete a query you own. Returns `{ "id": "...", "deleted": true }` after the API confirms deletion.
+- `run-query` — Execute SQL separately using the saved query's `sql` and `database`, with the same organization and cluster. Saving and listing never execute SQL.
+
+User sessions and OAuth can list their own private queries and cluster-shared queries. Standard API keys with `admin`, `read_write`, or `read_only` permission can list only cluster-shared queries in their bound cluster. Write-only and database-role keys cannot read saved queries. Reading a definition does not grant permission to execute its SQL or access its database.
+
+Creating, updating, and deleting require a user session or OAuth. The API assigns new queries to the authenticated user; callers do not supply a user ID. Only the owner can update or delete a query, including a cluster-shared query. With an API key, these actions return: “This action requires a user session. API keys aren’t supported.”
+
+All examples below show explicit organization and cluster names, as required by hosted deployments configured with `requireExplicitScope`. Standalone clients may omit names already configured on `RawTreeClient`. Saved-query requests never inherit the client's database: it is a field of the saved definition, not a list filter.
+
+**List saved queries**
+
+```json
+{
+  "organization": "acme",
+  "cluster": "production"
+}
+```
+
+Response:
+
+```json
+{
+  "queries": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "organization_id": "00000000-0000-4000-8000-000000000002",
+      "cluster_id": "00000000-0000-4000-8000-000000000003",
+      "user_id": "00000000-0000-4000-8000-000000000004",
+      "name": "Recent events",
+      "sql": "SELECT * FROM events LIMIT 10",
+      "database": "analytics",
+      "visibility": "private",
+      "created_at": "2026-10-02T10:00:00Z",
+      "updated_at": "2026-10-02T10:00:00Z"
+    }
+  ]
+}
+```
+
+No visible queries returns `{ "queries": [] }`.
+
+**Save query: create**
+
+```json
+{
+  "organization": "acme",
+  "cluster": "production",
+  "name": "Recent events",
+  "sql": "SELECT * FROM events LIMIT 10",
+  "database": "analytics",
+  "visibility": "private"
+}
+```
+
+`name`, `sql`, and `database` are required when creating. `visibility` is optional and defaults to `private`; use `cluster` to share the definition. The response is the flat query object shown inside the list above, including the generated `id` and authenticated `user_id`.
+
+**Save query: update**
+
+```json
+{
+  "organization": "acme",
+  "cluster": "production",
+  "id": "00000000-0000-4000-8000-000000000001",
+  "name": "Shared recent events",
+  "visibility": "cluster"
+}
+```
+
+Supply at least one of `name`, `sql`, `database`, or `visibility`. Omitted fields stay unchanged; `null` is rejected. The response is the complete updated query, with the same `id` and an updated `updated_at`.
+
+**Delete saved query**
+
+```json
+{
+  "organization": "acme",
+  "cluster": "production",
+  "id": "00000000-0000-4000-8000-000000000001"
+}
+```
+
+Response:
+
+```json
+{
+  "id": "00000000-0000-4000-8000-000000000001",
+  "deleted": true
+}
+```
+
+This removes the saved definition only; the underlying data is unchanged. A failed deletion returns an MCP tool error, not a success confirmation.
+
+**Run query**
+
+```json
+{
+  "organization": "acme",
+  "cluster": "production",
+  "database": "analytics",
+  "sql": "SELECT count() AS events FROM events"
+}
+```
+
+Example response:
+
+```json
+{
+  "meta": [{ "name": "events", "type": "UInt64" }],
+  "data": [{ "events": "42" }],
+  "rows": 1,
+  "statistics": { "elapsed": 0.001, "rows_read": 42, "bytes_read": 336 }
+}
+```
+
+`run-query` also forwards optional query hints from the API. All responses above are JSON encoded in the MCP text content, following the server's existing response format.
 
 ### Tables
 

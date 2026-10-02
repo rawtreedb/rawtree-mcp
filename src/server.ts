@@ -10,6 +10,7 @@ import {
   addDataTools,
   addLogTools,
   addOrganizationTools,
+  addSavedQueryTools,
   addTableTools,
 } from './tools/index.js';
 
@@ -26,6 +27,7 @@ export type {
   S3StorageInput,
 } from './client.js';
 export { RawTreeClient } from './client.js';
+export type { CreateSavedQueryInput, UpdateSavedQueryInput } from './types.js';
 
 export interface McpServerOptions {
   requireExplicitScope?: boolean;
@@ -42,6 +44,7 @@ export function createMcpServer(
 
   addOrganizationTools(server, rawtree);
   addDataTools(server, rawtree, options);
+  addSavedQueryTools(server, rawtree, options);
   addTableTools(server, rawtree, options);
   addLogTools(server, rawtree, options);
   addApiKeyTools(server, rawtree, options);

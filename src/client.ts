@@ -1,5 +1,9 @@
 import packageJson from '../package.json' with { type: 'json' };
-import type { JsonValue } from './types.js';
+import type {
+  CreateSavedQueryInput,
+  JsonValue,
+  UpdateSavedQueryInput,
+} from './types.js';
 
 const DEFAULT_API_URL = 'https://api.rawtree.com';
 const DEFAULT_USER_AGENT = `rawtree-mcp/${packageJson.version}`;
@@ -427,6 +431,50 @@ export class RawTreeClient {
         },
         scope,
       ),
+    );
+  }
+
+  async listSavedQueries(
+    scope: Omit<RawTreeScope, 'database'> = {},
+  ): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      this.apiPath('/saved-queries'),
+      this.clusterScoped({}, scope),
+    );
+  }
+
+  async createSavedQuery(
+    input: CreateSavedQueryInput,
+    scope: Omit<RawTreeScope, 'database'> = {},
+  ): Promise<unknown> {
+    return this.requestJson(
+      'POST',
+      this.apiPath('/saved-queries'),
+      this.clusterScoped({ body: { ...input } }, scope),
+    );
+  }
+
+  async updateSavedQuery(
+    id: string,
+    input: UpdateSavedQueryInput,
+    scope: Omit<RawTreeScope, 'database'> = {},
+  ): Promise<unknown> {
+    return this.requestJson(
+      'PATCH',
+      `${this.apiPath('/saved-queries')}/${encodePathPart(id)}`,
+      this.clusterScoped({ body: { ...input } }, scope),
+    );
+  }
+
+  async deleteSavedQuery(
+    id: string,
+    scope: Omit<RawTreeScope, 'database'> = {},
+  ): Promise<unknown> {
+    return this.requestJson(
+      'DELETE',
+      `${this.apiPath('/saved-queries')}/${encodePathPart(id)}`,
+      this.clusterScoped({}, scope),
     );
   }
 

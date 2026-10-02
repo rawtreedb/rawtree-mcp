@@ -35,3 +35,12 @@ export type PermissionLevel =
   | 'read_write'
   | 'write_only'
   | 'read_only';
+
+export interface CreateSavedQueryInput {
+  name: string;
+  sql: string;
+  database: string;
+  visibility?: 'private' | 'cluster';
+}
+
+export type UpdateSavedQueryInput = Partial<CreateSavedQueryInput>;
