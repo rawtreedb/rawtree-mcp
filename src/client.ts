@@ -844,9 +844,11 @@ export class RawTreeClient {
     {
       name,
       permission,
+      expires_at,
     }: {
       name: string;
       permission: string;
+      expires_at?: string | null;
     },
     scope: RawTreeScope = {},
   ): Promise<unknown> {
@@ -855,7 +857,7 @@ export class RawTreeClient {
       this.apiPath('/keys'),
       this.scoped(
         {
-          body: { name, permission },
+          body: { name, permission, expires_at },
         },
         scope,
       ),

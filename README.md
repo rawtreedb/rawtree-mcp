@@ -9,7 +9,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 - **Ingest** — Insert a single JSON object, arrays of JSON objects, or public URL data.
 - **Tables** — List tables, describe table columns, sizes, and sorting keys, set and change a table's sorting key, and delete tables after explicit confirmation.
 - **Logs** — Inspect RawTree query and insert history with structured filters for type, status, origin, table, hints, time window, and pagination.
-- **API Keys** — List, create, and revoke RawTree API keys for a database. Creation responses include the one-time API key value.
+- **API Keys** — List, create, and revoke RawTree API keys for a cluster. Creation responses include the one-time API key value and expiration.
 - **Organizations** — List organizations and manage their members and roles with an OAuth-authenticated user.
 - **Databases** — List, create, verify S3 access for, and delete databases in a cluster.
 - **Clusters** — List, inspect, pause, resume, discover current creation options, verify optional customer-owned S3 access, configure independent per-database S3 access, and provision vertically autoscaling dedicated clusters after explicit confirmation where required. RawTree enforces user and organization-admin authorization.
@@ -288,8 +288,8 @@ Structured log filters include:
 
 ### API Keys
 
-- `list-api-keys` — List API keys for the configured database.
-- `create-api-key` — Create a key with `admin`, `read_write`, `write_only`, or `read_only` permission.
+- `list-api-keys` — List API keys for a cluster, including `expires_at` (UTC timestamp or null for never).
+- `create-api-key` — Create a key with `admin`, `read_write`, `write_only`, or `read_only` permission. Optional `expires_at` accepts a future RFC 3339 timestamp with a timezone, validated by the API. Omit it or pass null to never expire. Creation returns the expiration and one-time token. Expiration is fixed at creation; no API-key update tool is available.
 - `delete-api-key` — Revoke a key after explicit confirmation.
 
 ### Databases

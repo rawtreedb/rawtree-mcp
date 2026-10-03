@@ -30,7 +30,7 @@ export function addApiKeyTools(
 
 **NOT for:** Creating or revoking credentials. Use create-api-key or delete-api-key for those workflows.
 
-**Returns:** API key names, IDs, API key hints, permissions, database, organization, and creation dates.
+**Returns:** API key names, IDs, API key hints, permissions or database roles, default database, creation dates, and expires_at (UTC timestamp or null for never).
 
 **Auth:** Uses GET /v1/keys and requires an admin database API key.
 
@@ -54,7 +54,7 @@ export function addApiKeyTools(
 
 **NOT for:** User login. Use RawTree auth/CLI or the dashboard for that workflow.
 
-**Returns:** The new API key value. The API key is only shown once, so you MUST display it to the user.
+**Returns:** The new API key value and expires_at (UTC timestamp or null for never). The API key is only shown once, so you MUST display it to the user.
 
 **Auth:** Uses POST /v1/keys and requires admin permission for database API key auth.
 
@@ -64,6 +64,13 @@ export function addApiKeyTools(
 - User asks to rotate credentials by creating a replacement before revoking the old key`,
       inputSchema: {
         ...clusterScopeInput(scopeOptions),
+        expires_at: z
+          .string()
+          .nullable()
+          .optional()
+          .describe(
+            'Optional expiration as a future RFC 3339 timestamp with a timezone. The API validates and normalizes it to UTC. Omit or use null to never expire. Expiration cannot be updated; create a replacement key to change it.',
+          ),
         database: z
           .string()
           .min(1)
@@ -83,9 +90,16 @@ export function addApiKeyTools(
           ),
       },
     },
-    async ({ organization, cluster, database, name, permission }) => {
+    async ({
+      organization,
+      cluster,
+      database,
+      name,
+      permission,
+      expires_at,
+    }) => {
       const created = await rawtree.createApiKey(
-        { name, permission },
+        { name, permission, expires_at },
         requestScope({ organization, cluster, database }),
       );
       return textResult(
