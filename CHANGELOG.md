@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.3.4
+
+- Support optional `expires_at` on API-key creation and document expiration in create/list results. Omitted or null expiration means never; the backend validates the timestamp.
+
 ## 0.3.3
 
 - Use a single comma-separated SQL expression string for table sorting keys on create and update, including scalar functions.
