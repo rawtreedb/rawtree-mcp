@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.3.5
+
+- Add `list-workflows`, `get-workflow`, `create-workflow`, `update-workflow`, and `delete-workflow` with explicit organization/cluster scope and `interval_seconds`. Admin API keys and authorized OAuth callers can manage scheduled SQL and HTTP/table destinations.
+
 ## 0.3.4
 
 - Support optional `expires_at` on API-key creation and document expiration in create/list results. Omitted or null expiration means never; the backend validates the timestamp.

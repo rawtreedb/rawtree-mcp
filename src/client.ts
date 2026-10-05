@@ -1,28 +1,26 @@
 import packageJson from '../package.json' with { type: 'json' };
+import {
+  appendQuery,
+  errorMessage,
+  normalizeApiUrl,
+  parseJson,
+  type QueryParams,
+  RawTreeApiError,
+  type RequestOptions,
+} from './client/http.js';
+
 import type {
   CreateSavedQueryInput,
+  CreateWorkflowInput,
   JsonValue,
   UpdateSavedQueryInput,
+  UpdateWorkflowInput,
+  WorkflowScope,
 } from './types.js';
 
-const DEFAULT_API_URL = 'https://api.rawtree.com';
+export { RawTreeApiError } from './client/http.js';
+
 const DEFAULT_USER_AGENT = `rawtree-mcp/${packageJson.version}`;
-
-type QueryValue =
-  | string
-  | number
-  | boolean
-  | readonly string[]
-  | null
-  | undefined;
-
-type QueryParams = Record<string, QueryValue>;
-
-interface RequestOptions {
-  body?: JsonValue | Record<string, unknown>;
-  query?: QueryParams;
-  headers?: Record<string, string>;
-}
 
 export interface RawTreeClientOptions {
   fetchFn?: typeof fetch;
@@ -98,79 +96,6 @@ export interface CreateConnectorInput {
 }
 
 export type ConnectorStatus = 'active' | 'paused';
-
-export class RawTreeApiError extends Error {
-  readonly status: number;
-  readonly method: string;
-  readonly path: string;
-  readonly payload: unknown;
-
-  constructor({
-    status,
-    method,
-    path,
-    payload,
-    message,
-  }: {
-    status: number;
-    method: string;
-    path: string;
-    payload: unknown;
-    message: string;
-  }) {
-    super(message);
-    this.name = 'RawTreeApiError';
-    this.status = status;
-    this.method = method;
-    this.path = path;
-    this.payload = payload;
-  }
-}
-
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
-}
-
-function normalizeApiUrl(apiUrl: string | undefined): string {
-  const trimmed = (apiUrl ?? DEFAULT_API_URL).trim();
-  if (!trimmed) return DEFAULT_API_URL;
-  return trimmed.replace(/\/+$/, '').replace(/\/v1$/, '');
-}
-
-function errorMessage(
-  payload: unknown,
-  status: number,
-  method: string,
-  path: string,
-): string {
-  if (payload && typeof payload === 'object') {
-    const record = payload as Record<string, unknown>;
-    const message = typeof record.message === 'string' ? record.message : null;
-    const hint = typeof record.hint === 'string' ? record.hint : null;
-    if (message && hint) return `${message} ${hint}`;
-    if (message) return message;
-    const error = typeof record.error === 'string' ? record.error : null;
-    if (error) return error;
-  }
-  return `RawTree API request failed: ${method} ${path} returned ${status}`;
-}
-
-function appendQuery(url: URL, query: QueryParams | undefined): void {
-  if (!query) return;
-
-  for (const [key, value] of Object.entries(query)) {
-    if (value === undefined || value === null || value === '') continue;
-    if (Array.isArray(value)) {
-      if (value.length > 0) url.searchParams.set(key, value.join(','));
-      continue;
-    }
-    url.searchParams.set(key, String(value));
-  }
-}
 
 function encodePathPart(part: string): string {
   return encodeURIComponent(part);
@@ -474,6 +399,53 @@ export class RawTreeClient {
     return this.requestJson(
       'DELETE',
       `${this.apiPath('/saved-queries')}/${encodePathPart(id)}`,
+      this.clusterScoped({}, scope),
+    );
+  }
+
+  async listWorkflows(scope: WorkflowScope): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      this.apiPath('/workflows'),
+      this.clusterScoped({}, scope),
+    );
+  }
+
+  async getWorkflow(id: string, scope: WorkflowScope): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      `${this.apiPath('/workflows')}/${encodePathPart(id)}`,
+      this.clusterScoped({}, scope),
+    );
+  }
+
+  async createWorkflow(
+    input: CreateWorkflowInput,
+    scope: WorkflowScope,
+  ): Promise<unknown> {
+    return this.requestJson(
+      'POST',
+      this.apiPath('/workflows'),
+      this.clusterScoped({ body: { ...input } }, scope),
+    );
+  }
+
+  async updateWorkflow(
+    id: string,
+    input: UpdateWorkflowInput,
+    scope: WorkflowScope,
+  ): Promise<unknown> {
+    return this.requestJson(
+      'PATCH',
+      `${this.apiPath('/workflows')}/${encodePathPart(id)}`,
+      this.clusterScoped({ body: { ...input } }, scope),
+    );
+  }
+
+  async deleteWorkflow(id: string, scope: WorkflowScope): Promise<unknown> {
+    return this.requestJson(
+      'DELETE',
+      `${this.apiPath('/workflows')}/${encodePathPart(id)}`,
       this.clusterScoped({}, scope),
     );
   }

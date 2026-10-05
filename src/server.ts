@@ -12,6 +12,7 @@ import {
   addOrganizationTools,
   addSavedQueryTools,
   addTableTools,
+  addWorkflowTools,
 } from './tools/index.js';
 
 export type {
@@ -27,7 +28,15 @@ export type {
   S3StorageInput,
 } from './client.js';
 export { RawTreeClient } from './client.js';
-export type { CreateSavedQueryInput, UpdateSavedQueryInput } from './types.js';
+export type {
+  CreateSavedQueryInput,
+  CreateWorkflowInput,
+  NewWorkflowDestination,
+  UpdateSavedQueryInput,
+  UpdateWorkflowInput,
+  WorkflowDestinationInput,
+  WorkflowScope,
+} from './types.js';
 
 export interface McpServerOptions {
   requireExplicitScope?: boolean;
@@ -52,6 +61,7 @@ export function createMcpServer(
   addClusterTools(server, rawtree);
   addConnectorTools(server, rawtree, options);
   addAppTools(server, rawtree);
+  addWorkflowTools(server, rawtree);
 
   return server;
 }
