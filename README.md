@@ -5,7 +5,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 ## Features
 
 - **Queries** — Run read-only SQL against a RawTree database and receive JSON rows, metadata, statistics, and hints.
-- **Workflows** — Create, inspect, update, pause, resume, and delete scheduled SQL workflows with HTTP or table destinations.
+- **Workflows** — Create, inspect, update, pause, resume, and delete scheduled SQL workflows with HTTP or table sinks.
 - **Saved queries** — List, create, update, and delete saved SQL definitions. Run a saved query by passing its SQL and database to `run-query`.
 - **Ingest** — Insert a single JSON object, arrays of JSON objects, or public URL data.
 - **Tables** — List tables, describe table columns, sizes, and sorting keys, set and change a table's sorting key, and delete tables after explicit confirmation.
@@ -141,7 +141,7 @@ Environment variables:
 
 ### Workflows
 
-These tools target the `/v1/workflows` API with `interval_seconds` (Platform PR [#1306](https://github.com/rawtreedb/rawtree-platform/pull/1306)). The backend must have that contract deployed. There are no `trigger` aliases or workflow-specific telemetry tools.
+These tools target the `/v1/workflows` API with `interval_seconds` (Platform PR [#1306](https://github.com/rawtreedb/rawtree-platform/pull/1306)). The backend must have the `interval_seconds` and workflow `sinks` contracts deployed. The former workflow `destinations` field is rejected; connector destinations are unchanged. There are no `trigger` aliases or workflow-specific telemetry tools.
 
 All five tools require explicit `organization` and `cluster` **names**, including standalone/API-key usage. Configured defaults do not replace these required tool arguments. Workflow definitions have their own `database`; the MCP's default database is never added as a workflow query parameter or substituted for that field.
 
@@ -149,8 +149,8 @@ All five tools require explicit `organization` and `cluster` **names**, includin
 | --- | --- | --- | --- |
 | `list-workflows` | `organization`, `cluster` | None | `{ "workflows": [...] }`; no pagination |
 | `get-workflow` | `organization`, `cluster`, `id` | None | Complete workflow object |
-| `create-workflow` | `organization`, `cluster`, `name`, `database`, `sql` | `enabled`, `interval_seconds`, `destinations` | Complete saved workflow object |
-| `update-workflow` | `organization`, `cluster`, `id`, and at least one changed field | `name`, `database`, `sql`, `enabled`, `interval_seconds`, `destinations` | Complete saved workflow object |
+| `create-workflow` | `organization`, `cluster`, `name`, `database`, `sql` | `enabled`, `interval_seconds`, `sinks` | Complete saved workflow object |
+| `update-workflow` | `organization`, `cluster`, `id`, and at least one changed field | `name`, `database`, `sql`, `enabled`, `interval_seconds`, `sinks` | Complete saved workflow object |
 | `delete-workflow` | `organization`, `cluster`, `id` | None | `{ "id": "...", "deleted": true }` after confirmed deletion |
 
 API-key access requires an **admin** key bound to the selected organization and cluster. With OAuth, organization members can read and organization admins can create/update/delete. The backend enforces authorization. Workflows execute with organization credentials; expiration or revocation of the creating key does not stop scheduled execution.
@@ -166,14 +166,14 @@ API-key access requires an **admin** key bound to the selected organization and 
   "sql": "SELECT 1 AS value",
   "enabled": false,
   "interval_seconds": 60,
-  "destinations": [
+  "sinks": [
     { "type": "http", "url": "https://example.com/events", "headers": { "Authorization": "Bearer example-only" } },
     { "type": "table", "database": "default", "table": "alerts" }
   ]
 }
 ```
 
-Defaults on creation are `enabled: true`, `interval_seconds: 1`, and `destinations: []`. Enabled workflows activate recurring SQL execution and destination delivery. SQL supports reads and `INSERT INTO ... SELECT ...`; validation is performed by the API. Intervals must be integers from 1 through 86400; `interval_ms` is rejected. If creation has an uncertain result, inspect `list-workflows` before retrying.
+Defaults on creation are `enabled: true`, `interval_seconds: 1`, and `sinks: []`. Enabled workflows activate recurring SQL execution and sink delivery. SQL supports reads and `INSERT INTO ... SELECT ...`; validation is performed by the API. Intervals must be integers from 1 through 86400; `interval_ms` is rejected. If creation has an uncertain result, inspect `list-workflows` before retrying.
 
 Create, get, and update return the same complete object shape:
 
@@ -188,7 +188,7 @@ Create, get, and update return the same complete object shape:
   "revision": 1,
   "created_at": "2026-10-05T10:00:00Z",
   "updated_at": "2026-10-05T10:00:00Z",
-  "destinations": [
+  "sinks": [
     { "type": "http", "id": "00000000-0000-4000-8000-000000000002", "url_configured": true, "header_names": ["Authorization"] },
     { "type": "table", "id": "00000000-0000-4000-8000-000000000003", "database": "default", "table": "alerts" }
   ]
@@ -223,16 +223,16 @@ Returns `{ "workflows": [<workflow objects as above>] }`, or `{ "workflows": [] 
 
 The returned object includes `enabled: true`, `interval_seconds: 30`, and the backend's updated revision and timestamp. Set `enabled: false` to pause. Omitted fields stay unchanged; empty updates and null field values are rejected. Already buffered deliveries may continue after pausing.
 
-Supplying `destinations` replaces the whole list (maximum five); omission preserves it and `[]` removes all. New destinations omit `id`; new HTTP destinations require `url`. When editing an existing destination, preserve its `id` and type. HTTP URLs and header values are write-only: returned configuration contains only `url_configured` and `header_names`. For an existing HTTP destination, omit `url` or `headers` to preserve the stored configuration. Within a supplied headers map, `null` preserves the existing value for that name, omitted header names are removed, and `{}` clears all headers.
+Supplying `sinks` replaces the whole list (maximum five); omission preserves it and `[]` removes all. New sinks omit `id`; new HTTP sinks require `url`. When editing an existing sink, preserve its `id` and type. HTTP URLs and header values are write-only: returned configuration contains only `url_configured` and `header_names`. For an existing HTTP sink, omit `url` or `headers` to preserve the stored configuration. Within a supplied headers map, `null` preserves the existing value for that name, omitted header names are removed, and `{}` clears all headers.
 
-For example, this update keeps one existing HTTP destination and its Authorization value, replaces its header list, and removes every other destination:
+For example, this update keeps one existing HTTP sink and its Authorization value, replaces its header list, and removes every other sink:
 
 ```json
 {
   "organization": "acme",
   "cluster": "production",
   "id": "00000000-0000-4000-8000-000000000001",
-  "destinations": [
+  "sinks": [
     { "type": "http", "id": "00000000-0000-4000-8000-000000000002", "headers": { "Authorization": null, "X-Source": "workflow" } }
   ]
 }
