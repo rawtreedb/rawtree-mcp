@@ -44,3 +44,37 @@ export interface CreateSavedQueryInput {
 }
 
 export type UpdateSavedQueryInput = Partial<CreateSavedQueryInput>;
+
+export interface WorkflowScope {
+  organization: string;
+  cluster: string;
+}
+
+export type NewWorkflowDestination =
+  | { type: 'http'; url: string; headers?: Record<string, string> }
+  | { type: 'table'; database: string; table: string };
+
+export type WorkflowDestinationInput =
+  | NewWorkflowDestination
+  | {
+      type: 'http';
+      id: string;
+      url?: string;
+      headers?: Record<string, string | null>;
+    }
+  | { type: 'table'; id: string; database: string; table: string };
+
+export interface CreateWorkflowInput {
+  name: string;
+  database: string;
+  sql: string;
+  enabled?: boolean;
+  interval_seconds?: number;
+  destinations?: NewWorkflowDestination[];
+}
+
+export type UpdateWorkflowInput = Partial<
+  Omit<CreateWorkflowInput, 'destinations'>
+> & {
+  destinations?: WorkflowDestinationInput[];
+};
