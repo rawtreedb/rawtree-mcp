@@ -50,12 +50,12 @@ export interface WorkflowScope {
   cluster: string;
 }
 
-export type NewWorkflowDestination =
+export type NewWorkflowSink =
   | { type: 'http'; url: string; headers?: Record<string, string> }
   | { type: 'table'; database: string; table: string };
 
-export type WorkflowDestinationInput =
-  | NewWorkflowDestination
+export type WorkflowSinkInput =
+  | NewWorkflowSink
   | {
       type: 'http';
       id: string;
@@ -70,11 +70,11 @@ export interface CreateWorkflowInput {
   sql: string;
   enabled?: boolean;
   interval_seconds?: number;
-  destinations?: NewWorkflowDestination[];
+  sinks?: NewWorkflowSink[];
 }
 
 export type UpdateWorkflowInput = Partial<
-  Omit<CreateWorkflowInput, 'destinations'>
+  Omit<CreateWorkflowInput, 'sinks'>
 > & {
-  destinations?: WorkflowDestinationInput[];
+  sinks?: WorkflowSinkInput[];
 };

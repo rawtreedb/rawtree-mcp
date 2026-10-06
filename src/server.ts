@@ -31,11 +31,11 @@ export { RawTreeClient } from './client.js';
 export type {
   CreateSavedQueryInput,
   CreateWorkflowInput,
-  NewWorkflowDestination,
+  NewWorkflowSink,
   UpdateSavedQueryInput,
   UpdateWorkflowInput,
-  WorkflowDestinationInput,
   WorkflowScope,
+  WorkflowSinkInput,
 } from './types.js';
 
 export interface McpServerOptions {

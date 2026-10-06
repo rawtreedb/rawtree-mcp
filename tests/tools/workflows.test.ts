@@ -5,7 +5,7 @@ import { createMcpServer } from '../../src/server.js';
 
 const scope = { organization: 'acme team', cluster: 'production/eu' };
 const id = '00000000-0000-4000-8000-000000000001';
-const destinationId = '00000000-0000-4000-8000-000000000002';
+const sinkId = '00000000-0000-4000-8000-000000000002';
 const input = {
   name: 'recent-events',
   database: 'analytics',
@@ -17,10 +17,10 @@ const workflow = {
   enabled: false,
   interval_seconds: 60,
   revision: 1,
-  destinations: [
+  sinks: [
     {
       type: 'http',
-      id: destinationId,
+      id: sinkId,
       url_configured: true,
       header_names: ['Authorization'],
     },
@@ -168,8 +168,8 @@ describe('workflow MCP tools', () => {
     });
   });
 
-  it('sends new destination credentials only in the request and returns sanitized metadata', async () => {
-    const destinations = [
+  it('sends new sink credentials only in the request and returns sanitized metadata', async () => {
+    const sinks = [
       {
         type: 'http',
         url: 'https://example.com/events',
@@ -185,7 +185,7 @@ describe('workflow MCP tools', () => {
         ...input,
         enabled: false,
         interval_seconds: 86400,
-        destinations,
+        sinks,
       },
     });
     expect(result).toMatchObject({ content: content(workflow) });
@@ -194,7 +194,7 @@ describe('workflow MCP tools', () => {
       ...input,
       enabled: false,
       interval_seconds: 86400,
-      destinations,
+      sinks,
     });
   });
 
@@ -206,28 +206,28 @@ describe('workflow MCP tools', () => {
     { sql: 'INSERT INTO alerts SELECT 1 AS value' },
     { name: 'renamed' },
     { database: 'other' },
-    { destinations: [] },
-    { destinations: [{ type: 'http', id: destinationId }] },
+    { sinks: [] },
+    { sinks: [{ type: 'http', id: sinkId }] },
     {
-      destinations: [
+      sinks: [
         {
           type: 'http',
-          id: destinationId,
+          id: sinkId,
           headers: { Authorization: null, 'X-New': 'value' },
         },
       ],
     },
     {
-      destinations: [
+      sinks: [
         {
           type: 'table',
-          id: destinationId,
+          id: sinkId,
           database: 'other',
           table: 'alerts',
         },
       ],
     },
-    { destinations: [{ type: 'http', url: 'https://example.com/new' }] },
+    { sinks: [{ type: 'http', url: 'https://example.com/new' }] },
   ])('PATCH preserves omitted fields and forwards exactly the requested change: %j', async (patch) => {
     const saved = { ...workflow, revision: 2 };
     const { client, fetchFn } = await connect([json(saved)]);
@@ -266,22 +266,20 @@ describe('workflow MCP tools', () => {
     { name: 'create-workflow', args: { ...input, sql: '  ' } },
     {
       name: 'create-workflow',
-      args: { ...input, destinations: [{ type: 'http' }] },
+      args: { ...input, sinks: [{ type: 'http' }] },
     },
     {
       name: 'create-workflow',
       args: {
         ...input,
-        destinations: [
-          { type: 'http', id: destinationId, url: 'https://example.com' },
-        ],
+        sinks: [{ type: 'http', id: sinkId, url: 'https://example.com' }],
       },
     },
     {
       name: 'create-workflow',
       args: {
         ...input,
-        destinations: [
+        sinks: [
           {
             type: 'http',
             url: 'https://example.com',
@@ -294,7 +292,7 @@ describe('workflow MCP tools', () => {
       name: 'create-workflow',
       args: {
         ...input,
-        destinations: Array.from({ length: 6 }, () => ({
+        sinks: Array.from({ length: 6 }, () => ({
           type: 'table',
           database: 'default',
           table: 'alerts',
@@ -302,6 +300,8 @@ describe('workflow MCP tools', () => {
       },
     },
     { name: 'create-workflow', args: { ...input, interval_ms: 1000 } },
+    { name: 'create-workflow', args: { ...input, destinations: [] } },
+    { name: 'update-workflow', args: { id, destinations: [] } },
     { name: 'update-workflow', args: { id } },
     { name: 'update-workflow', args: { id, interval_ms: 1000 } },
     {
@@ -312,7 +312,7 @@ describe('workflow MCP tools', () => {
     { name: 'update-workflow', args: { id, interval_seconds: null } },
     {
       name: 'update-workflow',
-      args: { id, destinations: [{ type: 'http', headers: {} }] },
+      args: { id, sinks: [{ type: 'http', headers: {} }] },
     },
     { name: 'update-workflow', args: { id: 'invalid', enabled: false } },
     { name: 'update-workflow', args: { id, revision: 99 } },

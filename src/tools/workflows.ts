@@ -13,7 +13,7 @@ const httpFields = {
   type: z.literal('http'),
   url: z
     .url()
-    .describe('Write-only destination URL. The API validates allowed origins.'),
+    .describe('Write-only sink URL. The API validates allowed origins.'),
   headers: z.record(z.string(), z.string()).optional(),
 };
 const tableFields = {
@@ -21,12 +21,12 @@ const tableFields = {
   database: identifier,
   table: identifier,
 };
-const newDestination = z.discriminatedUnion('type', [
+const newSink = z.discriminatedUnion('type', [
   z.strictObject(httpFields),
   z.strictObject(tableFields),
 ]);
-const destination = z.union([
-  newDestination,
+const sink = z.union([
+  newSink,
   z.strictObject({
     ...httpFields,
     id: z.uuid(),
@@ -70,7 +70,7 @@ const definitionFields = {
 const auth =
   'Requires an admin API key bound to the selected organization and cluster, or OAuth. Organization members may read; organization admins may create, update, or delete. Workflows execute with organization credentials and continue after the creating key is revoked or expires.';
 const result =
-  'Returns the workflow object: id, name, database, sql, enabled, revision, interval_seconds, created_at, updated_at, and destinations. HTTP destinations expose only id, type, url_configured, and header_names; table destinations expose id, type, database, and table.';
+  'Returns the workflow object: id, name, database, sql, enabled, revision, interval_seconds, created_at, updated_at, and sinks. HTTP sinks expose only id, type, url_configured, and header_names; table sinks expose id, type, database, and table.';
 
 export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
   // These API routes require both names even for API-key callers.
@@ -80,32 +80,32 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
   const selected = scope.extend({ id });
   const create = scope.extend({
     ...definitionFields,
-    destinations: z
-      .array(newDestination)
+    sinks: z
+      .array(newSink)
       .max(5)
       .optional()
       .describe(
-        'Up to five destinations. Omit for none. New HTTP destinations require a URL; all destination IDs are assigned by the API.',
+        'Up to five sinks. Omit for none. New HTTP sinks require a URL; all sink IDs are assigned by the API.',
       ),
   });
   const update = create
-    .omit({ name: true, database: true, sql: true, destinations: true })
+    .omit({ name: true, database: true, sql: true, sinks: true })
     .extend({
       id,
       name: definitionFields.name.optional(),
       database: definitionFields.database.optional(),
       sql: definitionFields.sql.optional(),
-      destinations: z
-        .array(destination)
+      sinks: z
+        .array(sink)
         .max(5)
         .optional()
         .describe(
-          'Replaces the entire list. Omit to preserve it; [] removes all. Preserve IDs when editing. Existing HTTP destinations may omit URL/headers to retain them. Within a supplied headers map, null preserves a stored value; omitted header names are removed.',
+          'Replaces the entire list. Omit to preserve it; [] removes all. Preserve IDs when editing. Existing HTTP sinks may omit URL/headers to retain them. Within a supplied headers map, null preserves a stored value; omitted header names are removed.',
         ),
     })
     .refine(
-      ({ name, database, sql, enabled, interval_seconds, destinations }) =>
-        [name, database, sql, enabled, interval_seconds, destinations].some(
+      ({ name, database, sql, enabled, interval_seconds, sinks }) =>
+        [name, database, sql, enabled, interval_seconds, sinks].some(
           (value) => value !== undefined,
         ),
       'Supply at least one workflow field to update.',
@@ -146,7 +146,7 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
     'create-workflow',
     {
       title: 'Create Workflow',
-      description: `Create a scheduled SQL workflow. Requires name, database, and sql. Defaults: enabled=true, interval_seconds=1, destinations=[]. An enabled workflow starts recurring SQL execution and destination delivery; use enabled=false to create it paused. SQL may write rows through INSERT SELECT. Creation is not idempotent: reconcile an uncertain result with list-workflows before retrying. ${result} ${auth}`,
+      description: `Create a scheduled SQL workflow. Requires name, database, and sql. Defaults: enabled=true, interval_seconds=1, sinks=[]. An enabled workflow starts recurring SQL execution and sink delivery; use enabled=false to create it paused. SQL may write rows through INSERT SELECT. Creation is not idempotent: reconcile an uncertain result with list-workflows before retrying. ${result} ${auth}`,
       inputSchema: create,
       annotations: {
         readOnlyHint: false,
@@ -164,7 +164,7 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
     'update-workflow',
     {
       title: 'Update Workflow',
-      description: `Update only supplied fields of an existing workflow; at least one changed field is required. Omitted fields remain unchanged. Set enabled=false to pause or enabled=true to resume. Supplying destinations replaces the whole list and may remove delivery targets. Read get-workflow before editing destinations so you can preserve their IDs. Already buffered deliveries can continue after pausing. ${result} ${auth}`,
+      description: `Update only supplied fields of an existing workflow; at least one changed field is required. Omitted fields remain unchanged. Set enabled=false to pause or enabled=true to resume. Supplying sinks replaces the whole list and may remove delivery targets. Read get-workflow before editing sinks so you can preserve their IDs. Already buffered deliveries can continue after pausing. ${result} ${auth}`,
       inputSchema: update,
       annotations: {
         readOnlyHint: false,
