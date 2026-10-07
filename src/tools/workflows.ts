@@ -9,29 +9,31 @@ const id = z
     'Workflow ID returned by list-workflows, get-workflow, or create-workflow.',
   );
 const identifier = z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/);
-const httpFields = {
-  type: z.literal('http'),
+const httpSettings = z.strictObject({
   url: z
     .url()
     .describe('Write-only sink URL. The API validates allowed origins.'),
   headers: z.record(z.string(), z.string()).optional(),
-};
+});
 const tableFields = {
   type: z.literal('table'),
-  database: identifier,
-  table: identifier,
+  settings: z.strictObject({ database: identifier, table: identifier }),
 };
 const newSink = z.discriminatedUnion('type', [
-  z.strictObject(httpFields),
+  z.strictObject({ type: z.literal('http'), settings: httpSettings }),
   z.strictObject(tableFields),
 ]);
 const sink = z.union([
   newSink,
   z.strictObject({
-    ...httpFields,
+    type: z.literal('http'),
     id: z.uuid(),
-    url: httpFields.url.optional(),
-    headers: z.record(z.string(), z.string().nullable()).optional(),
+    settings: httpSettings
+      .extend({
+        url: httpSettings.shape.url.optional(),
+        headers: z.record(z.string(), z.string().nullable()).optional(),
+      })
+      .optional(),
   }),
   z.strictObject({ ...tableFields, id: z.uuid() }),
 ]);
@@ -70,7 +72,7 @@ const definitionFields = {
 const auth =
   'Requires an admin API key bound to the selected organization and cluster, or OAuth. Organization members may read; organization admins may create, update, or delete. Workflows execute with organization credentials and continue after the creating key is revoked or expires.';
 const result =
-  'Returns the workflow object: id, name, database, sql, enabled, revision, interval_seconds, created_at, updated_at, and sinks. HTTP sinks expose only id, type, url_configured, and header_names; table sinks expose id, type, database, and table.';
+  'Returns the workflow object: id, name, database, sql, enabled, revision, interval_seconds, created_at, updated_at, and sinks. Each sink has id, type, and settings. HTTP settings expose only url_configured and header_names; table settings expose database and table.';
 
 export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
   // These API routes require both names even for API-key callers.
@@ -85,7 +87,7 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
       .max(5)
       .optional()
       .describe(
-        'Up to five sinks. Omit for none. New HTTP sinks require a URL; all sink IDs are assigned by the API.',
+        'Up to five sinks. Omit for none. New HTTP sinks require settings.url; all sink IDs are assigned by the API.',
       ),
   });
   const update = create
@@ -100,7 +102,7 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
         .max(5)
         .optional()
         .describe(
-          'Replaces the entire list. Omit to preserve it; [] removes all. Preserve IDs when editing. Existing HTTP sinks may omit URL/headers to retain them. Within a supplied headers map, null preserves a stored value; omitted header names are removed.',
+          'Replaces the entire list. Omit to preserve it; [] removes all. Preserve IDs when editing. Existing HTTP sinks may omit settings, settings.url, or settings.headers to retain them. Within a supplied settings.headers map, null preserves a stored value; omitted header names are removed.',
         ),
     })
     .refine(

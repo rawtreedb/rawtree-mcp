@@ -21,8 +21,7 @@ const workflow = {
     {
       type: 'http',
       id: sinkId,
-      url_configured: true,
-      header_names: ['Authorization'],
+      settings: { url_configured: true, header_names: ['Authorization'] },
     },
   ],
   created_at: '2026-10-05T10:00:00Z',
@@ -172,10 +171,12 @@ describe('workflow MCP tools', () => {
     const sinks = [
       {
         type: 'http',
-        url: 'https://example.com/events',
-        headers: { Authorization: 'Bearer synthetic-secret' },
+        settings: {
+          url: 'https://example.com/events',
+          headers: { Authorization: 'Bearer synthetic-secret' },
+        },
       },
-      { type: 'table', database: 'default', table: 'alerts' },
+      { type: 'table', settings: { database: 'default', table: 'alerts' } },
     ];
     const { client, fetchFn } = await connect([json(workflow, 201)]);
     const result = await client.callTool({
@@ -208,12 +209,14 @@ describe('workflow MCP tools', () => {
     { database: 'other' },
     { sinks: [] },
     { sinks: [{ type: 'http', id: sinkId }] },
+    { sinks: [{ type: 'http', id: sinkId, settings: {} }] },
+    { sinks: [{ type: 'http', id: sinkId, settings: { headers: {} } }] },
     {
       sinks: [
         {
           type: 'http',
           id: sinkId,
-          headers: { Authorization: null, 'X-New': 'value' },
+          settings: { headers: { Authorization: null, 'X-New': 'value' } },
         },
       ],
     },
@@ -222,12 +225,11 @@ describe('workflow MCP tools', () => {
         {
           type: 'table',
           id: sinkId,
-          database: 'other',
-          table: 'alerts',
+          settings: { database: 'other', table: 'alerts' },
         },
       ],
     },
-    { sinks: [{ type: 'http', url: 'https://example.com/new' }] },
+    { sinks: [{ type: 'http', settings: { url: 'https://example.com/new' } }] },
   ])('PATCH preserves omitted fields and forwards exactly the requested change: %j', async (patch) => {
     const saved = { ...workflow, revision: 2 };
     const { client, fetchFn } = await connect([json(saved)]);
@@ -272,7 +274,13 @@ describe('workflow MCP tools', () => {
       name: 'create-workflow',
       args: {
         ...input,
-        sinks: [{ type: 'http', id: sinkId, url: 'https://example.com' }],
+        sinks: [
+          {
+            type: 'http',
+            id: sinkId,
+            settings: { url: 'https://example.com' },
+          },
+        ],
       },
     },
     {
@@ -282,8 +290,10 @@ describe('workflow MCP tools', () => {
         sinks: [
           {
             type: 'http',
-            url: 'https://example.com',
-            headers: { Authorization: null },
+            settings: {
+              url: 'https://example.com',
+              headers: { Authorization: null },
+            },
           },
         ],
       },
@@ -294,11 +304,26 @@ describe('workflow MCP tools', () => {
         ...input,
         sinks: Array.from({ length: 6 }, () => ({
           type: 'table',
-          database: 'default',
-          table: 'alerts',
+          settings: { database: 'default', table: 'alerts' },
         })),
       },
     },
+    ...[
+      { type: 'http', url: 'https://example.com/events' },
+      { type: 'table', database: 'default', table: 'events' },
+      {
+        type: 'http',
+        settings: { url: 'https://example.com/events', table: 'events' },
+      },
+      {
+        type: 'table',
+        settings: { database: 'default', table: 'events', headers: {} },
+      },
+      { type: 'http', id: sinkId, settings: null },
+    ].flatMap((sink) => [
+      { name: 'create-workflow', args: { ...input, sinks: [sink] } },
+      { name: 'update-workflow', args: { id, sinks: [sink] } },
+    ]),
     { name: 'create-workflow', args: { ...input, interval_ms: 1000 } },
     { name: 'create-workflow', args: { ...input, destinations: [] } },
     { name: 'update-workflow', args: { id, destinations: [] } },
@@ -312,7 +337,7 @@ describe('workflow MCP tools', () => {
     { name: 'update-workflow', args: { id, interval_seconds: null } },
     {
       name: 'update-workflow',
-      args: { id, sinks: [{ type: 'http', headers: {} }] },
+      args: { id, sinks: [{ type: 'http', settings: { headers: {} } }] },
     },
     { name: 'update-workflow', args: { id: 'invalid', enabled: false } },
     { name: 'update-workflow', args: { id, revision: 99 } },

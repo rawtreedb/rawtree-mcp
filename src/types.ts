@@ -51,18 +51,27 @@ export interface WorkflowScope {
 }
 
 export type NewWorkflowSink =
-  | { type: 'http'; url: string; headers?: Record<string, string> }
-  | { type: 'table'; database: string; table: string };
+  | {
+      type: 'http';
+      settings: { url: string; headers?: Record<string, string> };
+    }
+  | { type: 'table'; settings: { database: string; table: string } };
 
 export type WorkflowSinkInput =
   | NewWorkflowSink
   | {
       type: 'http';
       id: string;
-      url?: string;
-      headers?: Record<string, string | null>;
+      settings?: {
+        url?: string;
+        headers?: Record<string, string | null>;
+      };
     }
-  | { type: 'table'; id: string; database: string; table: string };
+  | {
+      type: 'table';
+      id: string;
+      settings: { database: string; table: string };
+    };
 
 export interface CreateWorkflowInput {
   name: string;
