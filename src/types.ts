@@ -73,17 +73,22 @@ export type WorkflowSinkInput =
       settings: { database: string; table: string };
     };
 
-export interface CreateWorkflowInput {
-  name: string;
+export interface WorkflowQuery {
   database: string;
   sql: string;
+}
+
+export interface CreateWorkflowInput {
+  name: string;
+  query: WorkflowQuery;
   enabled?: boolean;
   interval_seconds?: number;
   sinks?: NewWorkflowSink[];
 }
 
 export type UpdateWorkflowInput = Partial<
-  Omit<CreateWorkflowInput, 'sinks'>
+  Omit<CreateWorkflowInput, 'sinks' | 'query'>
 > & {
+  query?: Partial<WorkflowQuery>;
   sinks?: WorkflowSinkInput[];
 };

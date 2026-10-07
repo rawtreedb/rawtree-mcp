@@ -8,8 +8,7 @@ const id = '00000000-0000-4000-8000-000000000001';
 const sinkId = '00000000-0000-4000-8000-000000000002';
 const input = {
   name: 'recent-events',
-  database: 'analytics',
-  sql: ' SELECT 1 AS value;\n',
+  query: { database: 'analytics', sql: ' SELECT 1 AS value;\n' },
 };
 const workflow = {
   ...input,
@@ -92,6 +91,11 @@ describe('workflow MCP tools', () => {
       );
       expect(tool?.inputSchema.additionalProperties).toBe(false);
       expect(tool?.inputSchema.properties).not.toHaveProperty('interval_ms');
+      expect(tool?.inputSchema.properties).not.toHaveProperty('database');
+      expect(tool?.inputSchema.properties).not.toHaveProperty('sql');
+      if (name === 'create-workflow' || name === 'update-workflow') {
+        expect(tool?.inputSchema.properties).toHaveProperty('query');
+      }
       const read = name === 'list-workflows' || name === 'get-workflow';
       expect(tool?.annotations).toMatchObject({
         readOnlyHint: read,
@@ -108,8 +112,7 @@ describe('workflow MCP tools', () => {
       'organization',
       'cluster',
       'name',
-      'database',
-      'sql',
+      'query',
     ]);
     expect(create?.inputSchema.properties.interval_seconds).toMatchObject({
       type: 'integer',
@@ -204,9 +207,9 @@ describe('workflow MCP tools', () => {
     { enabled: true },
     { interval_seconds: 1 },
     { interval_seconds: 86400 },
-    { sql: 'INSERT INTO alerts SELECT 1 AS value' },
+    { query: { sql: 'INSERT INTO alerts SELECT 1 AS value' } },
     { name: 'renamed' },
-    { database: 'other' },
+    { query: { database: 'other' } },
     { sinks: [] },
     { sinks: [{ type: 'http', id: sinkId }] },
     { sinks: [{ type: 'http', id: sinkId, settings: {} }] },
@@ -263,9 +266,20 @@ describe('workflow MCP tools', () => {
       name: 'create-workflow',
       args: { ...input, interval_seconds },
     })),
-    { name: 'create-workflow', args: { ...input, database: undefined } },
+    { name: 'create-workflow', args: { ...input, query: { sql: 'SELECT 1' } } },
     { name: 'create-workflow', args: { ...input, id } },
-    { name: 'create-workflow', args: { ...input, sql: '  ' } },
+    { name: 'create-workflow', args: { ...input, query: undefined } },
+    {
+      name: 'create-workflow',
+      args: { ...input, database: 'default', sql: 'SELECT 1' },
+    },
+    { name: 'update-workflow', args: { id, sql: 'SELECT 1' } },
+    { name: 'update-workflow', args: { id, query: {} } },
+    { name: 'update-workflow', args: { id, query: { typo: 'SELECT 1' } } },
+    {
+      name: 'create-workflow',
+      args: { ...input, query: { ...input.query, sql: '  ' } },
+    },
     {
       name: 'create-workflow',
       args: { ...input, sinks: [{ type: 'http' }] },
