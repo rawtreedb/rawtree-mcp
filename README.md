@@ -141,7 +141,7 @@ Environment variables:
 
 ### Workflows
 
-These tools target the `/v1/workflows` API with `interval_seconds` (Platform PR [#1306](https://github.com/rawtreedb/rawtree-platform/pull/1306)). The backend must have the `interval_seconds` and workflow `sinks` contracts deployed. The former workflow `destinations` field is rejected; connector destinations are unchanged. There are no `trigger` aliases or workflow-specific telemetry tools.
+These tools target the `/v1/workflows` API with `interval_seconds` (Platform PR [#1306](https://github.com/rawtreedb/rawtree-platform/pull/1306)). The backend must have the `interval_seconds` and workflow `sinks` with nested `settings` contracts deployed. The former workflow `destinations` field is rejected; connector destinations are unchanged. Flattened sink settings are rejected. There are no `trigger` aliases or workflow-specific telemetry tools.
 
 All five tools require explicit `organization` and `cluster` **names**, including standalone/API-key usage. Configured defaults do not replace these required tool arguments. Workflow definitions have their own `database`; the MCP's default database is never added as a workflow query parameter or substituted for that field.
 
@@ -167,8 +167,8 @@ API-key access requires an **admin** key bound to the selected organization and 
   "enabled": false,
   "interval_seconds": 60,
   "sinks": [
-    { "type": "http", "url": "https://example.com/events", "headers": { "Authorization": "Bearer example-only" } },
-    { "type": "table", "database": "default", "table": "alerts" }
+    {"type": "http", "settings": {"url": "https://example.com/events", "headers": {"Authorization": "Bearer example-only"}}},
+    {"type": "table", "settings": {"database": "default", "table": "alerts"}}
   ]
 }
 ```
@@ -189,8 +189,8 @@ Create, get, and update return the same complete object shape:
   "created_at": "2026-10-05T10:00:00Z",
   "updated_at": "2026-10-05T10:00:00Z",
   "sinks": [
-    { "type": "http", "id": "00000000-0000-4000-8000-000000000002", "url_configured": true, "header_names": ["Authorization"] },
-    { "type": "table", "id": "00000000-0000-4000-8000-000000000003", "database": "default", "table": "alerts" }
+    {"type": "http", "id": "00000000-0000-4000-8000-000000000002", "settings": {"url_configured": true, "header_names": ["Authorization"]}},
+    {"type": "table", "id": "00000000-0000-4000-8000-000000000003", "settings": {"database": "default", "table": "alerts"}}
   ]
 }
 ```
@@ -223,7 +223,7 @@ Returns `{ "workflows": [<workflow objects as above>] }`, or `{ "workflows": [] 
 
 The returned object includes `enabled: true`, `interval_seconds: 30`, and the backend's updated revision and timestamp. Set `enabled: false` to pause. Omitted fields stay unchanged; empty updates and null field values are rejected. Already buffered deliveries may continue after pausing.
 
-Supplying `sinks` replaces the whole list (maximum five); omission preserves it and `[]` removes all. New sinks omit `id`; new HTTP sinks require `url`. When editing an existing sink, preserve its `id` and type. HTTP URLs and header values are write-only: returned configuration contains only `url_configured` and `header_names`. For an existing HTTP sink, omit `url` or `headers` to preserve the stored configuration. Within a supplied headers map, `null` preserves the existing value for that name, omitted header names are removed, and `{}` clears all headers.
+Supplying `sinks` replaces the whole list (maximum five); omission preserves it and `[]` removes all. New sinks omit `id`; new HTTP sinks require `settings.url`. When editing an existing sink, preserve its `id` and type. HTTP URLs and header values are write-only: returned `settings` contains only `url_configured` and `header_names`. For an existing HTTP sink, omit `settings`, `settings.url`, or `settings.headers` to preserve the stored configuration. Within a supplied `settings.headers` map, `null` preserves the existing value for that name, omitted header names are removed, and `{}` clears all headers.
 
 For example, this update keeps one existing HTTP sink and its Authorization value, replaces its header list, and removes every other sink:
 
@@ -233,7 +233,7 @@ For example, this update keeps one existing HTTP sink and its Authorization valu
   "cluster": "production",
   "id": "00000000-0000-4000-8000-000000000001",
   "sinks": [
-    { "type": "http", "id": "00000000-0000-4000-8000-000000000002", "headers": { "Authorization": null, "X-Source": "workflow" } }
+    {"type": "http", "id": "00000000-0000-4000-8000-000000000002", "settings": {"headers": {"Authorization": null, "X-Source": "workflow"}}}
   ]
 }
 ```
