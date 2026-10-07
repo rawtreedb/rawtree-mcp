@@ -37,13 +37,7 @@ const sink = z.union([
   }),
   z.strictObject({ ...tableFields, id: z.uuid() }),
 ]);
-const definitionFields = {
-  name: z
-    .string()
-    .trim()
-    .min(1)
-    .max(64)
-    .regex(/^[A-Za-z0-9_-]+$/),
+const workflowQuery = z.strictObject({
   database: identifier.describe(
     'Database where the saved SQL executes; never inherited from the MCP default database.',
   ),
@@ -53,6 +47,15 @@ const definitionFields = {
     .describe(
       'Read query or INSERT INTO ... SELECT ... SQL. The API validates supported statements.',
     ),
+});
+const definitionFields = {
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/),
+  query: workflowQuery,
   enabled: z
     .boolean()
     .optional()
@@ -72,7 +75,7 @@ const definitionFields = {
 const auth =
   'Requires an admin API key bound to the selected organization and cluster, or OAuth. Organization members may read; organization admins may create, update, or delete. Workflows execute with organization credentials and continue after the creating key is revoked or expires.';
 const result =
-  'Returns the workflow object: id, name, database, sql, enabled, revision, interval_seconds, created_at, updated_at, and sinks. Each sink has id, type, and settings. HTTP settings expose only url_configured and header_names; table settings expose database and table.';
+  'Returns the workflow object: id, name, query, enabled, revision, interval_seconds, created_at, updated_at, and sinks. The query object contains database and sql. Each sink has id, type, and settings. HTTP settings expose only url_configured and header_names; table settings expose database and table.';
 
 export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
   // These API routes require both names even for API-key callers.
@@ -91,12 +94,16 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
       ),
   });
   const update = create
-    .omit({ name: true, database: true, sql: true, sinks: true })
+    .omit({ name: true, query: true, sinks: true })
     .extend({
       id,
       name: definitionFields.name.optional(),
-      database: definitionFields.database.optional(),
-      sql: definitionFields.sql.optional(),
+      query: workflowQuery
+        .partial()
+        .optional()
+        .describe(
+          'Omit to preserve the query. Omitted database or sql fields retain their saved values.',
+        ),
       sinks: z
         .array(sink)
         .max(5)
@@ -106,10 +113,15 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
         ),
     })
     .refine(
-      ({ name, database, sql, enabled, interval_seconds, sinks }) =>
-        [name, database, sql, enabled, interval_seconds, sinks].some(
-          (value) => value !== undefined,
-        ),
+      ({ name, query, enabled, interval_seconds, sinks }) =>
+        [
+          name,
+          query?.database,
+          query?.sql,
+          enabled,
+          interval_seconds,
+          sinks,
+        ].some((value) => value !== undefined),
       'Supply at least one workflow field to update.',
     );
 
@@ -148,7 +160,7 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
     'create-workflow',
     {
       title: 'Create Workflow',
-      description: `Create a scheduled SQL workflow. Requires name, database, and sql. Defaults: enabled=true, interval_seconds=1, sinks=[]. An enabled workflow starts recurring SQL execution and sink delivery; use enabled=false to create it paused. SQL may write rows through INSERT SELECT. Creation is not idempotent: reconcile an uncertain result with list-workflows before retrying. ${result} ${auth}`,
+      description: `Create a scheduled SQL workflow. Requires name and query (database and sql). Defaults: enabled=true, interval_seconds=1, sinks=[]. An enabled workflow starts recurring SQL execution and sink delivery; use enabled=false to create it paused. SQL may write rows through INSERT SELECT. Creation is not idempotent: reconcile an uncertain result with list-workflows before retrying. ${result} ${auth}`,
       inputSchema: create,
       annotations: {
         readOnlyHint: false,

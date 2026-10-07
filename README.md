@@ -141,16 +141,16 @@ Environment variables:
 
 ### Workflows
 
-These tools target the `/v1/workflows` API with `interval_seconds` (Platform PR [#1306](https://github.com/rawtreedb/rawtree-platform/pull/1306)). The backend must have the `interval_seconds` and workflow `sinks` with nested `settings` contracts deployed. The former workflow `destinations` field is rejected; connector destinations are unchanged. Flattened sink settings are rejected. There are no `trigger` aliases or workflow-specific telemetry tools.
+These tools target the `/v1/workflows` API with `interval_seconds` (Platform PR [#1306](https://github.com/rawtreedb/rawtree-platform/pull/1306)). The backend must have the `interval_seconds` and workflow `query` and `sinks` with nested `settings` contracts deployed. The former workflow `destinations` field is rejected; connector destinations are unchanged. Flattened sink settings are rejected. There are no `trigger` aliases or workflow-specific telemetry tools.
 
-All five tools require explicit `organization` and `cluster` **names**, including standalone/API-key usage. Configured defaults do not replace these required tool arguments. Workflow definitions have their own `database`; the MCP's default database is never added as a workflow query parameter or substituted for that field.
+All five tools require explicit `organization` and `cluster` **names**, including standalone/API-key usage. Configured defaults do not replace these required tool arguments. Workflow definitions have their own `query.database`; the MCP's default database is never added as a workflow query parameter or substituted for that field.
 
 | Tool | Required parameters | Optional parameters | Result |
 | --- | --- | --- | --- |
 | `list-workflows` | `organization`, `cluster` | None | `{ "workflows": [...] }`; no pagination |
 | `get-workflow` | `organization`, `cluster`, `id` | None | Complete workflow object |
-| `create-workflow` | `organization`, `cluster`, `name`, `database`, `sql` | `enabled`, `interval_seconds`, `sinks` | Complete saved workflow object |
-| `update-workflow` | `organization`, `cluster`, `id`, and at least one changed field | `name`, `database`, `sql`, `enabled`, `interval_seconds`, `sinks` | Complete saved workflow object |
+| `create-workflow` | `organization`, `cluster`, `name`, `query.database`, `query.sql` | `enabled`, `interval_seconds`, `sinks` | Complete saved workflow object |
+| `update-workflow` | `organization`, `cluster`, `id`, and at least one changed field | `name`, `query`, `enabled`, `interval_seconds`, `sinks` | Complete saved workflow object |
 | `delete-workflow` | `organization`, `cluster`, `id` | None | `{ "id": "...", "deleted": true }` after confirmed deletion |
 
 API-key access requires an **admin** key bound to the selected organization and cluster. With OAuth, organization members can read and organization admins can create/update/delete. The backend enforces authorization. Workflows execute with organization credentials; expiration or revocation of the creating key does not stop scheduled execution.
@@ -162,8 +162,10 @@ API-key access requires an **admin** key bound to the selected organization and 
   "organization": "acme",
   "cluster": "production",
   "name": "recent-events",
-  "database": "default",
-  "sql": "SELECT 1 AS value",
+  "query": {
+    "database": "default",
+    "sql": "SELECT 1 AS value"
+  },
   "enabled": false,
   "interval_seconds": 60,
   "sinks": [
@@ -181,8 +183,10 @@ Create, get, and update return the same complete object shape:
 {
   "id": "00000000-0000-4000-8000-000000000001",
   "name": "recent-events",
-  "database": "default",
-  "sql": "SELECT 1 AS value",
+  "query": {
+    "database": "default",
+    "sql": "SELECT 1 AS value"
+  },
   "enabled": false,
   "interval_seconds": 60,
   "revision": 1,
@@ -247,6 +251,8 @@ For example, this update keeps one existing HTTP sink and its Authorization valu
 Returns `{ "id": "00000000-0000-4000-8000-000000000001", "deleted": true }`. Deletion removes the definition and schedule; it does not undo previous SQL writes or completed deliveries. API failures are returned as MCP tool errors rather than successful deletion results.
 
 As with existing tools, the JSON results above are serialized in the MCP `content` text block.
+
+Workflow SQL and its database belong to `query`: `{"query":{"database":"default","sql":"SELECT 1"}}`. Create requires both fields. Updates preserve omitted query fields. Top-level `database` and `sql` are rejected.
 
 ### Saved queries
 
