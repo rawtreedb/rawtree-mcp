@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.3.6
+
+- Add `query-format` using `POST /v1/query-format`, preserving complete SQL input/output and forwarding MCP cancellation. Requires the Platform query-format endpoint; formatting never executes SQL.
+- Allow MCP requests up to 51 MiB over HTTP and stdio for large SQL documents, including envelope overhead; the API retains its 50 MiB JSON limit.
+
 ## 0.3.5
 
 - Add `list-workflows`, `get-workflow`, `create-workflow`, `update-workflow`, and `delete-workflow` with explicit organization/cluster scope and `interval_seconds`. Admin API keys and authorized OAuth callers can manage scheduled SQL and HTTP/table destinations.

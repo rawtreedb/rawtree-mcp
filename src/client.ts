@@ -359,6 +359,22 @@ export class RawTreeClient {
     );
   }
 
+  async formatQuery(
+    sql: string,
+    scope: RawTreeScope = {},
+    signal?: AbortSignal,
+  ): Promise<{ formatted: string }> {
+    const response = await this.requestJson(
+      'POST',
+      this.apiPath('/query-format'),
+      this.scoped({ body: { sql }, signal }, scope),
+    );
+    if (!isRecord(response) || typeof response.formatted !== 'string') {
+      throw new Error('RawTree returned an invalid query-format response.');
+    }
+    return { formatted: response.formatted };
+  }
+
   async listSavedQueries(
     scope: Omit<RawTreeScope, 'database'> = {},
   ): Promise<unknown> {
@@ -921,6 +937,7 @@ export class RawTreeClient {
         ...options.headers,
       },
       body: hasBody ? JSON.stringify(options.body) : undefined,
+      signal: options.signal,
     });
 
     const text = await response.text();

@@ -18,6 +18,33 @@ export function addDataTools(
   scopeOptions: ToolScopeOptions = {},
 ) {
   server.registerTool(
+    'query-format',
+    {
+      title: 'Format Query',
+      description: `Format complete SQL with the native RawTree formatter without executing statements or writing database query logs. Supports multiple statements and preserves literals. Inline INSERT VALUES data is copied verbatim without completeness or schema validation.
+
+Returns JSON { "formatted": "..." } containing the entire formatted SQL. The API allows a 50 MiB JSON request, 100 MiB formatted output, and 30 seconds of formatting. Requires a backend with POST /v1/query-format.`,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      inputSchema: {
+        ...databaseScopeInput(scopeOptions),
+        sql: z.string().min(1).describe('Complete SQL document to format.'),
+      },
+    },
+    async ({ organization, cluster, database, sql }, ctx) =>
+      jsonResult(
+        await rawtree.formatQuery(
+          sql,
+          requestScope({ organization, cluster, database }),
+          ctx.mcpReq.signal,
+        ),
+      ),
+  );
+
+  server.registerTool(
     'run-query',
     {
       title: 'Run Query',

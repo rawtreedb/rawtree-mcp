@@ -14,6 +14,7 @@ import {
 import { RawTreeClient } from '../client.js';
 import { createMcpServer } from '../server.js';
 import type { HttpConfig } from '../types.js';
+import { MAX_MCP_REQUEST_BYTES } from './limits.js';
 
 const sessions: Record<string, NodeStreamableHTTPServerTransport> = {};
 export type HttpTransportOptions = Omit<HttpConfig, 'port' | 'transport'>;
@@ -52,7 +53,7 @@ export async function runHttp(
   port: number,
   config: HttpTransportOptions = {},
 ): Promise<Server> {
-  const app = createMcpExpressApp();
+  const app = createMcpExpressApp({ jsonLimit: `${MAX_MCP_REQUEST_BYTES}b` });
 
   const modernHandler = createMcpHandler(
     (ctx) => {

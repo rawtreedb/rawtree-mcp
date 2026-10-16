@@ -13,6 +13,7 @@ type QueryValue =
 export type QueryParams = Record<string, QueryValue>;
 
 export interface RequestOptions {
+  signal?: AbortSignal;
   body?: JsonValue | Record<string, unknown>;
   query?: QueryParams;
   headers?: Record<string, string>;
