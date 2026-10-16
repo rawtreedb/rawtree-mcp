@@ -11,7 +11,10 @@ vi.mock('../../src/server.js', () => ({
   createMcpServer: vi.fn(() => ({ mock: 'server' })),
 }));
 
-vi.mock('@modelcontextprotocol/server/stdio', () => ({
+vi.mock('@modelcontextprotocol/server/stdio', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('@modelcontextprotocol/server/stdio')
+  >()),
   serveStdio: mockServeStdio,
 }));
 

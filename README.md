@@ -136,6 +136,7 @@ Environment variables:
 ### Data
 
 - `run-query` — Run read-only SQL and return RawTree's JSON query response. Accepts organization, cluster, and database overrides.
+- `query-format` — Format complete SQL without execution or database query logs. Accepts the same scope overrides and forwards cancellation to the API.
 - `insert-json` — Insert JSON object(s) into a table.
 - `insert-from-url` — Ingest data from a public URL and wait for completion, returning the inserted row count (or `null` when unavailable).
 
@@ -372,6 +373,33 @@ Example response:
 ```
 
 `run-query` also forwards optional query hints from the API. All responses above are JSON encoded in the MCP text content, following the server's existing response format.
+
+### Formatting SQL
+
+Call `query-format` with the complete SQL document:
+
+```json
+{ "sql": "select 1; select 'hello'", "organization": "acme", "cluster": "production" }
+```
+
+The MCP text content contains JSON with the complete result, including trailing newlines:
+
+```json
+{ "formatted": "SELECT 1;\n\nSELECT 'hello';\n\n" }
+```
+
+Organization, cluster, and database follow the usual tool defaults and overrides;
+hosts configured with `requireExplicitScope` require organization and cluster.
+The native formatter supports multiple statements and preserves literal values.
+Inline `INSERT ... VALUES` data is copied verbatim without completeness or schema
+validation. The API accepts up to 50 MiB of JSON, allows 100 MiB of formatted
+output, and times formatting out after 30 seconds. Errors return no partial SQL.
+The bundled HTTP and stdio transports accept MCP requests up to 51 MiB to allow
+for the API payload plus the MCP envelope. Your MCP client or hosting gateway
+may impose smaller message limits, including on responses.
+
+Requires deployment of [Platform PR #1468](https://github.com/rawtreedb/rawtree-platform/pull/1468).
+The tool calls `POST /v1/query-format`; it does not execute SQL or fall back to a query.
 
 ### Tables
 
