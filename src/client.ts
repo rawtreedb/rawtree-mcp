@@ -8,6 +8,7 @@ import {
   RawTreeApiError,
   type RequestOptions,
 } from './client/http.js';
+import { ClusterRouting } from './client/routing.js';
 
 import type {
   CreateSavedQueryInput,
@@ -173,6 +174,9 @@ function sameDestination(
 }
 
 export class RawTreeClient {
+  private readonly routing = new ClusterRouting((path) =>
+    this.requestJson('GET', path),
+  );
   private readonly apiUrl: string;
   private readonly cluster?: string;
   private readonly database?: string;
@@ -478,13 +482,15 @@ export class RawTreeClient {
   }
 
   async listClusters(organization: string): Promise<unknown> {
-    return this.requestJson('GET', this.apiPath('/clusters'), {
-      query: { organization },
-    });
+    return this.requestJson(
+      'GET',
+      await this.routing.clustersPath(organization),
+      {},
+    );
   }
 
   async listClusterSizes(): Promise<unknown> {
-    return this.requestJson('GET', this.apiPath('/clusters/sizes'));
+    return this.requestJson('GET', this.apiPath('/cluster-sizes'));
   }
 
   async createCluster({
@@ -506,38 +512,42 @@ export class RawTreeClient {
     s3Storage?: S3StorageInput;
     databaseS3Access?: DatabaseS3AccessInput;
   }): Promise<unknown> {
-    return this.requestJson('POST', this.apiPath('/clusters'), {
-      query: { organization },
-      body: {
-        name,
-        replicas,
-        size: {
-          cpu_cores: minimumSize.cpuCores,
-          memory_gib: minimumSize.memoryGiB,
-        },
-        autoscaling: {
-          min_size: {
+    return this.requestJson(
+      'POST',
+      await this.routing.clustersPath(organization),
+      {
+        body: {
+          name,
+          replicas,
+          size: {
             cpu_cores: minimumSize.cpuCores,
             memory_gib: minimumSize.memoryGiB,
           },
-          max_size: {
-            cpu_cores: maximumSize.cpuCores,
-            memory_gib: maximumSize.memoryGiB,
+          autoscaling: {
+            min_size: {
+              cpu_cores: minimumSize.cpuCores,
+              memory_gib: minimumSize.memoryGiB,
+            },
+            max_size: {
+              cpu_cores: maximumSize.cpuCores,
+              memory_gib: maximumSize.memoryGiB,
+            },
           },
+          ...(idleTimeoutMinutes === undefined
+            ? {}
+            : { idle_timeout_minutes: idleTimeoutMinutes }),
+          ...(s3Storage === undefined
+            ? {}
+            : { s3_storage: s3StorageRequestBody(s3Storage) }),
+          ...(databaseS3Access === undefined
+            ? {}
+            : {
+                database_s3_access:
+                  databaseS3AccessRequestBody(databaseS3Access),
+              }),
         },
-        ...(idleTimeoutMinutes === undefined
-          ? {}
-          : { idle_timeout_minutes: idleTimeoutMinutes }),
-        ...(s3Storage === undefined
-          ? {}
-          : { s3_storage: s3StorageRequestBody(s3Storage) }),
-        ...(databaseS3Access === undefined
-          ? {}
-          : {
-              database_s3_access: databaseS3AccessRequestBody(databaseS3Access),
-            }),
       },
-    });
+    );
   }
 
   async verifyClusterS3Access({
@@ -549,9 +559,8 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson(
       'POST',
-      this.apiPath('/clusters/verify-s3-access'),
+      `${await this.routing.clustersPath(organization)}/verify-s3-access`,
       {
-        query: { organization },
         body: { s3_storage: s3StorageRequestBody(s3Storage) },
       },
     );
@@ -566,8 +575,7 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson(
       'GET',
-      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}`,
-      { query: { organization } },
+      `${await this.routing.clustersPath(organization)}/${encodePathPart(clusterId)}`,
     );
   }
 
@@ -582,9 +590,8 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson(
       'PATCH',
-      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}`,
+      `${await this.routing.clustersPath(organization)}/${encodePathPart(clusterId)}`,
       {
-        query: { organization },
         body: { idle_timeout_minutes: idleTimeoutMinutes },
       },
     );
@@ -599,8 +606,7 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson(
       'POST',
-      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}/stop`,
-      { query: { organization } },
+      `${await this.routing.clustersPath(organization)}/${encodePathPart(clusterId)}/stop`,
     );
   }
 
@@ -613,8 +619,7 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson(
       'POST',
-      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}/resume`,
-      { query: { organization } },
+      `${await this.routing.clustersPath(organization)}/${encodePathPart(clusterId)}/resume`,
     );
   }
 
@@ -911,6 +916,7 @@ export class RawTreeClient {
     path: string,
     options: RequestOptions = {},
   ): Promise<unknown> {
+    const routingVersion = this.routing.version;
     const text = await this.requestText(method, path, {
       ...options,
       headers: {
@@ -919,7 +925,9 @@ export class RawTreeClient {
       },
     });
 
-    return text ? parseJson(text) : null;
+    const result = text ? parseJson(text) : null;
+    if (method === 'GET') this.routing.remember(path, result, routingVersion);
+    return result;
   }
 
   private async requestText(
@@ -928,13 +936,18 @@ export class RawTreeClient {
     options: RequestOptions = {},
   ): Promise<string> {
     const hasBody = options.body !== undefined;
-    const response = await this.fetchFn(this.endpoint(path, options.query), {
+    const url = this.endpoint(path, options.query);
+    const routingHeaders = this.apiKey.startsWith('rt_')
+      ? {}
+      : await this.routing.headers(url, options.signal);
+    const response = await this.fetchFn(url, {
       method,
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         'User-Agent': this.userAgent,
         ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
         ...options.headers,
+        ...routingHeaders,
       },
       body: hasBody ? JSON.stringify(options.body) : undefined,
       signal: options.signal,
@@ -951,6 +964,8 @@ export class RawTreeClient {
         message: errorMessage(payload, response.status, method, path),
       });
     }
+    if (method !== 'GET' && path.startsWith('/v1/organizations'))
+      this.routing.clear();
     return text;
   }
 }

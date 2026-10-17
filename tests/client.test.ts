@@ -563,7 +563,7 @@ describe('RawTreeClient', () => {
     });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters?organization=acme+team',
+      'https://api.rawtree.com/v1/organizations/00000000-0000-4000-8000-000000000001/clusters',
     );
     expect(calls[0].init.method).toBe('GET');
   });
@@ -616,7 +616,7 @@ describe('RawTreeClient', () => {
 
     await expect(client.listClusterSizes()).resolves.toEqual(response);
 
-    expect(calls[0].url).toBe('https://api.rawtree.com/v1/clusters/sizes');
+    expect(calls[0].url).toBe('https://api.rawtree.com/v1/cluster-sizes');
     expect(calls[0].init.method).toBe('GET');
     expect(calls[0].init.body).toBeUndefined();
   });
@@ -643,7 +643,7 @@ describe('RawTreeClient', () => {
     ).resolves.toEqual({ id: 'cluster-id', name: 'production' });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters?organization=acme',
+      'https://api.rawtree.com/v1/organizations/00000000-0000-4000-8000-000000000001/clusters',
     );
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBe(
@@ -798,7 +798,7 @@ describe('RawTreeClient', () => {
     ).resolves.toEqual(response);
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters/verify-s3-access?organization=acme+team',
+      'https://api.rawtree.com/v1/organizations/00000000-0000-4000-8000-000000000001/clusters/verify-s3-access',
     );
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBe(
@@ -831,7 +831,7 @@ describe('RawTreeClient', () => {
     ).resolves.toEqual({ id: 'cluster/id', name: 'production' });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters/cluster%2Fid?organization=acme+team',
+      'https://api.rawtree.com/v1/organizations/00000000-0000-4000-8000-000000000001/clusters/cluster%2Fid',
     );
     expect(calls[0].init.method).toBe('GET');
     expect(calls[0].init.body).toBeUndefined();
@@ -863,7 +863,7 @@ describe('RawTreeClient', () => {
     });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters/cluster%2Fid?organization=acme+team',
+      'https://api.rawtree.com/v1/organizations/00000000-0000-4000-8000-000000000001/clusters/cluster%2Fid',
     );
     expect(calls[0].init.method).toBe('PATCH');
     expect(calls[0].init.body).toBe(
@@ -892,7 +892,7 @@ describe('RawTreeClient', () => {
     });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters/cluster%2Fid/stop?organization=acme+team',
+      'https://api.rawtree.com/v1/organizations/00000000-0000-4000-8000-000000000001/clusters/cluster%2Fid/stop',
     );
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBeUndefined();
@@ -919,7 +919,7 @@ describe('RawTreeClient', () => {
     });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters/cluster-id/resume?organization=acme',
+      'https://api.rawtree.com/v1/organizations/00000000-0000-4000-8000-000000000001/clusters/cluster-id/resume',
     );
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBeUndefined();
@@ -1035,3 +1035,17 @@ describe('RawTreeClient', () => {
     } satisfies Partial<RawTreeApiError>);
   });
 });
+
+// Payload contracts are isolated here; routing.test.ts covers real discovery and tool transport.
+vi.mock('../src/client/routing.js', () => ({
+  ClusterRouting: class {
+    async clustersPath() {
+      return '/v1/organizations/00000000-0000-4000-8000-000000000001/clusters';
+    }
+    async headers() {
+      return {};
+    }
+    clear() {}
+    remember() {}
+  },
+}));
