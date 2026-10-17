@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.4.0
+
+- Resolve deployment routing headers from cluster metadata for session and OAuth requests. API keys retain their embedded routing; missing metadata preserves the default public region fallback.
+
 ## 0.3.6
 
 - Add `query-format` using `POST /v1/query-format`, preserving complete SQL input/output and forwarding MCP cancellation. Requires the Platform query-format endpoint; formatting never executes SQL.

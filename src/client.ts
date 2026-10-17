@@ -8,6 +8,7 @@ import {
   RawTreeApiError,
   type RequestOptions,
 } from './client/http.js';
+import { ClusterRouting } from './client/routing.js';
 
 import type {
   CreateSavedQueryInput,
@@ -173,6 +174,9 @@ function sameDestination(
 }
 
 export class RawTreeClient {
+  private readonly routing = new ClusterRouting((path) =>
+    this.requestJson('GET', path),
+  );
   private readonly apiUrl: string;
   private readonly cluster?: string;
   private readonly database?: string;
@@ -911,6 +915,7 @@ export class RawTreeClient {
     path: string,
     options: RequestOptions = {},
   ): Promise<unknown> {
+    const routingVersion = this.routing.version;
     const text = await this.requestText(method, path, {
       ...options,
       headers: {
@@ -919,7 +924,14 @@ export class RawTreeClient {
       },
     });
 
-    return text ? parseJson(text) : null;
+    const result = text ? parseJson(text) : null;
+    if (method === 'GET')
+      this.routing.remember(
+        this.endpoint(path, options.query),
+        result,
+        routingVersion,
+      );
+    return result;
   }
 
   private async requestText(
@@ -928,13 +940,18 @@ export class RawTreeClient {
     options: RequestOptions = {},
   ): Promise<string> {
     const hasBody = options.body !== undefined;
-    const response = await this.fetchFn(this.endpoint(path, options.query), {
+    const url = this.endpoint(path, options.query);
+    const routingHeaders = this.apiKey.startsWith('rt_')
+      ? {}
+      : await this.routing.headers(url, options.signal);
+    const response = await this.fetchFn(url, {
       method,
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         'User-Agent': this.userAgent,
         ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
         ...options.headers,
+        ...routingHeaders,
       },
       body: hasBody ? JSON.stringify(options.body) : undefined,
       signal: options.signal,
@@ -951,6 +968,11 @@ export class RawTreeClient {
         message: errorMessage(payload, response.status, method, path),
       });
     }
+    if (
+      method !== 'GET' &&
+      (path.startsWith('/v1/organizations') || path.startsWith('/v1/clusters'))
+    )
+      this.routing.clear();
     return text;
   }
 }

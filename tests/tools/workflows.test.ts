@@ -412,3 +412,14 @@ describe('workflow MCP tools', () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 });
+
+// Payload contracts are isolated here; routing.test.ts covers real discovery and tool transport.
+vi.mock('../../src/client/routing.js', () => ({
+  ClusterRouting: class {
+    async headers() {
+      return {};
+    }
+    clear() {}
+    remember() {}
+  },
+}));

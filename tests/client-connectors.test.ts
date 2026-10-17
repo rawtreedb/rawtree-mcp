@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { RawTreeClient } from '../src/client.js';
 
 interface RecordedCall {
@@ -220,3 +220,14 @@ describe('RawTreeClient connector routes', () => {
     expect(calls[0].init.body).toBe(JSON.stringify({ status: 'paused' }));
   });
 });
+
+// Payload contracts are isolated here; routing.test.ts covers real discovery and tool transport.
+vi.mock('../src/client/routing.js', () => ({
+  ClusterRouting: class {
+    async headers() {
+      return {};
+    }
+    clear() {}
+    remember() {}
+  },
+}));

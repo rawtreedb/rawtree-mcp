@@ -72,7 +72,7 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.headers).toMatchObject({
       Authorization: 'Bearer rt_test',
       'Content-Type': 'application/json',
-      'User-Agent': 'rawtree-mcp/0.3.6',
+      'User-Agent': 'rawtree-mcp/0.4.0',
     });
   });
 
@@ -1035,3 +1035,13 @@ describe('RawTreeClient', () => {
     } satisfies Partial<RawTreeApiError>);
   });
 });
+
+vi.mock('../src/client/routing.js', () => ({
+  ClusterRouting: class {
+    async headers() {
+      return {};
+    }
+    clear() {}
+    remember() {}
+  },
+}));
