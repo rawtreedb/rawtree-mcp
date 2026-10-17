@@ -483,17 +483,12 @@ export class RawTreeClient {
     externalId?: string;
     resourceTag?: string;
   }): Promise<unknown> {
-    if (s3Storage !== undefined && externalId === undefined) {
-      throw new Error(
-        'Custom S3 storage requires externalId matching the customer IAM role trust policy.',
-      );
-    }
     return this.requestJson('POST', this.apiPath('/clusters'), {
       query: { organization },
       body: {
         name,
-        external_id: externalId ?? `rawtree-${crypto.randomUUID()}`,
-        resource_tag: resourceTag ?? `rawtree-${crypto.randomUUID()}`,
+        ...(externalId === undefined ? {} : { external_id: externalId }),
+        ...(resourceTag === undefined ? {} : { resource_tag: resourceTag }),
         replicas,
         size: {
           cpu_cores: minimumSize.cpuCores,

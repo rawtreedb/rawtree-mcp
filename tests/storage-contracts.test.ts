@@ -29,14 +29,15 @@ describe('storage tool contracts', () => {
     await Promise.all(closeables.splice(0).map((c) => c.close()));
   });
 
-  async function setup() {
+  async function setup(response?: unknown, status = 200) {
     const bodies: unknown[] = [];
     const rawtree = new RawTreeClient({
       apiKey: 'fixture-token',
       fetchFn: async (_url, init) => {
         const body: unknown = JSON.parse(String(init?.body));
         bodies.push(body);
-        return new Response(JSON.stringify(body), {
+        return new Response(JSON.stringify(response ?? body), {
+          status,
           headers: { 'content-type': 'application/json' },
         });
       },
@@ -51,34 +52,41 @@ describe('storage tool contracts', () => {
     return { client, bodies };
   }
 
-  it('generates distinct UUID identities and returns them for managed clusters', async () => {
-    const { client, bodies } = await setup();
+  it('omits unspecified identities and returns the saved API identity', async () => {
+    const saved = {
+      id: 'cluster-id',
+      external_id: 'rawtree-5b71c457-7d83-474b-9db9-6dc48a1ec042',
+      resource_tag: 'rawtree-dc1fb78e-341d-48f8-a183-9ecea12eb41d',
+    };
+    const { client, bodies } = await setup(saved);
     const result = await client.callTool({
       name: 'create-cluster',
       arguments: clusterArgs,
     });
     expect(result.isError).not.toBe(true);
-    const uuid =
-      /^rawtree-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-    expect(bodies[0]).toMatchObject({
-      external_id: expect.stringMatching(uuid),
-      resource_tag: expect.stringMatching(uuid),
-    });
-    const body = JSON.stringify(bodies[0]);
+    expect(bodies[0]).not.toHaveProperty('external_id');
+    expect(bodies[0]).not.toHaveProperty('resource_tag');
     expect(result.content).toEqual([
       {
         type: 'text',
-        text: `Create cluster result:\n${JSON.stringify(bodies[0], null, 2)}`,
+        text: `Create cluster result:\n${JSON.stringify(saved, null, 2)}`,
       },
     ]);
-    await client.callTool({
+  });
+
+  it('lets the API report missing identity for custom storage', async () => {
+    const { client, bodies } = await setup(
+      { message: 'Custom S3 storage requires external_id.' },
+      400,
+    );
+    const result = await client.callTool({
       name: 'create-cluster',
-      arguments: { ...clusterArgs, name: 'another' },
+      arguments: { ...clusterArgs, s3Storage: storage },
     });
-    expect(JSON.stringify(bodies[1])).not.toBe(body);
-    const serialized = JSON.stringify(bodies[0]);
-    expect(serialized.match(/rawtree-[0-9a-f-]+/g)).toHaveLength(2);
-    expect(new Set(serialized.match(/rawtree-[0-9a-f-]+/g)).size).toBe(2);
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain('requires external_id');
+    expect(bodies[0]).not.toHaveProperty('external_id');
+    expect(bodies[0]).not.toHaveProperty('resource_tag');
   });
 
   it('preserves one external ID across cluster verification and creation', async () => {
@@ -134,10 +142,6 @@ describe('storage tool contracts', () => {
   it('rejects incomplete or obsolete inputs before HTTP', async () => {
     const { client, bodies } = await setup();
     const cases = [
-      {
-        name: 'create-cluster',
-        arguments: { ...clusterArgs, s3Storage: storage },
-      },
       {
         name: 'create-cluster',
         arguments: {
