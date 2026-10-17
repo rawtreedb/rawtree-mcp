@@ -2,9 +2,10 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { RawTreeClient } from '../client.js';
 import {
-  databaseS3AccessInput,
+  externalIdInput,
   jsonResult,
   namedJsonResult,
+  resourceTagInput,
   s3StorageInput,
 } from './common.js';
 
@@ -37,7 +38,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
       title: 'List Clusters',
       description: `**Purpose:** List RawTree dedicated clusters accessible in an organization.
 
-**Returns:** Cluster IDs, names, creation times, lifecycle status, resources, whether each cluster can be paused or resumed, optional s3_storage metadata for customer-owned default storage, and optional database_s3_access metadata for independent per-database storage. s3_storage exposes bucket and path values; database_s3_access exposes its External ID and bucket tag. Role ARNs and secret credentials are never returned.
+**Returns:** Cluster IDs, names, creation times, lifecycle status, resources, whether each cluster can be paused or resumed, optional s3_storage metadata for customer-owned default storage, and top-level external_id and resource_tag identity values (null for older clusters without saved identity). s3_storage exposes data_bucket, data_path, backup_bucket, and backup_path. Role ARNs and secret credentials are never returned.
 
 **Auth:** The RawTree API requires a user access token and organization membership. Authorization is enforced by the API.
 
@@ -98,20 +99,25 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
         destructiveHint: false,
         idempotentHint: true,
       },
-      inputSchema: {
+      inputSchema: z.strictObject({
         organization: z
           .string()
           .min(1)
           .describe('Organization that will own the cluster.'),
+        externalId: externalIdInput,
         s3Storage: s3StorageInput.describe(
           'Customer-owned S3 configuration to verify before cluster creation.',
         ),
-      },
+      }),
     },
-    async ({ organization, s3Storage }) =>
+    async ({ organization, externalId, s3Storage }) =>
       namedJsonResult(
         'S3 access verification result',
-        await rawtree.verifyClusterS3Access({ organization, s3Storage }),
+        await rawtree.verifyClusterS3Access({
+          organization,
+          externalId,
+          s3Storage,
+        }),
       ),
   );
 
@@ -123,11 +129,11 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Returns:** The newly created cluster, including its ID, lifecycle status, and initial resources. Provisioning continues asynchronously after the request is accepted; use get-cluster to check progress.
 
-**Behavior:** The cluster starts at minimumSize and can vertically autoscale per replica up to maximumSize. The replica count remains fixed. s3Storage is optional: omit it to use RawTree-managed storage. When provided, it configures customer-owned data and backup destinations through a customer IAM role. Destination paths are optional; the buckets, roleArn, and externalId are required inside s3Storage. databaseS3Access is also optional and independent from s3Storage: provide it when databases may later use dedicated customer-owned buckets, even if the cluster keeps RawTree-managed default storage. It contains the External ID and the immutable database bucket tag; each customer database bucket must carry rawtree.com/cluster=<databaseBucketTag>. When both settings are supplied, their External ID values must match. The role ARN and bucket destinations for an individual database are supplied later in create-database.s3Storage.
+**Behavior:** The cluster starts at minimumSize and can vertically autoscale per replica up to maximumSize. The replica count remains fixed. s3Storage is optional: omit it to use RawTree-managed storage. When provided, it configures customer-owned data and backup destinations through a customer IAM role. Destination paths are optional; dataBucket, backupBucket, and roleArn are required inside s3Storage. externalId and resourceTag are top-level immutable cluster identity values. The API generates omitted values independently using secure UUIDs, but requires an explicit externalId for custom S3 matching the customer IAM trust policy. The MCP client forwards optional identity values without generating them. Tag eligible customer buckets and IAM roles with rawtree.com/cluster=<resourceTag>. Database operations reuse this saved identity automatically.
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 
-**Safety:** You MUST first call list-cluster-sizes, then confirm the exact organization, name, replica count, minimum per-replica size, maximum per-replica size, vertical autoscaling behavior, and idle timeout with the user. If idleTimeoutMinutes is omitted, explain that the server default will apply. For one replica, warn that the cluster has no redundancy. If s3Storage is provided, first call verify-cluster-s3-access with the identical configuration and confirm the data and backup buckets, optional paths, role ARN, and External ID. Never reuse a successful verification after changing any s3Storage field. If databaseS3Access is provided, confirm that its External ID and immutable bucket tag are intentional and that customer database buckets will be tagged as required; this metadata does not verify or create future database buckets.
+**Safety:** You MUST first call list-cluster-sizes, then confirm the exact organization, name, replica count, minimum per-replica size, maximum per-replica size, vertical autoscaling behavior, and idle timeout with the user. If idleTimeoutMinutes is omitted, explain that the server default will apply. For one replica, warn that the cluster has no redundancy. If s3Storage is provided, first call verify-cluster-s3-access with the identical configuration and confirm the data and backup buckets, optional paths, role ARN, and External ID. Pass the same externalId to verification and creation. Never reuse a successful verification after changing externalId or any s3Storage field. Confirm any explicitly supplied identity values with the user; generated values are returned with the cluster.
 
 **Reliability:** This operation is not idempotent. If the response is ambiguous, call list-clusters to reconcile by organization and name before retrying.`,
       annotations: {
@@ -135,7 +141,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
         destructiveHint: false,
         idempotentHint: false,
       },
-      inputSchema: {
+      inputSchema: z.strictObject({
         organization: z
           .string()
           .min(1)
@@ -163,12 +169,17 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
           .describe(
             'Optional customer-owned S3 configuration. Omit to use RawTree-managed storage. Verify the identical configuration with verify-cluster-s3-access before creation.',
           ),
-        databaseS3Access: databaseS3AccessInput
+        externalId: externalIdInput
           .optional()
           .describe(
-            'Optional independent per-database S3 capability. It may be supplied without s3Storage. Apply the databaseBucketTag to each customer-owned database bucket; if s3Storage is also supplied, externalId must match.',
+            'Immutable cluster External ID. Generated by the API when omitted for managed storage; required for custom S3 and must match pre-creation verification.',
           ),
-      },
+        resourceTag: resourceTagInput
+          .optional()
+          .describe(
+            'Immutable rawtree.com/cluster AWS resource tag value. Generated by the API when omitted.',
+          ),
+      }),
     },
     async ({
       organization,
@@ -178,7 +189,8 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
       maximumSize,
       idleTimeoutMinutes,
       s3Storage,
-      databaseS3Access,
+      externalId,
+      resourceTag,
     }) => {
       return namedJsonResult(
         'Create cluster result',
@@ -190,7 +202,8 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
           maximumSize,
           idleTimeoutMinutes,
           s3Storage,
-          databaseS3Access,
+          externalId,
+          resourceTag,
         }),
       );
     },
@@ -202,7 +215,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
       title: 'Get Cluster',
       description: `**Purpose:** Get one RawTree dedicated cluster and its current lifecycle status.
 
-**Returns:** The cluster ID, name, creation time, lifecycle status, resources, whether it can be paused or resumed, optional s3_storage metadata for customer-owned default storage, and optional database_s3_access metadata for independent per-database storage. s3_storage exposes bucket and path values; database_s3_access exposes its External ID and bucket tag. Role ARNs and secret credentials are never returned.
+**Returns:** The cluster ID, name, creation time, lifecycle status, resources, whether it can be paused or resumed, optional s3_storage metadata for customer-owned default storage, and top-level external_id and resource_tag identity values (null for older clusters without saved identity). s3_storage exposes data_bucket, data_path, backup_bucket, and backup_path. Role ARNs and secret credentials are never returned.
 
 **Auth:** The RawTree API requires a user access token and organization membership. Authorization is enforced by the API.
 
