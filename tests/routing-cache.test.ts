@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ClusterRouting } from '../src/client/routing.js';
 
 const id = '00000000-0000-4000-8000-000000000001';
-const path = `/v1/organizations/${id}/clusters`;
+const path = '/v1/clusters?organization=acme';
 const organizations = {
   organizations: [{ organization_id: id, name: 'acme' }],
 };
@@ -23,11 +23,7 @@ const url = new URL(
 describe('routing discovery lifetime', () => {
   it('aborts one discovery waiter promptly without cancelling another caller', async () => {
     const pending = Promise.withResolvers<unknown>();
-    const load = vi.fn((resource: string) =>
-      resource === '/v1/organizations'
-        ? pending.promise
-        : Promise.resolve(metadata),
-    );
+    const load = vi.fn(() => pending.promise);
     const routing = new ClusterRouting(load);
     const controller = new AbortController();
     const cancelled = routing.headers(url, controller.signal);
@@ -35,12 +31,12 @@ describe('routing discovery lifetime', () => {
     controller.abort();
     await expect(cancelled).rejects.toMatchObject({ name: 'AbortError' });
     expect(load).toHaveBeenCalledTimes(1);
-    pending.resolve(organizations);
+    pending.resolve(metadata);
     expect(await active).toEqual({
       'X-RawTree-Deployment-Id': '12abcdef',
       'X-RawTree-Region': 'eu-west-1',
     });
-    expect(load).toHaveBeenCalledTimes(2);
+    expect(load).toHaveBeenCalledTimes(1);
   });
 
   it('does not start discovery for an already cancelled request', () => {
@@ -55,9 +51,15 @@ describe('routing discovery lifetime', () => {
     const routing = new ClusterRouting(load);
     const oldVersion = routing.version;
     routing.clear();
-    routing.remember(path, { clusters: [] }, oldVersion);
+    routing.remember(
+      new URL(`https://api.rawtree.test${path}`),
+      { clusters: [] },
+      oldVersion,
+    );
     const result = await routing.headers(
-      new URL(`https://api.rawtree.test${path}/cluster-id`),
+      new URL(
+        'https://api.rawtree.test/v1/clusters/cluster-id?organization=acme',
+      ),
     );
     expect(result['X-RawTree-Deployment-Id']).toBe('12abcdef');
     expect(load).toHaveBeenCalledExactlyOnceWith(path);
@@ -69,7 +71,9 @@ describe('routing discovery lifetime', () => {
       .mockRejectedValueOnce(new Error('Unavailable'))
       .mockResolvedValueOnce(metadata);
     const routing = new ClusterRouting(load);
-    const target = new URL(`https://api.rawtree.test${path}/cluster-id`);
+    const target = new URL(
+      'https://api.rawtree.test/v1/clusters/cluster-id?organization=acme',
+    );
     await expect(routing.headers(target)).rejects.toThrow('Unavailable');
     expect((await routing.headers(target))['X-RawTree-Region']).toBe(
       'eu-west-1',
@@ -78,24 +82,28 @@ describe('routing discovery lifetime', () => {
 });
 
 it('distinguishes explicit IDs from names when selectors collide', async () => {
-  const routing = new ClusterRouting(async () => ({
-    clusters: [
-      {
-        id: 'other-id',
-        name: 'target-id',
-        deployment_id: 'aaaaaaaa',
-        cloud_region: 'us-east-1',
-      },
-      {
-        id: 'target-id',
-        name: 'production',
-        deployment_id: 'bbbbbbbb',
-        cloud_region: 'eu-west-1',
-      },
-    ],
-  }));
+  const routing = new ClusterRouting(async (resource) =>
+    resource === '/v1/organizations'
+      ? organizations
+      : {
+          clusters: [
+            {
+              id: 'other-id',
+              name: 'target-id',
+              deployment_id: 'aaaaaaaa',
+              cloud_region: 'us-east-1',
+            },
+            {
+              id: 'target-id',
+              name: 'production',
+              deployment_id: 'bbbbbbbb',
+              cloud_region: 'eu-west-1',
+            },
+          ],
+        },
+  );
   for (const resource of [
-    `${path}/target-id`,
+    '/v1/clusters/target-id?organization=acme',
     `/v1/query?organization_id=${id}&cluster_id=target-id`,
   ]) {
     expect(
@@ -115,20 +123,43 @@ it('distinguishes explicit IDs from names when selectors collide', async () => {
   ).toBe('aaaaaaaa');
 });
 
-it('refreshes stale organization metadata once when a new name is missing', async () => {
-  const load = vi.fn(async () => organizations);
+it('refreshes stale organization metadata when an explicit ID is missing', async () => {
+  const load = vi.fn(async (resource: string) =>
+    resource === '/v1/organizations' ? organizations : metadata,
+  );
   const routing = new ClusterRouting(load);
-  routing.remember('/v1/organizations', { organizations: [] }, routing.version);
-  expect(await routing.clustersPath('acme')).toBe(path);
-  expect(load).toHaveBeenCalledExactlyOnceWith('/v1/organizations');
+  routing.remember(
+    new URL('https://api.rawtree.test/v1/organizations'),
+    { organizations: [] },
+    routing.version,
+  );
+  expect(
+    (
+      await routing.headers(
+        new URL(
+          `https://api.rawtree.test/v1/metrics?organization_id=${id}&cluster_id=cluster-id`,
+        ),
+      )
+    )['X-RawTree-Region'],
+  ).toBe('eu-west-1');
+  expect(load.mock.calls.map(([resource]) => resource)).toEqual([
+    '/v1/organizations',
+    path,
+  ]);
 });
 
 it('does not repeat a fresh lookup for an unknown organization', async () => {
-  const load = vi.fn(async () => organizations);
-  const routing = new ClusterRouting(load);
-  await expect(routing.clustersPath('missing')).rejects.toThrow(
-    "Organization 'missing' was not found.",
+  const load = vi.fn(async (resource: string) =>
+    resource === '/v1/organizations' ? organizations : metadata,
   );
+  const routing = new ClusterRouting(load);
+  await expect(
+    routing.headers(
+      new URL(
+        'https://api.rawtree.test/v1/metrics?organization_id=missing&cluster_id=cluster-id',
+      ),
+    ),
+  ).rejects.toThrow("Organization 'missing' was not found.");
   expect(load).toHaveBeenCalledOnce();
 });
 
@@ -144,10 +175,16 @@ it('keeps newer discovery metadata when an expired in-flight lookup completes la
   const routing = new ClusterRouting(async () => {
     const version = routing.version;
     const response = ++calls === 1 ? await old : metadata;
-    routing.remember(path, response, version);
+    routing.remember(
+      new URL(`https://api.rawtree.test${path}`),
+      response,
+      version,
+    );
     return response;
   });
-  const target = new URL(`https://api.rawtree.test${path}/cluster-id`);
+  const target = new URL(
+    'https://api.rawtree.test/v1/clusters/cluster-id?organization=acme',
+  );
   try {
     const first = routing.headers(target);
     await vi.waitFor(() => expect(calls).toBe(1));

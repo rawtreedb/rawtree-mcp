@@ -323,9 +323,6 @@ describe('saved-query MCP tools', () => {
 // Payload contracts are isolated here; routing.test.ts covers real discovery and tool transport.
 vi.mock('../../src/client/routing.js', () => ({
   ClusterRouting: class {
-    async clustersPath() {
-      return '/v1/organizations/00000000-0000-4000-8000-000000000001/clusters';
-    }
     async headers() {
       return {};
     }

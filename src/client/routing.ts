@@ -11,10 +11,13 @@ function records(value: unknown, field: string): MetadataRecord[] {
     : [];
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DEPLOYMENT = /^[0-9a-f]{8}$/;
 const REGION = /^[a-z]+(?:-[a-z]+)+-[1-9][0-9]*$/;
 const CACHE_MS = 30_000;
+
+function clustersPath(organization: string): string {
+  return `/v1/clusters?${new URLSearchParams({ organization })}`;
+}
 
 /** Discovery uses the default API origin; only cluster-scoped requests carry routing. */
 export class ClusterRouting {
@@ -31,19 +34,20 @@ export class ClusterRouting {
     return this.generation;
   }
 
-  remember(path: string, value: unknown, version: number) {
-    // Ordinary GETs may seed an empty cache, but cannot replace a discovery load.
-    // Its promise owns the entry even if an older response completes afterward.
-    if (version !== this.generation || this.cache.has(path)) return;
-    if (
-      path === '/v1/organizations' ||
-      /^\/v1\/organizations\/[^/]+\/clusters$/.test(path)
-    ) {
-      this.cache.set(path, {
-        expires: Date.now() + CACHE_MS,
-        value: Promise.resolve(value),
-      });
-    }
+  remember(url: URL, value: unknown, version: number) {
+    const organization = url.searchParams.get('organization');
+    const path =
+      url.pathname === '/v1/organizations'
+        ? url.pathname
+        : url.pathname === '/v1/clusters' && organization
+          ? clustersPath(organization)
+          : undefined;
+    // Ordinary GETs cannot overwrite a newer discovery or a mutation's invalidation.
+    if (!path || version !== this.generation || this.cache.has(path)) return;
+    this.cache.set(path, {
+      expires: Date.now() + CACHE_MS,
+      value: Promise.resolve(value),
+    });
   }
 
   clear() {
@@ -62,47 +66,30 @@ export class ClusterRouting {
     return value;
   }
 
-  async clustersPath(
-    organization: string,
+  private async organizationName(
+    id: string,
     signal?: AbortSignal | null,
   ): Promise<string> {
+    const path = '/v1/organizations';
+    const cached = this.cache.get(path);
+    const wasCached = cached !== undefined && cached.expires > Date.now();
+    let response = await this.metadata(path);
     signal?.throwIfAborted();
-    let id = organization;
-    if (!UUID.test(id)) {
-      const cached = this.cache.get('/v1/organizations');
-      const wasCached = cached !== undefined && cached.expires > Date.now();
-      let response = await this.metadata('/v1/organizations');
+    let match = records(response, 'organizations').find(
+      (item) => item.organization_id === id,
+    );
+    if (!match && wasCached) {
+      this.cache.delete(path);
+      response = await this.metadata(path);
       signal?.throwIfAborted();
-      let match = records(response, 'organizations').find(
-        (item) => item.name === organization,
+      match = records(response, 'organizations').find(
+        (item) => item.organization_id === id,
       );
-      if (!match && wasCached) {
-        // A stale list must not block a newly created organization's retry.
-        this.cache.delete('/v1/organizations');
-        response = await this.metadata('/v1/organizations');
-        signal?.throwIfAborted();
-        match = records(response, 'organizations').find(
-          (item) => item.name === organization,
-        );
-      }
-      if (
-        typeof match?.organization_id !== 'string' ||
-        !UUID.test(match.organization_id)
-      ) {
-        throw new Error(`Organization '${organization}' was not found.`);
-      }
-      id = match.organization_id;
     }
-    return `/v1/organizations/${encodeURIComponent(id)}/clusters`;
-  }
-
-  async listClusters(
-    organization: string,
-    signal?: AbortSignal | null,
-  ): Promise<unknown> {
-    const path = await this.clustersPath(organization, signal);
-    signal?.throwIfAborted();
-    return this.metadata(path);
+    if (typeof match?.name !== 'string' || !match.name) {
+      throw new Error(`Organization '${id}' was not found.`);
+    }
+    return match.name;
   }
 
   headers(
@@ -134,24 +121,25 @@ export class ClusterRouting {
     url: URL,
     signal?: AbortSignal | null,
   ): Promise<Record<string, string>> {
-    const pathScope =
-      /^\/v1\/organizations\/([^/]+)\/clusters(?:\/([^/]+))?/.exec(
-        url.pathname,
-      );
-    const organization = pathScope?.[1]
-      ? decodeURIComponent(pathScope[1])
-      : (url.searchParams.get('organization_id') ??
-        url.searchParams.get('organization'));
-    const pathCluster = pathScope?.[2];
+    const pathCluster = /^\/v1\/clusters\/([^/]+)(?:\/|$)/.exec(
+      url.pathname,
+    )?.[1];
     const clusterId =
       pathCluster &&
-      pathCluster !== 'metrics' &&
-      pathCluster !== 'verify-s3-access'
+      !['sizes', 'metrics', 'verify-s3-access'].includes(pathCluster)
         ? decodeURIComponent(pathCluster)
         : url.searchParams.get('cluster_id');
     const clusterName = url.searchParams.get('cluster');
-    if (!organization || !(clusterId ?? clusterName)) return {};
-    const response = await this.listClusters(organization, signal);
+    const organizationId = url.searchParams.get('organization_id');
+    let organization = url.searchParams.get('organization');
+    if (!(organizationId || organization) || !(clusterId ?? clusterName))
+      return {};
+    // The metrics API accepts IDs; cluster discovery still uses organization names.
+    if (organizationId)
+      organization = await this.organizationName(organizationId, signal);
+    if (!organization) return {};
+    signal?.throwIfAborted();
+    const response = await this.metadata(clustersPath(organization));
     const target = records(response, 'clusters').find((item) =>
       clusterId !== null ? item.id === clusterId : item.name === clusterName,
     );

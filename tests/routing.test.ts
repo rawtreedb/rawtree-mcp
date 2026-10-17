@@ -5,7 +5,7 @@ import { createMcpServer } from '../src/server.js';
 
 const organizationId = '00000000-0000-4000-8000-000000000001';
 const otherId = '00000000-0000-4000-8000-000000000002';
-const collection = `/v1/organizations/${organizationId}/clusters`;
+const collection = '/v1/clusters';
 const routing = { deployment_id: '12abcdef', cloud_region: 'eu-west-1' };
 const scope = { organization: 'acme', cluster: 'production' };
 
@@ -38,7 +38,7 @@ function server(
                   id: 'cluster-id',
                   name: 'production',
                   ...metadata,
-                  ...(url.pathname.includes(otherId)
+                  ...(url.searchParams.get('organization') === 'other'
                     ? { deployment_id: 'abcdef12', cloud_region: 'ap-south-1' }
                     : {}),
                 },
@@ -62,21 +62,18 @@ function expectRouting(
 }
 
 describe('automatic cluster routing', () => {
-  it('resolves organization names, scopes cluster endpoints by ID and routes actions', async () => {
+  it('keeps existing cluster URLs and adds serving headers to cluster actions', async () => {
     const { calls, fetchFn } = server();
     const client = new RawTreeClient({ apiKey: 'session.fixture', fetchFn });
     await client.listClusters('acme');
-    expect(calls.map(({ url }) => url.pathname)).toEqual([
-      '/v1/organizations',
-      collection,
-    ]);
+    expect(calls.map(({ url }) => url.pathname)).toEqual([collection]);
     await client.pauseCluster({
       organization: 'acme',
       clusterId: 'cluster-id',
     });
     const action = calls.at(-1);
     expect(action?.url.pathname).toBe(`${collection}/cluster-id/stop`);
-    expect(action?.url.search).toBe('');
+    expect(action?.url.searchParams.get('organization')).toBe('acme');
     expectRouting(action?.headers ?? new Headers());
     expect(
       calls

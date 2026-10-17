@@ -482,15 +482,13 @@ export class RawTreeClient {
   }
 
   async listClusters(organization: string): Promise<unknown> {
-    return this.requestJson(
-      'GET',
-      await this.routing.clustersPath(organization),
-      {},
-    );
+    return this.requestJson('GET', this.apiPath('/clusters'), {
+      query: { organization },
+    });
   }
 
   async listClusterSizes(): Promise<unknown> {
-    return this.requestJson('GET', this.apiPath('/cluster-sizes'));
+    return this.requestJson('GET', this.apiPath('/clusters/sizes'));
   }
 
   async createCluster({
@@ -512,42 +510,38 @@ export class RawTreeClient {
     s3Storage?: S3StorageInput;
     databaseS3Access?: DatabaseS3AccessInput;
   }): Promise<unknown> {
-    return this.requestJson(
-      'POST',
-      await this.routing.clustersPath(organization),
-      {
-        body: {
-          name,
-          replicas,
-          size: {
+    return this.requestJson('POST', this.apiPath('/clusters'), {
+      query: { organization },
+      body: {
+        name,
+        replicas,
+        size: {
+          cpu_cores: minimumSize.cpuCores,
+          memory_gib: minimumSize.memoryGiB,
+        },
+        autoscaling: {
+          min_size: {
             cpu_cores: minimumSize.cpuCores,
             memory_gib: minimumSize.memoryGiB,
           },
-          autoscaling: {
-            min_size: {
-              cpu_cores: minimumSize.cpuCores,
-              memory_gib: minimumSize.memoryGiB,
-            },
-            max_size: {
-              cpu_cores: maximumSize.cpuCores,
-              memory_gib: maximumSize.memoryGiB,
-            },
+          max_size: {
+            cpu_cores: maximumSize.cpuCores,
+            memory_gib: maximumSize.memoryGiB,
           },
-          ...(idleTimeoutMinutes === undefined
-            ? {}
-            : { idle_timeout_minutes: idleTimeoutMinutes }),
-          ...(s3Storage === undefined
-            ? {}
-            : { s3_storage: s3StorageRequestBody(s3Storage) }),
-          ...(databaseS3Access === undefined
-            ? {}
-            : {
-                database_s3_access:
-                  databaseS3AccessRequestBody(databaseS3Access),
-              }),
         },
+        ...(idleTimeoutMinutes === undefined
+          ? {}
+          : { idle_timeout_minutes: idleTimeoutMinutes }),
+        ...(s3Storage === undefined
+          ? {}
+          : { s3_storage: s3StorageRequestBody(s3Storage) }),
+        ...(databaseS3Access === undefined
+          ? {}
+          : {
+              database_s3_access: databaseS3AccessRequestBody(databaseS3Access),
+            }),
       },
-    );
+    });
   }
 
   async verifyClusterS3Access({
@@ -559,8 +553,9 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson(
       'POST',
-      `${await this.routing.clustersPath(organization)}/verify-s3-access`,
+      this.apiPath('/clusters/verify-s3-access'),
       {
+        query: { organization },
         body: { s3_storage: s3StorageRequestBody(s3Storage) },
       },
     );
@@ -575,7 +570,8 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson(
       'GET',
-      `${await this.routing.clustersPath(organization)}/${encodePathPart(clusterId)}`,
+      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}`,
+      { query: { organization } },
     );
   }
 
@@ -590,8 +586,9 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson(
       'PATCH',
-      `${await this.routing.clustersPath(organization)}/${encodePathPart(clusterId)}`,
+      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}`,
       {
+        query: { organization },
         body: { idle_timeout_minutes: idleTimeoutMinutes },
       },
     );
@@ -606,7 +603,8 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson(
       'POST',
-      `${await this.routing.clustersPath(organization)}/${encodePathPart(clusterId)}/stop`,
+      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}/stop`,
+      { query: { organization } },
     );
   }
 
@@ -619,7 +617,8 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson(
       'POST',
-      `${await this.routing.clustersPath(organization)}/${encodePathPart(clusterId)}/resume`,
+      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}/resume`,
+      { query: { organization } },
     );
   }
 
@@ -926,7 +925,12 @@ export class RawTreeClient {
     });
 
     const result = text ? parseJson(text) : null;
-    if (method === 'GET') this.routing.remember(path, result, routingVersion);
+    if (method === 'GET')
+      this.routing.remember(
+        this.endpoint(path, options.query),
+        result,
+        routingVersion,
+      );
     return result;
   }
 
@@ -964,7 +968,10 @@ export class RawTreeClient {
         message: errorMessage(payload, response.status, method, path),
       });
     }
-    if (method !== 'GET' && path.startsWith('/v1/organizations'))
+    if (
+      method !== 'GET' &&
+      (path.startsWith('/v1/organizations') || path.startsWith('/v1/clusters'))
+    )
       this.routing.clear();
     return text;
   }
