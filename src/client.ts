@@ -38,21 +38,12 @@ export interface RawTreeScope {
   organization?: string;
 }
 
-export interface S3DestinationInput {
-  bucket: string;
-  path?: string;
-}
-
 export interface S3StorageInput {
-  data: S3DestinationInput;
-  backups: S3DestinationInput;
+  dataBucket: string;
+  dataPath?: string;
+  backupBucket: string;
+  backupPath?: string;
   roleArn: string;
-  externalId: string;
-}
-
-export interface DatabaseS3AccessInput {
-  externalId: string;
-  databaseBucketTag: string;
 }
 
 export interface ConnectorDestinationInput {
@@ -103,27 +94,11 @@ function encodePathPart(part: string): string {
 
 function s3StorageRequestBody(s3Storage: S3StorageInput) {
   return {
-    data: {
-      bucket: s3Storage.data.bucket,
-      ...(s3Storage.data.path === undefined
-        ? {}
-        : { path: s3Storage.data.path }),
-    },
-    backups: {
-      bucket: s3Storage.backups.bucket,
-      ...(s3Storage.backups.path === undefined
-        ? {}
-        : { path: s3Storage.backups.path }),
-    },
+    data_bucket: s3Storage.dataBucket,
+    data_path: s3Storage.dataPath ?? '',
+    backup_bucket: s3Storage.backupBucket,
+    backup_path: s3Storage.backupPath ?? '',
     role_arn: s3Storage.roleArn,
-    external_id: s3Storage.externalId,
-  };
-}
-
-function databaseS3AccessRequestBody(databaseS3Access: DatabaseS3AccessInput) {
-  return {
-    external_id: databaseS3Access.externalId,
-    database_bucket_tag: databaseS3Access.databaseBucketTag,
   };
 }
 
@@ -495,7 +470,8 @@ export class RawTreeClient {
     maximumSize,
     idleTimeoutMinutes,
     s3Storage,
-    databaseS3Access,
+    externalId,
+    resourceTag,
   }: {
     organization: string;
     name: string;
@@ -504,12 +480,20 @@ export class RawTreeClient {
     maximumSize: { cpuCores: number; memoryGiB: number };
     idleTimeoutMinutes?: number;
     s3Storage?: S3StorageInput;
-    databaseS3Access?: DatabaseS3AccessInput;
+    externalId?: string;
+    resourceTag?: string;
   }): Promise<unknown> {
+    if (s3Storage !== undefined && externalId === undefined) {
+      throw new Error(
+        'Custom S3 storage requires externalId matching the customer IAM role trust policy.',
+      );
+    }
     return this.requestJson('POST', this.apiPath('/clusters'), {
       query: { organization },
       body: {
         name,
+        external_id: externalId ?? `rawtree-${crypto.randomUUID()}`,
+        resource_tag: resourceTag ?? `rawtree-${crypto.randomUUID()}`,
         replicas,
         size: {
           cpu_cores: minimumSize.cpuCores,
@@ -531,11 +515,6 @@ export class RawTreeClient {
         ...(s3Storage === undefined
           ? {}
           : { s3_storage: s3StorageRequestBody(s3Storage) }),
-        ...(databaseS3Access === undefined
-          ? {}
-          : {
-              database_s3_access: databaseS3AccessRequestBody(databaseS3Access),
-            }),
       },
     });
   }
@@ -543,16 +522,21 @@ export class RawTreeClient {
   async verifyClusterS3Access({
     organization,
     s3Storage,
+    externalId,
   }: {
     organization: string;
     s3Storage: S3StorageInput;
+    externalId: string;
   }): Promise<unknown> {
     return this.requestJson(
       'POST',
       this.apiPath('/clusters/verify-s3-access'),
       {
         query: { organization },
-        body: { s3_storage: s3StorageRequestBody(s3Storage) },
+        body: {
+          external_id: externalId,
+          s3_storage: s3StorageRequestBody(s3Storage),
+        },
       },
     );
   }

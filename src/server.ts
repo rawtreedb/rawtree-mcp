@@ -19,12 +19,10 @@ export type {
   ConnectorDestinationInput,
   ConnectorStatus,
   CreateConnectorInput,
-  DatabaseS3AccessInput,
   KafkaConnectorSettingsInput,
   NewConnectorDestinationInput,
   RawTreeClientOptions,
   RawTreeScope,
-  S3DestinationInput,
   S3StorageInput,
 } from './client.js';
 export { RawTreeClient } from './client.js';
