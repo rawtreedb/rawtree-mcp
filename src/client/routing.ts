@@ -32,7 +32,9 @@ export class ClusterRouting {
   }
 
   remember(path: string, value: unknown, version: number) {
-    if (version !== this.generation) return;
+    // Ordinary GETs may seed an empty cache, but cannot replace a discovery load.
+    // Its promise owns the entry even if an older response completes afterward.
+    if (version !== this.generation || this.cache.has(path)) return;
     if (
       path === '/v1/organizations' ||
       /^\/v1\/organizations\/[^/]+\/clusters$/.test(path)

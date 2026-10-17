@@ -131,3 +131,46 @@ it('does not repeat a fresh lookup for an unknown organization', async () => {
   );
   expect(load).toHaveBeenCalledOnce();
 });
+
+it('keeps newer discovery metadata when an expired in-flight lookup completes late', async () => {
+  let completeOld: (value: unknown) => void = () => {
+    throw new Error('Lookup was not initialized');
+  };
+  const old = new Promise<unknown>((resolve) => {
+    completeOld = resolve;
+  });
+  const now = vi.spyOn(Date, 'now').mockReturnValue(1000);
+  let calls = 0;
+  const routing = new ClusterRouting(async () => {
+    const version = routing.version;
+    const response = ++calls === 1 ? await old : metadata;
+    routing.remember(path, response, version);
+    return response;
+  });
+  const target = new URL(`https://api.rawtree.test${path}/cluster-id`);
+  try {
+    const first = routing.headers(target);
+    await vi.waitFor(() => expect(calls).toBe(1));
+    now.mockReturnValue(32000);
+    expect((await routing.headers(target))['X-RawTree-Region']).toBe(
+      'eu-west-1',
+    );
+    completeOld({
+      clusters: [
+        {
+          id: 'cluster-id',
+          name: 'production',
+          deployment_id: 'aaaaaaaa',
+          cloud_region: 'us-east-1',
+        },
+      ],
+    });
+    await first;
+    expect((await routing.headers(target))['X-RawTree-Region']).toBe(
+      'eu-west-1',
+    );
+    expect(calls).toBe(2);
+  } finally {
+    now.mockRestore();
+  }
+});
