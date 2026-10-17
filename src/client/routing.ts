@@ -67,11 +67,22 @@ export class ClusterRouting {
     signal?.throwIfAborted();
     let id = organization;
     if (!UUID.test(id)) {
-      const response = await this.metadata('/v1/organizations');
+      const cached = this.cache.get('/v1/organizations');
+      const wasCached = cached !== undefined && cached.expires > Date.now();
+      let response = await this.metadata('/v1/organizations');
       signal?.throwIfAborted();
-      const match = records(response, 'organizations').find(
+      let match = records(response, 'organizations').find(
         (item) => item.name === organization,
       );
+      if (!match && wasCached) {
+        // A stale list must not block a newly created organization's retry.
+        this.cache.delete('/v1/organizations');
+        response = await this.metadata('/v1/organizations');
+        signal?.throwIfAborted();
+        match = records(response, 'organizations').find(
+          (item) => item.name === organization,
+        );
+      }
       if (
         typeof match?.organization_id !== 'string' ||
         !UUID.test(match.organization_id)
@@ -130,17 +141,17 @@ export class ClusterRouting {
       : (url.searchParams.get('organization_id') ??
         url.searchParams.get('organization'));
     const pathCluster = pathScope?.[2];
-    const cluster =
+    const clusterId =
       pathCluster &&
       pathCluster !== 'metrics' &&
       pathCluster !== 'verify-s3-access'
         ? decodeURIComponent(pathCluster)
-        : (url.searchParams.get('cluster_id') ??
-          url.searchParams.get('cluster'));
-    if (!organization || !cluster) return {};
+        : url.searchParams.get('cluster_id');
+    const clusterName = url.searchParams.get('cluster');
+    if (!organization || !(clusterId ?? clusterName)) return {};
     const response = await this.listClusters(organization, signal);
-    const target = records(response, 'clusters').find(
-      (item) => item.id === cluster || item.name === cluster,
+    const target = records(response, 'clusters').find((item) =>
+      clusterId !== null ? item.id === clusterId : item.name === clusterName,
     );
     const deployment = target?.deployment_id;
     const region = target?.cloud_region;

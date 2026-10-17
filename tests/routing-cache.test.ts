@@ -76,3 +76,58 @@ describe('routing discovery lifetime', () => {
     );
   });
 });
+
+it('distinguishes explicit IDs from names when selectors collide', async () => {
+  const routing = new ClusterRouting(async () => ({
+    clusters: [
+      {
+        id: 'other-id',
+        name: 'target-id',
+        deployment_id: 'aaaaaaaa',
+        cloud_region: 'us-east-1',
+      },
+      {
+        id: 'target-id',
+        name: 'production',
+        deployment_id: 'bbbbbbbb',
+        cloud_region: 'eu-west-1',
+      },
+    ],
+  }));
+  for (const resource of [
+    `${path}/target-id`,
+    `/v1/query?organization_id=${id}&cluster_id=target-id`,
+  ]) {
+    expect(
+      (await routing.headers(new URL(`https://api.rawtree.test${resource}`)))[
+        'X-RawTree-Deployment-Id'
+      ],
+    ).toBe('bbbbbbbb');
+  }
+  expect(
+    (
+      await routing.headers(
+        new URL(
+          `https://api.rawtree.test/v1/query?organization_id=${id}&cluster=target-id`,
+        ),
+      )
+    )['X-RawTree-Deployment-Id'],
+  ).toBe('aaaaaaaa');
+});
+
+it('refreshes stale organization metadata once when a new name is missing', async () => {
+  const load = vi.fn(async () => organizations);
+  const routing = new ClusterRouting(load);
+  routing.remember('/v1/organizations', { organizations: [] }, routing.version);
+  expect(await routing.clustersPath('acme')).toBe(path);
+  expect(load).toHaveBeenCalledExactlyOnceWith('/v1/organizations');
+});
+
+it('does not repeat a fresh lookup for an unknown organization', async () => {
+  const load = vi.fn(async () => organizations);
+  const routing = new ClusterRouting(load);
+  await expect(routing.clustersPath('missing')).rejects.toThrow(
+    "Organization 'missing' was not found.",
+  );
+  expect(load).toHaveBeenCalledOnce();
+});
