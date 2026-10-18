@@ -1,4 +1,4 @@
-type LoadMetadata = (path: string) => Promise<unknown>;
+export type LoadMetadata = (path: string) => Promise<unknown>;
 type MetadataRecord = Record<string, unknown>;
 
 function records(value: unknown, field: string): MetadataRecord[] {
@@ -14,6 +14,21 @@ function records(value: unknown, field: string): MetadataRecord[] {
 const DEPLOYMENT = /^[0-9a-f]{8}$/;
 const REGION = /^[a-z]+(?:-[a-z]+)+-[1-9][0-9]*$/;
 const CACHE_MS = 30_000;
+
+export function deploymentHeaders(
+  deployment: unknown,
+  region: unknown,
+): Record<string, string> | null {
+  if (
+    typeof deployment !== 'string' ||
+    !DEPLOYMENT.test(deployment) ||
+    typeof region !== 'string' ||
+    region.length > 63 ||
+    !REGION.test(region)
+  )
+    return null;
+  return { 'X-RawTree-Deployment-Id': deployment, 'X-RawTree-Region': region };
+}
 
 function clustersPath(organization: string): string {
   return `/v1/clusters?${new URLSearchParams({ organization })}`;
@@ -143,20 +158,6 @@ export class ClusterRouting {
     const target = records(response, 'clusters').find((item) =>
       clusterId !== null ? item.id === clusterId : item.name === clusterName,
     );
-    const deployment = target?.deployment_id;
-    const region = target?.cloud_region;
-    // A partial/invalid pair cannot identify a deployment. Keep the migration fallback.
-    if (
-      typeof deployment !== 'string' ||
-      !DEPLOYMENT.test(deployment) ||
-      typeof region !== 'string' ||
-      region.length > 63 ||
-      !REGION.test(region)
-    )
-      return {};
-    return {
-      'X-RawTree-Deployment-Id': deployment,
-      'X-RawTree-Region': region,
-    };
+    return deploymentHeaders(target?.deployment_id, target?.cloud_region) ?? {};
   }
 }
