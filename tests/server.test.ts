@@ -40,6 +40,7 @@ describe('createMcpServer', () => {
         'update-organization-member',
         'remove-organization-member',
         'list-clusters',
+        'list-regions',
         'list-cluster-sizes',
         'verify-cluster-s3-access',
         'create-cluster',
@@ -84,7 +85,10 @@ describe('createMcpServer', () => {
     const listClusterSizes = tools.find(
       (candidate) => candidate.name === 'list-cluster-sizes',
     );
-    expect(listClusterSizes?.inputSchema.properties).toEqual({});
+    expect(listClusterSizes?.inputSchema.properties).toHaveProperty('regionId');
+    expect(listClusterSizes?.inputSchema.properties).toHaveProperty(
+      'organization',
+    );
     expect(listClusterSizes?.annotations).toMatchObject({
       readOnlyHint: true,
       destructiveHint: false,

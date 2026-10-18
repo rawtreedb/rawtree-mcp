@@ -1,3 +1,16 @@
+import {
+  type DatabaseS3AccessInput,
+  databaseS3AccessRequestBody,
+  type S3StorageInput,
+  s3StorageRequestBody,
+} from './client/storage.js';
+
+export type {
+  DatabaseS3AccessInput,
+  S3DestinationInput,
+  S3StorageInput,
+} from './client/storage.js';
+
 import packageJson from '../package.json' with { type: 'json' };
 import {
   appendQuery,
@@ -8,6 +21,7 @@ import {
   RawTreeApiError,
   type RequestOptions,
 } from './client/http.js';
+import { RegionCatalog } from './client/regions.js';
 import { ClusterRouting } from './client/routing.js';
 
 import type {
@@ -37,23 +51,6 @@ export interface RawTreeScope {
   cluster?: string;
   database?: string;
   organization?: string;
-}
-
-export interface S3DestinationInput {
-  bucket: string;
-  path?: string;
-}
-
-export interface S3StorageInput {
-  data: S3DestinationInput;
-  backups: S3DestinationInput;
-  roleArn: string;
-  externalId: string;
-}
-
-export interface DatabaseS3AccessInput {
-  externalId: string;
-  databaseBucketTag: string;
 }
 
 export interface ConnectorDestinationInput {
@@ -102,32 +99,6 @@ function encodePathPart(part: string): string {
   return encodeURIComponent(part);
 }
 
-function s3StorageRequestBody(s3Storage: S3StorageInput) {
-  return {
-    data: {
-      bucket: s3Storage.data.bucket,
-      ...(s3Storage.data.path === undefined
-        ? {}
-        : { path: s3Storage.data.path }),
-    },
-    backups: {
-      bucket: s3Storage.backups.bucket,
-      ...(s3Storage.backups.path === undefined
-        ? {}
-        : { path: s3Storage.backups.path }),
-    },
-    role_arn: s3Storage.roleArn,
-    external_id: s3Storage.externalId,
-  };
-}
-
-function databaseS3AccessRequestBody(databaseS3Access: DatabaseS3AccessInput) {
-  return {
-    external_id: databaseS3Access.externalId,
-    database_bucket_tag: databaseS3Access.databaseBucketTag,
-  };
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -174,6 +145,9 @@ function sameDestination(
 }
 
 export class RawTreeClient {
+  private readonly regions = new RegionCatalog((path) =>
+    this.requestJson('GET', path),
+  );
   private readonly routing = new ClusterRouting((path) =>
     this.requestJson('GET', path),
   );
@@ -487,12 +461,25 @@ export class RawTreeClient {
     });
   }
 
-  async listClusterSizes(): Promise<unknown> {
-    return this.requestJson('GET', this.apiPath('/clusters/sizes'));
+  async listRegions(organization: string): Promise<unknown> {
+    return this.regions.list(organization);
+  }
+
+  async listClusterSizes(
+    placement: { organization?: string; regionId?: string } = {},
+  ): Promise<unknown> {
+    return this.requestJson('GET', this.apiPath('/clusters/sizes'), {
+      headers: await this.regions.headers(
+        placement.organization,
+        placement.regionId,
+        this.apiKey,
+      ),
+    });
   }
 
   async createCluster({
     organization,
+    regionId,
     name,
     replicas,
     minimumSize,
@@ -502,6 +489,7 @@ export class RawTreeClient {
     databaseS3Access,
   }: {
     organization: string;
+    regionId?: string;
     name: string;
     replicas: number;
     minimumSize: { cpuCores: number; memoryGiB: number };
@@ -512,8 +500,10 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson('POST', this.apiPath('/clusters'), {
       query: { organization },
+      headers: await this.regions.headers(organization, regionId, this.apiKey),
       body: {
         name,
+        ...(regionId === undefined ? {} : { region_id: regionId }),
         replicas,
         size: {
           cpu_cores: minimumSize.cpuCores,
@@ -546,9 +536,11 @@ export class RawTreeClient {
 
   async verifyClusterS3Access({
     organization,
+    regionId,
     s3Storage,
   }: {
     organization: string;
+    regionId?: string;
     s3Storage: S3StorageInput;
   }): Promise<unknown> {
     return this.requestJson(
@@ -556,6 +548,11 @@ export class RawTreeClient {
       this.apiPath('/clusters/verify-s3-access'),
       {
         query: { organization },
+        headers: await this.regions.headers(
+          organization,
+          regionId,
+          this.apiKey,
+        ),
         body: { s3_storage: s3StorageRequestBody(s3Storage) },
       },
     );
