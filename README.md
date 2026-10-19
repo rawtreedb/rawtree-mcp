@@ -467,9 +467,9 @@ Structured log filters include:
 
 Cluster tools are advertised to every MCP client. To choose a region, call `list-regions` with `organization`, then pass the same `organization` and `regionId` to `list-cluster-sizes`, `verify-cluster-s3-access` (when needed), and `create-cluster`. These requests use the selected deployment; creation also saves its `region_id`. Omitted `regionId` preserves the default backend. Explicit unavailable regions fail before creation, except the supported legacy public default. Region selection requires a user credential such as OAuth; API keys retain their embedded routing. Call `list-cluster-sizes` before `create-cluster`; creation starts at the selected minimum per-replica size and can vertically autoscale to the selected maximum. `idleTimeoutMinutes` accepts `0` to disable idling or a value from 15 through 43200; omit it during creation to use the server default.
 
-`create-cluster` accepts top-level `externalId` and `resourceTag`. The API generates omitted values independently as `rawtree-<UUID>` using secure randomness; MCP forwards optional values without generating identities. Both are persisted when the cluster is created and remain immutable. Cluster list/get responses expose `external_id` and `resource_tag`; older clusters without identity may return null. `resourceTag` is the value of the `rawtree.com/cluster` AWS resource tag on eligible customer buckets and IAM roles.
+`create-cluster` accepts optional `s3StorageAccess` containing `externalId` and `resourceTag`. The API generates omitted values independently as `rawtree-<UUID>` using secure randomness; MCP forwards optional values without generating identities. Both are persisted when the cluster is created and remain immutable. Cluster list/get responses expose `s3_storage_access` containing `external_id` and `resource_tag`; older clusters without identity may return null. `resourceTag` is the value of the `rawtree.com/cluster` AWS resource tag on eligible customer buckets and IAM roles.
 
-`s3Storage` is optional. Omit it for RawTree-managed default storage. Custom storage requires `dataBucket`, `backupBucket`, and `roleArn`, plus optional `dataPath` and `backupPath`. When specifying custom cluster storage, you must supply an explicit top-level `externalId` matching the IAM trust policy. Call `verify-cluster-s3-access` first, passing that same top-level `externalId` and the identical `s3Storage`, then reuse both for creation. Repeat verification after changing either.
+`s3Storage` is optional. Omit it for RawTree-managed default storage. Custom storage requires `dataBucket`, `backupBucket`, and `roleArn`, plus optional `dataPath` and `backupPath`. When specifying custom cluster storage, you must supply an explicit `s3StorageAccess.externalId` matching the IAM trust policy. Call `verify-cluster-s3-access` first, passing that same `s3StorageAccess.externalId` and the identical `s3Storage`, then reuse both for creation. Repeat verification after changing either.
 
 Example `create-cluster` tool arguments (choose replica counts and sizes from `list-cluster-sizes`):
 
@@ -480,8 +480,10 @@ Example `create-cluster` tool arguments (choose replica counts and sizes from `l
   "replicas": 2,
   "minimumSize": { "cpuCores": 2, "memoryGiB": 8 },
   "maximumSize": { "cpuCores": 4, "memoryGiB": 16 },
-  "externalId": "rawtree-5b71c457-7d83-474b-9db9-6dc48a1ec042",
-  "resourceTag": "rawtree-dc1fb78e-341d-48f8-a183-9ecea12eb41d",
+  "s3StorageAccess": {
+    "externalId": "rawtree-5b71c457-7d83-474b-9db9-6dc48a1ec042",
+    "resourceTag": "rawtree-dc1fb78e-341d-48f8-a183-9ecea12eb41d"
+  },
   "s3Storage": {
     "dataBucket": "acme-data",
     "dataPath": "production/data",

@@ -23,6 +23,7 @@ export type {
   NewConnectorDestinationInput,
   RawTreeClientOptions,
   RawTreeScope,
+  S3StorageAccessInput,
   S3StorageInput,
 } from './client.js';
 export { RawTreeClient } from './client.js';

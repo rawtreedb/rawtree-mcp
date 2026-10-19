@@ -589,8 +589,10 @@ describe('RawTreeClient', () => {
             backup_bucket: 'acme-rawtree-backups',
             backup_path: 'rawtree/backups',
           },
-          external_id: 'rawtree-acme-production',
-          resource_tag: 'rawtree-acme-database',
+          s3_storage_access: {
+            external_id: 'rawtree-acme-production',
+            resource_tag: 'rawtree-acme-database',
+          },
         },
       ],
     };
@@ -639,8 +641,10 @@ describe('RawTreeClient', () => {
       client.createCluster({
         organization: 'acme',
         name: 'production',
-        externalId: 'rawtree-acme-production',
-        resourceTag: 'rawtree-acme-database',
+        s3StorageAccess: {
+          externalId: 'rawtree-acme-production',
+          resourceTag: 'rawtree-acme-database',
+        },
         replicas: 2,
         minimumSize: { cpuCores: 4, memoryGiB: 16 },
         maximumSize: { cpuCores: 8, memoryGiB: 32 },
@@ -655,8 +659,10 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.body).toBe(
       JSON.stringify({
         name: 'production',
-        external_id: 'rawtree-acme-production',
-        resource_tag: 'rawtree-acme-database',
+        s3_storage_access: {
+          external_id: 'rawtree-acme-production',
+          resource_tag: 'rawtree-acme-database',
+        },
         replicas: 2,
         size: {
           cpu_cores: 4,
@@ -690,8 +696,10 @@ describe('RawTreeClient', () => {
     await client.createCluster({
       organization: 'acme',
       name: 'production',
-      externalId: 'rawtree-acme-production',
-      resourceTag: 'rawtree-acme-database',
+      s3StorageAccess: {
+        externalId: 'rawtree-acme-production',
+        resourceTag: 'rawtree-acme-database',
+      },
       replicas: 2,
       minimumSize: { cpuCores: 4, memoryGiB: 16 },
       maximumSize: { cpuCores: 8, memoryGiB: 32 },
@@ -707,8 +715,10 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.body).toBe(
       JSON.stringify({
         name: 'production',
-        external_id: 'rawtree-acme-production',
-        resource_tag: 'rawtree-acme-database',
+        s3_storage_access: {
+          external_id: 'rawtree-acme-production',
+          resource_tag: 'rawtree-acme-database',
+        },
         replicas: 2,
         size: {
           cpu_cores: 4,
@@ -748,8 +758,10 @@ describe('RawTreeClient', () => {
     await client.createCluster({
       organization: 'acme',
       name: 'production',
-      externalId: 'rawtree-acme-production',
-      resourceTag: 'rawtree-acme-database',
+      s3StorageAccess: {
+        externalId: 'rawtree-acme-production',
+        resourceTag: 'rawtree-acme-database',
+      },
       replicas: 1,
       minimumSize: { cpuCores: 2, memoryGiB: 8 },
       maximumSize: { cpuCores: 4, memoryGiB: 16 },
@@ -758,8 +770,10 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.body).toBe(
       JSON.stringify({
         name: 'production',
-        external_id: 'rawtree-acme-production',
-        resource_tag: 'rawtree-acme-database',
+        s3_storage_access: {
+          external_id: 'rawtree-acme-production',
+          resource_tag: 'rawtree-acme-database',
+        },
         replicas: 1,
         size: {
           cpu_cores: 2,
@@ -790,7 +804,7 @@ describe('RawTreeClient', () => {
     await expect(
       client.verifyClusterS3Access({
         organization: 'acme team',
-        externalId: 'rawtree-acme-production',
+        s3StorageAccess: { externalId: 'rawtree-acme-production' },
         s3Storage: {
           dataBucket: 'acme-rawtree-data',
           dataPath: 'cluster-data',
@@ -807,7 +821,7 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBe(
       JSON.stringify({
-        external_id: 'rawtree-acme-production',
+        s3_storage_access: { external_id: 'rawtree-acme-production' },
         s3_storage: {
           data_bucket: 'acme-rawtree-data',
           data_path: 'cluster-data',

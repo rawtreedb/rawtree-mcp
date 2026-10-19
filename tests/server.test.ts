@@ -141,13 +141,19 @@ describe('createMcpServer', () => {
     expect(createCluster?.inputSchema.properties).not.toHaveProperty(
       'databaseS3Access',
     );
-    expect(createCluster?.inputSchema.properties.resourceTag).toMatchObject({
+    expect(
+      createCluster?.inputSchema.properties.s3StorageAccess.properties
+        .resourceTag,
+    ).toMatchObject({
       type: 'string',
       minLength: 1,
       maxLength: 256,
       pattern: '^[a-z0-9][a-z0-9-]*$',
     });
-    expect(createCluster?.inputSchema.properties.externalId).toMatchObject({
+    expect(
+      createCluster?.inputSchema.properties.s3StorageAccess.properties
+        .externalId,
+    ).toMatchObject({
       type: 'string',
       minLength: 2,
       maxLength: 1224,
@@ -164,7 +170,7 @@ describe('createMcpServer', () => {
     );
     expect(verifyClusterS3Access?.inputSchema.required).toEqual([
       'organization',
-      'externalId',
+      's3StorageAccess',
       's3Storage',
     ]);
     expect(

@@ -13,10 +13,9 @@ const region = {
   enabled: true,
 };
 const storage = {
-  data: { bucket: 'data' },
-  backups: { bucket: 'backup' },
+  dataBucket: 'data',
+  backupBucket: 'backup',
   roleArn: 'role',
-  externalId: 'external',
 };
 const creation = {
   organization: 'acme',
@@ -64,7 +63,12 @@ describe('region-aware creation', () => {
         ['list-cluster-sizes', { organization: 'acme', regionId }],
         [
           'verify-cluster-s3-access',
-          { organization: 'acme', regionId, s3Storage: storage },
+          {
+            organization: 'acme',
+            regionId,
+            s3StorageAccess: { externalId: 'external' },
+            s3Storage: storage,
+          },
         ],
         ['create-cluster', creation],
       ] as const) {

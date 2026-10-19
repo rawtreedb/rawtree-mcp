@@ -1,9 +1,12 @@
 import {
+  type S3StorageAccessInput,
   type S3StorageInput,
+  s3StorageAccessRequestBody,
   s3StorageRequestBody,
 } from './client/storage.js';
 
 export type {
+  S3StorageAccessInput,
   S3StorageInput,
 } from './client/storage.js';
 
@@ -482,8 +485,7 @@ export class RawTreeClient {
     maximumSize,
     idleTimeoutMinutes,
     s3Storage,
-    externalId,
-    resourceTag,
+    s3StorageAccess,
   }: {
     organization: string;
     regionId?: string;
@@ -493,16 +495,16 @@ export class RawTreeClient {
     maximumSize: { cpuCores: number; memoryGiB: number };
     idleTimeoutMinutes?: number;
     s3Storage?: S3StorageInput;
-    externalId?: string;
-    resourceTag?: string;
+    s3StorageAccess?: S3StorageAccessInput;
   }): Promise<unknown> {
     return this.requestJson('POST', this.apiPath('/clusters'), {
       query: { organization },
       headers: await this.regions.headers(organization, regionId, this.apiKey),
       body: {
         name,
-        ...(externalId === undefined ? {} : { external_id: externalId }),
-        ...(resourceTag === undefined ? {} : { resource_tag: resourceTag }),
+        ...(s3StorageAccess === undefined
+          ? {}
+          : { s3_storage_access: s3StorageAccessRequestBody(s3StorageAccess) }),
         ...(regionId === undefined ? {} : { region_id: regionId }),
         replicas,
         size: {
@@ -533,12 +535,12 @@ export class RawTreeClient {
     organization,
     regionId,
     s3Storage,
-    externalId,
+    s3StorageAccess,
   }: {
     organization: string;
     regionId?: string;
     s3Storage: S3StorageInput;
-    externalId: string;
+    s3StorageAccess: S3StorageAccessInput & { externalId: string };
   }): Promise<unknown> {
     return this.requestJson(
       'POST',
@@ -551,7 +553,7 @@ export class RawTreeClient {
           this.apiKey,
         ),
         body: {
-          external_id: externalId,
+          s3_storage_access: s3StorageAccessRequestBody(s3StorageAccess),
           s3_storage: s3StorageRequestBody(s3Storage),
         },
       },
