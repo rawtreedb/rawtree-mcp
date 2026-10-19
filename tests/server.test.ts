@@ -132,20 +132,18 @@ describe('createMcpServer', () => {
     }
     expect(createCluster?.inputSchema.properties.s3Storage).toMatchObject({
       type: 'object',
-      required: ['data', 'backups', 'roleArn', 'externalId'],
+      required: ['data', 'backups', 'roleArn'],
+      additionalProperties: false,
     });
     expect(
       createCluster?.inputSchema.properties.s3Storage.properties,
     ).not.toHaveProperty('tableBucketPrefix');
+    expect(createCluster?.inputSchema.properties).not.toHaveProperty(
+      'databaseS3Access',
+    );
     expect(
-      createCluster?.inputSchema.properties.databaseS3Access,
-    ).toMatchObject({
-      type: 'object',
-      required: ['externalId', 'databaseBucketTag'],
-    });
-    expect(
-      createCluster?.inputSchema.properties.databaseS3Access.properties
-        .databaseBucketTag,
+      createCluster?.inputSchema.properties.s3StorageAccess.properties
+        .resourceTag,
     ).toMatchObject({
       type: 'string',
       minLength: 1,
@@ -153,7 +151,7 @@ describe('createMcpServer', () => {
       pattern: '^[a-z0-9][a-z0-9-]*$',
     });
     expect(
-      createCluster?.inputSchema.properties.databaseS3Access.properties
+      createCluster?.inputSchema.properties.s3StorageAccess.properties
         .externalId,
     ).toMatchObject({
       type: 'string',
@@ -172,13 +170,15 @@ describe('createMcpServer', () => {
     );
     expect(verifyClusterS3Access?.inputSchema.required).toEqual([
       'organization',
+      's3StorageAccess',
       's3Storage',
     ]);
     expect(
       verifyClusterS3Access?.inputSchema.properties.s3Storage,
     ).toMatchObject({
       type: 'object',
-      required: ['data', 'backups', 'roleArn', 'externalId'],
+      required: ['data', 'backups', 'roleArn'],
+      additionalProperties: false,
     });
     expect(verifyClusterS3Access?.annotations).toMatchObject({
       readOnlyHint: false,
@@ -312,7 +312,8 @@ describe('createMcpServer', () => {
       verifyDatabaseS3Access?.inputSchema.properties.s3Storage,
     ).toMatchObject({
       type: 'object',
-      required: ['data', 'backups', 'roleArn', 'externalId'],
+      required: ['data', 'backups', 'roleArn'],
+      additionalProperties: false,
     });
     expect(verifyDatabaseS3Access?.annotations).toMatchObject({
       readOnlyHint: false,
@@ -326,7 +327,8 @@ describe('createMcpServer', () => {
     expect(createDatabase?.inputSchema.required).toEqual(['name']);
     expect(createDatabase?.inputSchema.properties.s3Storage).toMatchObject({
       type: 'object',
-      required: ['data', 'backups', 'roleArn', 'externalId'],
+      required: ['data', 'backups', 'roleArn'],
+      additionalProperties: false,
     });
     expect(createDatabase?.annotations).toMatchObject({
       readOnlyHint: false,
