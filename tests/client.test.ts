@@ -72,7 +72,7 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.headers).toMatchObject({
       Authorization: 'Bearer rt_test',
       'Content-Type': 'application/json',
-      'User-Agent': 'rawtree-mcp/0.4.1',
+      'User-Agent': 'rawtree-mcp/0.4.2',
     });
   });
 
@@ -553,7 +553,7 @@ describe('RawTreeClient', () => {
   it('lists clusters for an organization without database scope', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({
-      apiKey: 'jwt_test',
+      apiKey: 'rt_test',
       database: 'analytics',
       fetchFn: recordingFetch(jsonResponse({ clusters: [] }), calls),
     });
@@ -591,7 +591,7 @@ describe('RawTreeClient', () => {
       ],
     };
     const client = new RawTreeClient({
-      apiKey: 'jwt_test',
+      apiKey: 'rt_test',
       fetchFn: recordingFetch(jsonResponse(response), calls),
     });
 
@@ -1036,7 +1036,8 @@ describe('RawTreeClient', () => {
   });
 });
 
-vi.mock('../src/client/routing.js', () => ({
+vi.mock('../src/client/routing.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/client/routing.js')>()),
   ClusterRouting: class {
     async headers() {
       return {};

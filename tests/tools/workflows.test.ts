@@ -414,7 +414,8 @@ describe('workflow MCP tools', () => {
 });
 
 // Payload contracts are isolated here; routing.test.ts covers real discovery and tool transport.
-vi.mock('../../src/client/routing.js', () => ({
+vi.mock('../../src/client/routing.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/client/routing.js')>()),
   ClusterRouting: class {
     async headers() {
       return {};
