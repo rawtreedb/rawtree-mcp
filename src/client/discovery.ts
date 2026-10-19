@@ -43,7 +43,7 @@ export async function discoverClusters(
   for (const response of responses) {
     for (const cluster of response.clusters) {
       if (!cluster.region_id) {
-        clusters.set(cluster.id, cluster);
+        if (!clusters.has(cluster.id)) clusters.set(cluster.id, cluster);
         continue;
       }
       const region = regionsById.get(cluster.region_id);

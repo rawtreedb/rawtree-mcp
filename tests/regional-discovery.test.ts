@@ -1,7 +1,11 @@
 import { expect, it } from 'vitest';
 import { RawTreeClient } from '../src/client.js';
 
-function fixture(apiUrl = 'https://api.rawtree.com', deployment = '1234abcd') {
+function fixture(
+  apiUrl = 'https://api.rawtree.com',
+  deployment = '1234abcd',
+  gatewayFirst = true,
+) {
   const calls: { url: URL; headers: Headers }[] = [];
   let failEurope = false;
   let unknownRegion = false;
@@ -13,8 +17,8 @@ function fixture(apiUrl = 'https://api.rawtree.com', deployment = '1234abcd') {
       return Response.json({
         organizations: [{ name: 'acme', organization_id: 'org-id' }],
       });
-    if (url.pathname.endsWith('/regions'))
-      return Response.json({
+    if (url.pathname.endsWith('/regions')) {
+      const catalog = {
         regions: [
           {
             id: 'legacy',
@@ -57,7 +61,13 @@ function fixture(apiUrl = 'https://api.rawtree.com', deployment = '1234abcd') {
             organization_id: null,
           },
         ],
-      });
+      };
+      if (!gatewayFirst)
+        catalog.regions.sort(
+          (a, b) => Number(b.id === 'eu') - Number(a.id === 'eu'),
+        );
+      return Response.json(catalog);
+    }
     if (url.pathname === '/v1/clusters') {
       const europe = headers.has('X-RawTree-Deployment-Id');
       if (europe && failEurope)
@@ -81,7 +91,9 @@ function fixture(apiUrl = 'https://api.rawtree.com', deployment = '1234abcd') {
           };
       return Response.json({
         organization: { name: 'acme' },
-        clusters: [cluster, cluster],
+        clusters: europe
+          ? [cluster, cluster]
+          : [cluster, { id: 'eu-cluster', name: 'europe' }],
       });
     }
     return Response.json({ data: [] });
@@ -175,4 +187,19 @@ it('rejects an unknown region reference before executing a cluster operation', a
     client.listDatabases({ organization: 'acme', cluster: 'europe' }),
   ).rejects.toThrow("Region 'missing'");
   expect(calls.some(({ url }) => url.pathname === '/v1/databases')).toBe(false);
+});
+
+it.each([
+  true,
+  false,
+])('prefers complete regional metadata regardless of gateway order (%s)', async (gatewayFirst) => {
+  const { client, calls } = fixture(
+    'https://api.rawtree.com',
+    '1234abcd',
+    gatewayFirst,
+  );
+  await client.listDatabases({ organization: 'acme', cluster: 'europe' });
+  expect(calls.at(-1)?.url.hostname).toBe(
+    'api.1234abcd.eu-west-1.aws.rawtree.com',
+  );
 });
