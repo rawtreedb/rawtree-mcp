@@ -456,6 +456,7 @@ Structured log filters include:
 ### Clusters
 
 - `list-clusters` — List dedicated clusters accessible in an organization.
+- `list-regions` — List public and BYOC regions accessible to an organization.
 - `list-cluster-sizes` — List current replica limits, supported per-replica sizes, and default vertical autoscaling bounds.
 - `verify-cluster-s3-access` — Verify an optional customer-owned S3 configuration before cluster creation. The check temporarily writes, reads, and removes a probe object in both configured destinations.
 - `create-cluster` — Provision a dedicated cluster after confirming its organization, replica count, minimum size, maximum size, autoscaling behavior, optional idle timeout, optional customer-owned default S3 configuration, and immutable cluster identity.
@@ -464,7 +465,7 @@ Structured log filters include:
 - `pause-cluster` — Pause a dedicated cluster after explicit confirmation. Its databases become unavailable until the cluster is resumed.
 - `resume-cluster` — Resume a paused dedicated cluster after explicit confirmation.
 
-Cluster tools are advertised to every MCP client. Call `list-cluster-sizes` before `create-cluster`; creation starts at the selected minimum per-replica size and can vertically autoscale to the selected maximum. `idleTimeoutMinutes` accepts `0` to disable idling or a value from 15 through 43200; omit it during creation to use the server default.
+Cluster tools are advertised to every MCP client. To choose a region, call `list-regions` with `organization`, then pass the same `organization` and `regionId` to `list-cluster-sizes`, `verify-cluster-s3-access` (when needed), and `create-cluster`. These requests use the selected deployment; creation also saves its `region_id`. Omitted `regionId` preserves the default backend. Explicit unavailable regions fail before creation, except the supported legacy public default. Region selection requires a user credential such as OAuth; API keys retain their embedded routing. Call `list-cluster-sizes` before `create-cluster`; creation starts at the selected minimum per-replica size and can vertically autoscale to the selected maximum. `idleTimeoutMinutes` accepts `0` to disable idling or a value from 15 through 43200; omit it during creation to use the server default.
 
 `create-cluster` accepts top-level `externalId` and `resourceTag`. The API generates omitted values independently as `rawtree-<UUID>` using secure randomness; MCP forwards optional values without generating identities. Both are persisted when the cluster is created and remain immutable. Cluster list/get responses expose `external_id` and `resource_tag`; older clusters without identity may return null. `resourceTag` is the value of the `rawtree.com/cluster` AWS resource tag on eligible customer buckets and IAM roles.
 

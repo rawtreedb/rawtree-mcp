@@ -1,6 +1,6 @@
 {
   "name": "@rawtree/mcp",
-  "version": "0.3.6",
+  "version": "0.4.1",
   "license": "MIT",
   "type": "module",
   "bin": {

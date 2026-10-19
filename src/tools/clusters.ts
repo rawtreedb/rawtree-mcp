@@ -9,6 +9,14 @@ import {
   s3StorageInput,
 } from './common.js';
 
+const regionIdInput = z
+  .string()
+  .uuid()
+  .optional()
+  .describe(
+    'Region ID returned by list-regions. Use the same region for sizes, S3 verification and creation. Omit for the default backend.',
+  );
+
 const positiveUint32 = z.number().int().min(1).max(4_294_967_295);
 const idleTimeoutMinutesInput = z
   .number()
@@ -32,6 +40,19 @@ function clusterSizeInput(description: string) {
 }
 
 export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
+  server.registerTool(
+    'list-regions',
+    {
+      title: 'List Regions',
+      description:
+        'List the public and BYOC regions accessible to an organization. Use an enabled region ID for cluster creation and its prerequisite size and S3 checks. Regions need a ready deployment, except the legacy public default.',
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      inputSchema: { organization: z.string().min(1) },
+    },
+    async ({ organization }) =>
+      jsonResult(await rawtree.listRegions(organization)),
+  );
+
   server.registerTool(
     'list-clusters',
     {
@@ -72,9 +93,12 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
         readOnlyHint: true,
         destructiveHint: false,
       },
-      inputSchema: {},
+      inputSchema: {
+        organization: z.string().min(1).optional(),
+        regionId: regionIdInput,
+      },
     },
-    async () => jsonResult(await rawtree.listClusterSizes()),
+    async (placement) => jsonResult(await rawtree.listClusterSizes(placement)),
   );
 
   server.registerTool(
@@ -105,17 +129,19 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
           .min(1)
           .describe('Organization that will own the cluster.'),
         externalId: externalIdInput,
+        regionId: regionIdInput,
         s3Storage: s3StorageInput.describe(
           'Customer-owned S3 configuration to verify before cluster creation.',
         ),
       }),
     },
-    async ({ organization, externalId, s3Storage }) =>
+    async ({ organization, regionId, externalId, s3Storage }) =>
       namedJsonResult(
         'S3 access verification result',
         await rawtree.verifyClusterS3Access({
           organization,
           externalId,
+          regionId,
           s3Storage,
         }),
       ),
@@ -133,7 +159,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 
-**Safety:** You MUST first call list-cluster-sizes, then confirm the exact organization, name, replica count, minimum per-replica size, maximum per-replica size, vertical autoscaling behavior, and idle timeout with the user. If idleTimeoutMinutes is omitted, explain that the server default will apply. For one replica, warn that the cluster has no redundancy. If s3Storage is provided, first call verify-cluster-s3-access with the identical configuration and confirm the data and backup buckets, optional paths, role ARN, and External ID. Pass the same externalId to verification and creation. Never reuse a successful verification after changing externalId or any s3Storage field. Confirm any explicitly supplied identity values with the user; generated values are returned with the cluster.
+**Safety:** When selecting a region, first call list-regions and use the same regionId for list-cluster-sizes, verify-cluster-s3-access and create-cluster. You MUST first call list-cluster-sizes, then confirm the exact organization, region, name, replica count, minimum per-replica size, maximum per-replica size, vertical autoscaling behavior, and idle timeout with the user. If idleTimeoutMinutes is omitted, explain that the server default will apply. For one replica, warn that the cluster has no redundancy. If s3Storage is provided, first call verify-cluster-s3-access with the identical configuration and confirm the data and backup buckets, optional paths, role ARN, and External ID. Pass the same externalId to verification and creation. Never reuse a successful verification after changing externalId or any s3Storage field. Confirm any explicitly supplied identity values with the user; generated values are returned with the cluster.
 
 **Reliability:** This operation is not idempotent. If the response is ambiguous, call list-clusters to reconcile by organization and name before retrying.`,
       annotations: {
@@ -146,6 +172,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
           .string()
           .min(1)
           .describe('Organization in which to create the cluster.'),
+        regionId: regionIdInput,
         name: z
           .string()
           .min(1)
@@ -183,6 +210,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
     },
     async ({
       organization,
+      regionId,
       name,
       replicas,
       minimumSize,
@@ -196,6 +224,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
         'Create cluster result',
         await rawtree.createCluster({
           organization,
+          regionId,
           name,
           replicas,
           minimumSize,

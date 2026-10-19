@@ -1,3 +1,12 @@
+import {
+  type S3StorageInput,
+  s3StorageRequestBody,
+} from './client/storage.js';
+
+export type {
+  S3StorageInput,
+} from './client/storage.js';
+
 import packageJson from '../package.json' with { type: 'json' };
 import {
   appendQuery,
@@ -8,6 +17,8 @@ import {
   RawTreeApiError,
   type RequestOptions,
 } from './client/http.js';
+import { RegionCatalog } from './client/regions.js';
+import { ClusterRouting } from './client/routing.js';
 
 import type {
   CreateSavedQueryInput,
@@ -36,14 +47,6 @@ export interface RawTreeScope {
   cluster?: string;
   database?: string;
   organization?: string;
-}
-
-export interface S3StorageInput {
-  dataBucket: string;
-  dataPath?: string;
-  backupBucket: string;
-  backupPath?: string;
-  roleArn: string;
 }
 
 export interface ConnectorDestinationInput {
@@ -92,16 +95,6 @@ function encodePathPart(part: string): string {
   return encodeURIComponent(part);
 }
 
-function s3StorageRequestBody(s3Storage: S3StorageInput) {
-  return {
-    data_bucket: s3Storage.dataBucket,
-    data_path: s3Storage.dataPath ?? '',
-    backup_bucket: s3Storage.backupBucket,
-    backup_path: s3Storage.backupPath ?? '',
-    role_arn: s3Storage.roleArn,
-  };
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -148,6 +141,12 @@ function sameDestination(
 }
 
 export class RawTreeClient {
+  private readonly regions = new RegionCatalog((path) =>
+    this.requestJson('GET', path),
+  );
+  private readonly routing = new ClusterRouting((path) =>
+    this.requestJson('GET', path),
+  );
   private readonly apiUrl: string;
   private readonly cluster?: string;
   private readonly database?: string;
@@ -458,12 +457,25 @@ export class RawTreeClient {
     });
   }
 
-  async listClusterSizes(): Promise<unknown> {
-    return this.requestJson('GET', this.apiPath('/clusters/sizes'));
+  async listRegions(organization: string): Promise<unknown> {
+    return this.regions.list(organization);
+  }
+
+  async listClusterSizes(
+    placement: { organization?: string; regionId?: string } = {},
+  ): Promise<unknown> {
+    return this.requestJson('GET', this.apiPath('/clusters/sizes'), {
+      headers: await this.regions.headers(
+        placement.organization,
+        placement.regionId,
+        this.apiKey,
+      ),
+    });
   }
 
   async createCluster({
     organization,
+    regionId,
     name,
     replicas,
     minimumSize,
@@ -474,6 +486,7 @@ export class RawTreeClient {
     resourceTag,
   }: {
     organization: string;
+    regionId?: string;
     name: string;
     replicas: number;
     minimumSize: { cpuCores: number; memoryGiB: number };
@@ -485,10 +498,12 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson('POST', this.apiPath('/clusters'), {
       query: { organization },
+      headers: await this.regions.headers(organization, regionId, this.apiKey),
       body: {
         name,
         ...(externalId === undefined ? {} : { external_id: externalId }),
         ...(resourceTag === undefined ? {} : { resource_tag: resourceTag }),
+        ...(regionId === undefined ? {} : { region_id: regionId }),
         replicas,
         size: {
           cpu_cores: minimumSize.cpuCores,
@@ -516,10 +531,12 @@ export class RawTreeClient {
 
   async verifyClusterS3Access({
     organization,
+    regionId,
     s3Storage,
     externalId,
   }: {
     organization: string;
+    regionId?: string;
     s3Storage: S3StorageInput;
     externalId: string;
   }): Promise<unknown> {
@@ -528,6 +545,11 @@ export class RawTreeClient {
       this.apiPath('/clusters/verify-s3-access'),
       {
         query: { organization },
+        headers: await this.regions.headers(
+          organization,
+          regionId,
+          this.apiKey,
+        ),
         body: {
           external_id: externalId,
           s3_storage: s3StorageRequestBody(s3Storage),
@@ -890,6 +912,7 @@ export class RawTreeClient {
     path: string,
     options: RequestOptions = {},
   ): Promise<unknown> {
+    const routingVersion = this.routing.version;
     const text = await this.requestText(method, path, {
       ...options,
       headers: {
@@ -898,7 +921,14 @@ export class RawTreeClient {
       },
     });
 
-    return text ? parseJson(text) : null;
+    const result = text ? parseJson(text) : null;
+    if (method === 'GET')
+      this.routing.remember(
+        this.endpoint(path, options.query),
+        result,
+        routingVersion,
+      );
+    return result;
   }
 
   private async requestText(
@@ -907,13 +937,18 @@ export class RawTreeClient {
     options: RequestOptions = {},
   ): Promise<string> {
     const hasBody = options.body !== undefined;
-    const response = await this.fetchFn(this.endpoint(path, options.query), {
+    const url = this.endpoint(path, options.query);
+    const routingHeaders = this.apiKey.startsWith('rt_')
+      ? {}
+      : await this.routing.headers(url, options.signal);
+    const response = await this.fetchFn(url, {
       method,
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         'User-Agent': this.userAgent,
         ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
         ...options.headers,
+        ...routingHeaders,
       },
       body: hasBody ? JSON.stringify(options.body) : undefined,
       signal: options.signal,
@@ -930,6 +965,11 @@ export class RawTreeClient {
         message: errorMessage(payload, response.status, method, path),
       });
     }
+    if (
+      method !== 'GET' &&
+      (path.startsWith('/v1/organizations') || path.startsWith('/v1/clusters'))
+    )
+      this.routing.clear();
     return text;
   }
 }
