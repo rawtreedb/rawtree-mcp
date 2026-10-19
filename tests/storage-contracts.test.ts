@@ -11,15 +11,13 @@ const clusterArgs = {
   maximumSize: { cpuCores: 4, memoryGiB: 16 },
 };
 const storage = {
-  dataBucket: 'customer-data',
-  backupBucket: 'customer-backups',
+  data: { bucket: 'customer-data' },
+  backups: { bucket: 'customer-backups' },
   roleArn: 'arn:aws:iam::123456789012:role/RawTreeS3',
 };
 const wireStorage = {
-  data_bucket: 'customer-data',
-  data_path: '',
-  backup_bucket: 'customer-backups',
-  backup_path: '',
+  data: { bucket: 'customer-data', path: '' },
+  backups: { bucket: 'customer-backups', path: '' },
   role_arn: storage.roleArn,
 };
 
@@ -230,14 +228,23 @@ describe('storage tool contracts', () => {
         arguments: {
           name: 'analytics',
           s3Storage: {
-            data: { bucket: 'old-data' },
-            backups: { bucket: 'old-backups' },
+            dataBucket: 'old-data',
+            backupBucket: 'old-backups',
             roleArn: storage.roleArn,
           },
         },
       },
     ];
-    for (const request of cases) {
+    const invalidDestinations = [
+      { data: storage.data, roleArn: storage.roleArn },
+      { ...storage, backups: null },
+      { ...storage, data: { path: 'prefix' } },
+      { ...storage, data: { ...storage.data, externalId: 'override' } },
+    ].map((s3Storage) => ({
+      name: 'create-database',
+      arguments: { name: 'analytics', s3Storage },
+    }));
+    for (const request of [...cases, ...invalidDestinations]) {
       const result = await client.callTool(request);
       expect(result.isError, JSON.stringify(request)).toBe(true);
     }

@@ -132,7 +132,7 @@ describe('createMcpServer', () => {
     }
     expect(createCluster?.inputSchema.properties.s3Storage).toMatchObject({
       type: 'object',
-      required: ['dataBucket', 'backupBucket', 'roleArn'],
+      required: ['data', 'backups', 'roleArn'],
       additionalProperties: false,
     });
     expect(
@@ -177,7 +177,7 @@ describe('createMcpServer', () => {
       verifyClusterS3Access?.inputSchema.properties.s3Storage,
     ).toMatchObject({
       type: 'object',
-      required: ['dataBucket', 'backupBucket', 'roleArn'],
+      required: ['data', 'backups', 'roleArn'],
       additionalProperties: false,
     });
     expect(verifyClusterS3Access?.annotations).toMatchObject({
@@ -312,7 +312,7 @@ describe('createMcpServer', () => {
       verifyDatabaseS3Access?.inputSchema.properties.s3Storage,
     ).toMatchObject({
       type: 'object',
-      required: ['dataBucket', 'backupBucket', 'roleArn'],
+      required: ['data', 'backups', 'roleArn'],
       additionalProperties: false,
     });
     expect(verifyDatabaseS3Access?.annotations).toMatchObject({
@@ -327,7 +327,7 @@ describe('createMcpServer', () => {
     expect(createDatabase?.inputSchema.required).toEqual(['name']);
     expect(createDatabase?.inputSchema.properties.s3Storage).toMatchObject({
       type: 'object',
-      required: ['dataBucket', 'backupBucket', 'roleArn'],
+      required: ['data', 'backups', 'roleArn'],
       additionalProperties: false,
     });
     expect(createDatabase?.annotations).toMatchObject({

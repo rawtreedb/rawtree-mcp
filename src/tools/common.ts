@@ -6,22 +6,17 @@ export interface ToolScopeOptions {
   requireExplicitScope?: boolean;
 }
 
-export const s3StorageInput = z.strictObject({
-  dataBucket: z
-    .string()
-    .min(3)
-    .max(63)
-    .describe('Customer-owned S3 data bucket.'),
-  dataPath: z.string().optional().describe('Optional data object-key prefix.'),
-  backupBucket: z
-    .string()
-    .min(3)
-    .max(63)
-    .describe('Customer-owned S3 backup bucket.'),
-  backupPath: z
+const s3StorageDestinationInput = z.strictObject({
+  bucket: z.string().min(3).max(63).describe('Customer-owned S3 bucket.'),
+  path: z
     .string()
     .optional()
-    .describe('Optional backup object-key prefix.'),
+    .describe('Optional object-key prefix; defaults to the bucket root.'),
+});
+
+export const s3StorageInput = z.strictObject({
+  data: s3StorageDestinationInput.describe('Destination for table data.'),
+  backups: s3StorageDestinationInput.describe('Destination for backups.'),
   roleArn: z
     .string()
     .min(1)

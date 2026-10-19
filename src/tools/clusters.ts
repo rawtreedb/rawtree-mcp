@@ -59,7 +59,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
       title: 'List Clusters',
       description: `**Purpose:** List RawTree dedicated clusters accessible in an organization.
 
-**Returns:** Cluster IDs, names, creation times, lifecycle status, resources, whether each cluster can be paused or resumed, optional s3_storage metadata for customer-owned default storage, and s3_storage_access containing external_id and resource_tag (null for older clusters without saved identity). s3_storage exposes data_bucket, data_path, backup_bucket, and backup_path. Role ARNs and secret credentials are never returned.
+**Returns:** Cluster IDs, names, creation times, lifecycle status, resources, whether each cluster can be paused or resumed, optional s3_storage metadata for customer-owned default storage, and s3_storage_access containing external_id and resource_tag (null for older clusters without saved identity). s3_storage exposes data and backups, each with bucket and path. An empty path means the bucket root. Role ARNs and secret credentials are never returned.
 
 **Auth:** The RawTree API requires a user access token and organization membership. Authorization is enforced by the API.
 
@@ -157,7 +157,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Returns:** The newly created cluster, including its ID, lifecycle status, and initial resources. Provisioning continues asynchronously after the request is accepted; use get-cluster to check progress.
 
-**Behavior:** The cluster starts at minimumSize and can vertically autoscale per replica up to maximumSize. The replica count remains fixed. s3Storage is optional: omit it to use RawTree-managed storage. When provided, it configures customer-owned data and backup destinations through a customer IAM role. Destination paths are optional; dataBucket, backupBucket, and roleArn are required inside s3Storage. s3StorageAccess contains the immutable externalId and resourceTag for this cluster's S3 storage access. The API generates omitted values independently using secure UUIDs, but requires an explicit s3StorageAccess.externalId for custom S3 matching the customer IAM trust policy. The MCP client forwards optional identity values without generating them. Tag eligible customer buckets and IAM roles with rawtree.com/cluster=<resourceTag>. Database operations reuse this saved identity automatically.
+**Behavior:** The cluster starts at minimumSize and can vertically autoscale per replica up to maximumSize. The replica count remains fixed. s3Storage is optional: omit it to use RawTree-managed storage. When provided, it configures customer-owned data and backup destinations through a customer IAM role. Destination paths are optional; data and backups (each with a bucket), plus roleArn are required inside s3Storage. s3StorageAccess contains the immutable externalId and resourceTag for this cluster's S3 storage access. The API generates omitted values independently using secure UUIDs, but requires an explicit s3StorageAccess.externalId for custom S3 matching the customer IAM trust policy. The MCP client forwards optional identity values without generating them. Tag eligible customer buckets and IAM roles with rawtree.com/cluster=<resourceTag>. Database operations reuse this saved identity automatically.
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 
@@ -239,7 +239,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
       title: 'Get Cluster',
       description: `**Purpose:** Get one RawTree dedicated cluster and its current lifecycle status.
 
-**Returns:** The cluster ID, name, creation time, lifecycle status, resources, whether it can be paused or resumed, optional s3_storage metadata for customer-owned default storage, and s3_storage_access containing external_id and resource_tag (null for older clusters without saved identity). s3_storage exposes data_bucket, data_path, backup_bucket, and backup_path. Role ARNs and secret credentials are never returned.
+**Returns:** The cluster ID, name, creation time, lifecycle status, resources, whether it can be paused or resumed, optional s3_storage metadata for customer-owned default storage, and s3_storage_access containing external_id and resource_tag (null for older clusters without saved identity). s3_storage exposes data and backups, each with bucket and path. An empty path means the bucket root. Role ARNs and secret credentials are never returned.
 
 **Auth:** The RawTree API requires a user access token and organization membership. Authorization is enforced by the API.
 

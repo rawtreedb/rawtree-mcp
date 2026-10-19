@@ -443,7 +443,7 @@ Structured log filters include:
 - `create-database` — Create a database with cluster-default storage or an optional customer-owned S3 configuration.
 - `delete-database` — Delete a database and all its data after explicit confirmation.
 
-`create-database.s3Storage` is optional. Omit it to use the cluster's default storage. When provided, tables in that database inherit its storage. Call `verify-database-s3-access` with the identical configuration before creation. Database listings expose flat `s3_storage` metadata (`data_bucket`, `data_path`, `backup_bucket`, `backup_path`); credentials are never returned.
+`create-database.s3Storage` is optional. Omit it to use the cluster's default storage. When provided, tables in that database inherit its storage. Call `verify-database-s3-access` with the identical configuration before creation. Database listings expose `s3_storage` metadata with `data` and `backups` destinations, each containing `bucket` and `path`; credentials are never returned.
 
 ### Organizations
 
@@ -469,7 +469,7 @@ Cluster tools are advertised to every MCP client. To choose a region, call `list
 
 `create-cluster` accepts optional `s3StorageAccess` containing `externalId` and `resourceTag`. The API generates omitted values independently as `rawtree-<UUID>` using secure randomness; MCP forwards optional values without generating identities. Both are persisted when the cluster is created and remain immutable. Cluster list/get responses expose `s3_storage_access` containing `external_id` and `resource_tag`; older clusters without identity may return null. `resourceTag` is the value of the `rawtree.com/cluster` AWS resource tag on eligible customer buckets and IAM roles.
 
-`s3Storage` is optional. Omit it for RawTree-managed default storage. Custom storage requires `dataBucket`, `backupBucket`, and `roleArn`, plus optional `dataPath` and `backupPath`. When specifying custom cluster storage, you must supply an explicit `s3StorageAccess.externalId` matching the IAM trust policy. Call `verify-cluster-s3-access` first, passing that same `s3StorageAccess.externalId` and the identical `s3Storage`, then reuse both for creation. Repeat verification after changing either.
+`s3Storage` is optional. Omit it for RawTree-managed default storage. Custom storage requires `data` and `backups` destinations (each with `bucket` and optional `path`), plus `roleArn`. When specifying custom cluster storage, you must supply an explicit `s3StorageAccess.externalId` matching the IAM trust policy. Call `verify-cluster-s3-access` first, passing that same `s3StorageAccess.externalId` and the identical `s3Storage`, then reuse both for creation. Repeat verification after changing either.
 
 Example `create-cluster` tool arguments (choose replica counts and sizes from `list-cluster-sizes`):
 
@@ -485,18 +485,16 @@ Example `create-cluster` tool arguments (choose replica counts and sizes from `l
     "resourceTag": "rawtree-dc1fb78e-341d-48f8-a183-9ecea12eb41d"
   },
   "s3Storage": {
-    "dataBucket": "acme-data",
-    "dataPath": "production/data",
-    "backupBucket": "acme-backups",
-    "backupPath": "production/backups",
+    "data": { "bucket": "acme-data", "path": "production/data" },
+    "backups": { "bucket": "acme-backups", "path": "production/backups" },
     "roleArn": "arn:aws:iam::123456789012:role/RawTreeS3"
   }
 }
 ```
 
-For `verify-database-s3-access` and `create-database`, pass only the database name, scope, and flat `s3Storage`. The backend reuses the cluster's saved External ID and resource tag; neither tool accepts identity overrides. Tables inherit database storage, falling back to cluster storage when the database has none.
+For `verify-database-s3-access` and `create-database`, pass only the database name, scope, and `s3Storage`. The backend reuses the cluster's saved External ID and resource tag; neither tool accepts identity overrides. Tables inherit database storage, falling back to cluster storage when the database has none.
 
-The old `databaseS3Access` block, nested `data`/`backups` objects, and `s3Storage.externalId` are rejected. These tools target the API introduced by [Platform PR #1482](https://github.com/rawtreedb/rawtree-platform/pull/1482) and must be released with that server contract.
+The old `databaseS3Access` block, flat `dataBucket`/`backupBucket` fields, and `s3Storage.externalId` are rejected. These tools target the API introduced by [Platform PR #1482](https://github.com/rawtreedb/rawtree-platform/pull/1482) and must be released with that server contract.
 
 The RawTree API remains the authorization boundary: cluster access requires a user access token, and cluster creation, S3 verification, updates, pausing, and resuming additionally require organization-admin access.
 

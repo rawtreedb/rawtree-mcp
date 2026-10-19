@@ -83,7 +83,7 @@ export function addDatabaseTools(
 
 **Returns:** The created database and organization context.
 
-**Behavior:** s3Storage is optional. Omit it to use the cluster's default storage. When provided, it configures customer-owned database storage that all tables in the database inherit. Destination paths are optional; dataBucket, backupBucket, and roleArn are required inside s3Storage. The API reuses the cluster's saved External ID; do not supply an identity override.
+**Behavior:** s3Storage is optional. Omit it to use the cluster's default storage. When provided, it configures customer-owned database storage that all tables in the database inherit. Destination paths are optional; data and backups (each with a bucket), plus roleArn are required inside s3Storage. The API reuses the cluster's saved External ID; do not supply an identity override.
 
 **Safety:** You MUST first call list-databases and confirm the exact organization, cluster, database name, and optional S3 configuration with the user. If s3Storage is provided, first call verify-database-s3-access with the identical configuration. Never reuse a successful verification after changing any s3Storage field.
 

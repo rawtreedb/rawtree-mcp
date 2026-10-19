@@ -13,8 +13,8 @@ const region = {
   enabled: true,
 };
 const storage = {
-  dataBucket: 'data',
-  backupBucket: 'backup',
+  data: { bucket: 'data' },
+  backups: { bucket: 'backup' },
   roleArn: 'role',
 };
 const creation = {
