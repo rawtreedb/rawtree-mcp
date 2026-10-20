@@ -97,7 +97,7 @@ describe('query-format', () => {
       headers: {
         Authorization: 'Bearer rt_test',
         'Content-Type': 'application/json',
-        'User-Agent': 'rawtree-mcp/0.4.1',
+        'User-Agent': 'rawtree-mcp/0.4.2',
       },
     });
     expect(init?.signal).toBeInstanceOf(AbortSignal);
