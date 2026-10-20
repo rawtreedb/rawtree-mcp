@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replace workflow `enabled` and `interval_seconds` with `schedule: { cron, enabled }` and add `description`, matching the Platform cron workflow API. `schedule: null` creates or converts to a manual-only workflow. Tool descriptions now document the returned `schedule.next_run_at` and HTTP sink `url`.
+
 ## 0.4.1
 
 - Add `list-regions` and optional `regionId` for cluster creation, size discovery, and S3 verification. Route these requests to the selected deployment and retain `region_id` in the create body. Unavailable regions fail before creation; omitted selection keeps the default backend.
