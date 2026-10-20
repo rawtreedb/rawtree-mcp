@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.4.2
 
 - Replace workflow `enabled` and `interval_seconds` with `schedule: { cron, enabled }` and add `description`, matching the Platform cron workflow API. `schedule: null` creates or converts to a manual-only workflow. Tool descriptions now document the returned `schedule.next_run_at` and HTTP sink `url`.
