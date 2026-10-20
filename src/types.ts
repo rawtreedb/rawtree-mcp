@@ -78,17 +78,23 @@ export interface WorkflowQuery {
   sql: string;
 }
 
+export interface WorkflowSchedule {
+  cron: string;
+  enabled?: boolean;
+}
+
 export interface CreateWorkflowInput {
   name: string;
+  description?: string;
   query: WorkflowQuery;
-  enabled?: boolean;
-  interval_seconds?: number;
+  schedule?: WorkflowSchedule | null;
   sinks?: NewWorkflowSink[];
 }
 
-export type UpdateWorkflowInput = Partial<
-  Omit<CreateWorkflowInput, 'sinks' | 'query'>
-> & {
+export interface UpdateWorkflowInput {
+  name?: string;
+  description?: string | null;
   query?: Partial<WorkflowQuery>;
+  schedule?: Partial<WorkflowSchedule> | null;
   sinks?: WorkflowSinkInput[];
-};
+}

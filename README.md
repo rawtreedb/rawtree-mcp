@@ -142,7 +142,7 @@ Environment variables:
 
 ### Workflows
 
-These tools target the `/v1/workflows` API with `interval_seconds` (Platform PR [#1306](https://github.com/rawtreedb/rawtree-platform/pull/1306)). The backend must have the `interval_seconds` and workflow `query` and `sinks` with nested `settings` contracts deployed. The former workflow `destinations` field is rejected; connector destinations are unchanged. Flattened sink settings are rejected. There are no `trigger` aliases or workflow-specific telemetry tools.
+These tools target the `/v1/workflows` API with cron schedules. The backend must have the workflow `schedule`, `query`, and `sinks` with nested `settings` contracts deployed; top-level `enabled` and `interval_seconds` are rejected. The former workflow `destinations` field is rejected; connector destinations are unchanged. Flattened sink settings are rejected. There are no `trigger` aliases or workflow-specific telemetry tools.
 
 All five tools require explicit `organization` and `cluster` **names**, including standalone/API-key usage. Configured defaults do not replace these required tool arguments. Workflow definitions have their own `query.database`; the MCP's default database is never added as a workflow query parameter or substituted for that field.
 
@@ -150,8 +150,8 @@ All five tools require explicit `organization` and `cluster` **names**, includin
 | --- | --- | --- | --- |
 | `list-workflows` | `organization`, `cluster` | None | `{ "workflows": [...] }`; no pagination |
 | `get-workflow` | `organization`, `cluster`, `id` | None | Complete workflow object |
-| `create-workflow` | `organization`, `cluster`, `name`, `query.database`, `query.sql` | `enabled`, `interval_seconds`, `sinks` | Complete saved workflow object |
-| `update-workflow` | `organization`, `cluster`, `id`, and at least one changed field | `name`, `query`, `enabled`, `interval_seconds`, `sinks` | Complete saved workflow object |
+| `create-workflow` | `organization`, `cluster`, `name`, `query.database`, `query.sql` | `description`, `schedule`, `sinks` | Complete saved workflow object |
+| `update-workflow` | `organization`, `cluster`, `id`, and at least one changed field | `name`, `description`, `query`, `schedule`, `sinks` | Complete saved workflow object |
 | `delete-workflow` | `organization`, `cluster`, `id` | None | `{ "id": "...", "deleted": true }` after confirmed deletion |
 
 API-key access requires an **admin** key bound to the selected organization and cluster. With OAuth, organization members can read and organization admins can create/update/delete. The backend enforces authorization. Workflows execute with organization credentials; expiration or revocation of the creating key does not stop scheduled execution.
@@ -167,8 +167,8 @@ API-key access requires an **admin** key bound to the selected organization and 
     "database": "default",
     "sql": "SELECT 1 AS value"
   },
-  "enabled": false,
-  "interval_seconds": 60,
+  "description": "Recent events every 30 seconds",
+  "schedule": {"cron": "*/30 * * * * *", "enabled": false},
   "sinks": [
     {"type": "http", "settings": {"url": "https://example.com/events", "headers": {"Authorization": "Bearer example-only"}}},
     {"type": "table", "settings": {"database": "default", "table": "alerts"}}
@@ -176,7 +176,7 @@ API-key access requires an **admin** key bound to the selected organization and 
 }
 ```
 
-Defaults on creation are `enabled: true`, `interval_seconds: 1`, and `sinks: []`. Enabled workflows activate recurring SQL execution and sink delivery. SQL supports reads and `INSERT INTO ... SELECT ...`; validation is performed by the API. Intervals must be integers from 1 through 86400; `interval_ms` is rejected. If creation has an uncertain result, inspect `list-workflows` before retrying.
+Defaults on creation are `schedule: {"cron": "* * * * * *", "enabled": true}` and `sinks: []`; `schedule.enabled` defaults to `true` when a schedule is supplied, and `schedule: null` creates a manual-only workflow. Enabled schedules activate recurring SQL execution and sink delivery. SQL supports reads and `INSERT INTO ... SELECT ...`; validation is performed by the API. `schedule.cron` is a UTC expression with five fields (`minute hour day-of-month month day-of-week`) or six with a leading seconds field; the API validates it. If creation has an uncertain result, inspect `list-workflows` before retrying.
 
 Create, get, and update return the same complete object shape:
 
@@ -188,13 +188,13 @@ Create, get, and update return the same complete object shape:
     "database": "default",
     "sql": "SELECT 1 AS value"
   },
-  "enabled": false,
-  "interval_seconds": 60,
+  "description": "Recent events every 30 seconds",
+  "schedule": {"cron": "*/30 * * * * *", "enabled": false, "next_run_at": null},
   "revision": 1,
   "created_at": "2026-10-05T10:00:00Z",
   "updated_at": "2026-10-05T10:00:00Z",
   "sinks": [
-    {"type": "http", "id": "00000000-0000-4000-8000-000000000002", "settings": {"url_configured": true, "header_names": ["Authorization"]}},
+    {"type": "http", "id": "00000000-0000-4000-8000-000000000002", "settings": {"url": "https://example.com/events", "url_configured": true, "header_names": ["Authorization"]}},
     {"type": "table", "id": "00000000-0000-4000-8000-000000000003", "settings": {"database": "default", "table": "alerts"}}
   ]
 }
@@ -221,14 +221,13 @@ Returns `{ "workflows": [<workflow objects as above>] }`, or `{ "workflows": [] 
   "organization": "acme",
   "cluster": "production",
   "id": "00000000-0000-4000-8000-000000000001",
-  "enabled": true,
-  "interval_seconds": 30
+  "schedule": {"cron": "0 * * * *", "enabled": true}
 }
 ```
 
-The returned object includes `enabled: true`, `interval_seconds: 30`, and the backend's updated revision and timestamp. Set `enabled: false` to pause. Omitted fields stay unchanged; empty updates and null field values are rejected. Already buffered deliveries may continue after pausing.
+The returned object includes the new `schedule`, its `next_run_at`, and the backend's updated revision and timestamp. Set `schedule.enabled: false` to pause; omitted `schedule.cron` or `schedule.enabled` keep their saved values, and `schedule: null` makes the workflow manual-only. Scheduling a manual-only workflow again requires `schedule.cron`. `description: null` clears the description. Other omitted fields stay unchanged; empty updates are rejected. Already buffered deliveries may continue after pausing.
 
-Supplying `sinks` replaces the whole list (maximum five); omission preserves it and `[]` removes all. New sinks omit `id`; new HTTP sinks require `settings.url`. When editing an existing sink, preserve its `id` and type. HTTP URLs and header values are write-only: returned `settings` contains only `url_configured` and `header_names`. For an existing HTTP sink, omit `settings`, `settings.url`, or `settings.headers` to preserve the stored configuration. Within a supplied `settings.headers` map, `null` preserves the existing value for that name, omitted header names are removed, and `{}` clears all headers.
+Supplying `sinks` replaces the whole list (maximum five); omission preserves it and `[]` removes all. New sinks omit `id`; new HTTP sinks require `settings.url`. When editing an existing sink, preserve its `id` and type. Header values are write-only: returned HTTP `settings` contains `url` (null when the stored configuration is unreadable), `url_configured`, and `header_names`. For an existing HTTP sink, omit `settings`, `settings.url`, or `settings.headers` to preserve the stored configuration. Within a supplied `settings.headers` map, `null` preserves the existing value for that name, omitted header names are removed, and `{}` clears all headers.
 
 For example, this update keeps one existing HTTP sink and its Authorization value, replaces its header list, and removes every other sink:
 
