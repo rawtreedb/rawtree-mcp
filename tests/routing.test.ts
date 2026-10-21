@@ -23,6 +23,19 @@ function server(
       method: init?.method ?? 'GET',
       body: init?.body,
     });
+    if (url.pathname.endsWith('/regions'))
+      return Response.json({
+        regions: [
+          {
+            id: '0c0f0a56-7f03-4d39-8e5d-000000000001',
+            name: 'N. Virginia',
+            enabled: true,
+            deployment_id: null,
+            cloud_region: 'us-east-1',
+            organization_id: null,
+          },
+        ],
+      });
     const body =
       url.pathname === '/v1/organizations'
         ? {
@@ -66,7 +79,11 @@ describe('automatic cluster routing', () => {
     const { calls, fetchFn } = server();
     const client = new RawTreeClient({ apiKey: 'session.fixture', fetchFn });
     await client.listClusters('acme');
-    expect(calls.map(({ url }) => url.pathname)).toEqual([collection]);
+    expect(calls.map(({ url }) => url.pathname)).toEqual([
+      '/v1/organizations',
+      `/v1/organizations/${organizationId}/regions`,
+      collection,
+    ]);
     await client.pauseCluster({
       organization: 'acme',
       clusterId: 'cluster-id',

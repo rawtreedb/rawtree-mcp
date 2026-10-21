@@ -11,6 +11,7 @@ export type {
 } from './client/storage.js';
 
 import packageJson from '../package.json' with { type: 'json' };
+import { discoverClusters } from './client/discovery.js';
 import {
   appendQuery,
   errorMessage,
@@ -21,7 +22,7 @@ import {
   type RequestOptions,
 } from './client/http.js';
 import { RegionCatalog } from './client/regions.js';
-import { ClusterRouting } from './client/routing.js';
+import { ClusterRouting, deploymentApiUrl } from './client/routing.js';
 
 import type {
   CreateSavedQueryInput,
@@ -147,9 +148,13 @@ export class RawTreeClient {
   private readonly regions = new RegionCatalog((path) =>
     this.requestJson('GET', path),
   );
-  private readonly routing = new ClusterRouting((path) =>
-    this.requestJson('GET', path),
-  );
+  private readonly routing = new ClusterRouting((path) => {
+    const url = this.endpoint(path);
+    const organization = url.searchParams.get('organization');
+    return url.pathname === '/v1/clusters' && organization
+      ? this.listClusters(organization)
+      : this.requestJson('GET', path);
+  });
   private readonly apiUrl: string;
   private readonly cluster?: string;
   private readonly database?: string;
@@ -455,9 +460,20 @@ export class RawTreeClient {
   }
 
   async listClusters(organization: string): Promise<unknown> {
-    return this.requestJson('GET', this.apiPath('/clusters'), {
-      query: { organization },
-    });
+    const version = this.routing.version;
+    const result = this.apiKey.startsWith('rt_')
+      ? await this.requestJson('GET', '/v1/clusters', {
+          query: { organization },
+        })
+      : await discoverClusters(organization, this.regions, (path, headers) =>
+          this.requestJson('GET', path, { headers }),
+        );
+    this.routing.remember(
+      this.endpoint('/v1/clusters', { organization }),
+      result,
+      version,
+    );
+    return result;
   }
 
   async listRegions(organization: string): Promise<unknown> {
@@ -924,7 +940,8 @@ export class RawTreeClient {
     });
 
     const result = text ? parseJson(text) : null;
-    if (method === 'GET')
+    // Regional collection responses must never replace a merged discovery result.
+    if (method === 'GET' && this.endpoint(path).pathname !== '/v1/clusters')
       this.routing.remember(
         this.endpoint(path, options.query),
         result,
@@ -943,15 +960,16 @@ export class RawTreeClient {
     const routingHeaders = this.apiKey.startsWith('rt_')
       ? {}
       : await this.routing.headers(url, options.signal);
-    const response = await this.fetchFn(url, {
+    const headers = {
+      Authorization: `Bearer ${this.apiKey}`,
+      'User-Agent': this.userAgent,
+      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+      ...options.headers,
+      ...routingHeaders,
+    };
+    const response = await this.fetchFn(deploymentApiUrl(url, headers), {
       method,
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'User-Agent': this.userAgent,
-        ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
-        ...options.headers,
-        ...routingHeaders,
-      },
+      headers,
       body: hasBody ? JSON.stringify(options.body) : undefined,
       signal: options.signal,
     });

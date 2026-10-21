@@ -11,7 +11,7 @@ function records(value: unknown, field: string): MetadataRecord[] {
     : [];
 }
 
-const DEPLOYMENT = /^[0-9a-f]{8}$/;
+const DEPLOYMENT = /^(?:[0-9a-f]{8}|[0-9a-f]{32})$/;
 const REGION = /^[a-z]+(?:-[a-z]+)+-[1-9][0-9]*$/;
 const CACHE_MS = 30_000;
 
@@ -30,11 +30,31 @@ export function deploymentHeaders(
   return { 'X-RawTree-Deployment-Id': deployment, 'X-RawTree-Region': region };
 }
 
+/** Rewrite only public RawTree API origins; preserve custom gateways and paths. */
+export function deploymentApiUrl(
+  url: URL,
+  headers: Record<string, string>,
+): URL {
+  const deployment = headers['X-RawTree-Deployment-Id'];
+  const region = headers['X-RawTree-Region'];
+  if (
+    !deploymentHeaders(deployment, region) ||
+    !['https://api.rawtree.com', 'https://api.rawtree.dev'].includes(url.origin)
+  )
+    return url;
+  const target = new URL(url);
+  target.hostname = target.hostname.replace(
+    'api.',
+    `api.${deployment}.${region}.aws.`,
+  );
+  return target;
+}
+
 function clustersPath(organization: string): string {
   return `/v1/clusters?${new URLSearchParams({ organization })}`;
 }
 
-/** Discovery uses the default API origin; only cluster-scoped requests carry routing. */
+/** The loader supplies the merged regional cluster catalog for scoped requests. */
 export class ClusterRouting {
   private readonly cache = new Map<
     string,
