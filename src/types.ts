@@ -55,7 +55,13 @@ export type NewWorkflowSink =
       type: 'http';
       settings: { url: string; headers?: Record<string, string> };
     }
-  | { type: 'table'; settings: { database: string; table: string } };
+  | { type: 'table'; settings: { database: string; table: string } }
+  | { type: 'slack'; settings: SlackSinkSettings };
+
+export interface SlackSinkSettings {
+  integration_id: string;
+  channel_id: string;
+}
 
 export type WorkflowSinkInput =
   | NewWorkflowSink
@@ -71,7 +77,8 @@ export type WorkflowSinkInput =
       type: 'table';
       id: string;
       settings: { database: string; table: string };
-    };
+    }
+  | { type: 'slack'; id: string; settings: SlackSinkSettings };
 
 export interface WorkflowQuery {
   database: string;

@@ -19,9 +19,26 @@ const tableFields = {
   type: z.literal('table'),
   settings: z.strictObject({ database: identifier, table: identifier }),
 };
+const slackFields = {
+  type: z.literal('slack'),
+  settings: z.strictObject({
+    integration_id: z
+      .uuid()
+      .describe(
+        'Slack integration connected to the organization. Find its ID on the organization Integrations page in the RawTree app.',
+      ),
+    channel_id: z
+      .string()
+      .regex(/^[A-Z0-9]{2,64}$/)
+      .describe(
+        'Slack channel ID, such as C0123456789, not the channel name. The RawTree app must be a member of private channels.',
+      ),
+  }),
+};
 const newSink = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('http'), settings: httpSettings }),
   z.strictObject(tableFields),
+  z.strictObject(slackFields),
 ]);
 const sink = z.union([
   newSink,
@@ -36,6 +53,7 @@ const sink = z.union([
       .optional(),
   }),
   z.strictObject({ ...tableFields, id: z.uuid() }),
+  z.strictObject({ ...slackFields, id: z.uuid() }),
 ]);
 const workflowQuery = z.strictObject({
   database: identifier.describe(
@@ -78,7 +96,7 @@ const definitionFields = {
 const auth =
   'Requires an admin API key bound to the selected organization and cluster, or OAuth. Organization members may read; organization admins may create, update, or delete. Workflows execute with organization credentials and continue after the creating key is revoked or expires.';
 const result =
-  'Returns the workflow object: id, name, description, query, schedule, revision, created_at, updated_at, and sinks. The query object contains database and sql. schedule is null for manual-only workflows; otherwise it contains cron, enabled, and next_run_at (null while paused). Each sink has id, type, and settings. HTTP settings contain url (null when unreadable), url_configured, and header_names; header values are never returned. Table settings contain database and table.';
+  'Returns the workflow object: id, name, description, query, schedule, revision, created_at, updated_at, and sinks. The query object contains database and sql. schedule is null for manual-only workflows; otherwise it contains cron, enabled, and next_run_at (null while paused). Each sink has id, type, and settings. HTTP settings contain url (null when unreadable), url_configured, and header_names; header values are never returned. Table settings contain database and table. Slack settings contain integration_id, channel_id, and channel_name, resolved from Slack when the sink was saved.';
 
 export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
   // These API routes require both names even for API-key callers.
@@ -101,7 +119,7 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
       .max(5)
       .optional()
       .describe(
-        'Up to five sinks. Omit for none. New HTTP sinks require settings.url; all sink IDs are assigned by the API.',
+        'Up to five sinks. Omit for none. New HTTP sinks require settings.url. Slack sinks post a summary and a preview of the result rows through an organization Slack integration; the API confirms the channel with Slack, and each Slack sink must use a distinct integration and channel. All sink IDs are assigned by the API.',
       ),
   });
   const update = create
@@ -137,7 +155,7 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
         .max(5)
         .optional()
         .describe(
-          'Replaces the entire list. Omit to preserve it; [] removes all. Preserve IDs when editing. Existing HTTP sinks may omit settings, settings.url, or settings.headers to retain them. Within a supplied settings.headers map, null preserves a stored value; omitted header names are removed.',
+          'Replaces the entire list. Omit to preserve it; [] removes all. Preserve IDs when editing. Existing HTTP sinks may omit settings, settings.url, or settings.headers to retain them; table and Slack sinks always require settings. Within a supplied settings.headers map, null preserves a stored value; omitted header names are removed.',
         ),
     })
     .refine(
