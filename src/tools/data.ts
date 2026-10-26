@@ -48,28 +48,38 @@ Returns JSON { "formatted": "..." } containing the entire formatted SQL. The API
     'run-query',
     {
       title: 'Run Query',
-      description: `**Purpose:** Execute a read-only SQL query against a RawTree database and return JSON rows, column metadata, statistics, and hints.
+      // Keep aligned with Platform's classify_query_statement and per-family validators.
+      description: `Execute one SQL statement through RawTree's Query API. Supports reads and the writes below; this tool can change data, table configuration, and access controls. Use the existing connection with sufficient permission; supported writes do not require a browser login or a different execution surface.
 
-**NOT for:** Inserting, updating, deleting, or mutating data. RawTree validates queries as read-only and rejects unsafe statements.
+Supported statements and permissions:
+- SELECT, WITH, EXPLAIN, DESCRIBE: read_only, read_write, or admin API key, or a signed-in session. Database-role keys support reads subject to their database grants; they cannot execute the write families below. write_only keys cannot use this endpoint.
+- INSERT INTO <table> [(columns)] SELECT ... (including a WITH source): read_write/admin or a signed-in session. The target must already exist in the selected user database. VALUES, FORMAT, and url()/urlCluster() sources are unsupported; use insert-json or insert-from-url for ingestion.
+- CREATE TABLE [IF NOT EXISTS] <table> ENGINE = ReplicatedRawMergeTree [ORDER BY <expressions>]: admin API key or a signed-in session. No column definitions, engine arguments, other engines, AS SELECT, or other table clauses except optional ON CLUSTER 'default'.
+- ALTER TABLE <table> MODIFY ORDER BY <expressions>; ADD/MATERIALIZE/CLEAR/DROP PROJECTION; ADD/MATERIALIZE/CLEAR/DROP INDEX (including text indexes): admin API key or a signed-in session. One operation per statement, on a table in the selected user database; no ON CLUSTER or IN PARTITION. ADD accepts IF NOT EXISTS; MATERIALIZE/CLEAR/DROP accept IF EXISTS. ADD INDEX requires an expression and TYPE, optionally positive integer GRANULARITY; AFTER is unsupported. Use storage paths such as __raw_data.field in index/projection definitions, with casts as needed.
+- KILL MUTATION WHERE table = '<table>' [AND mutation_id = '<id>']: admin API key or a signed-in session. The backend applies the selected user database automatically. Only these equality filters are supported; use doubled quotes, not backslash escapes, in string values.
+- CREATE ROLE <name>, DROP ROLE [IF EXISTS] <name>, GRANT SELECT/INSERT [(columns)] ON <database>.<table> TO <role>: admin API key or organization administrator session. Grants can combine SELECT and INSERT and use database.* or *.*; the target must be an existing role, not a user. No role inheritance, delegation options, or REVOKE.
+- CREATE [OR REPLACE] WORKLOAD/RESOURCE, CREATE WORKLOAD/RESOURCE IF NOT EXISTS, DROP WORKLOAD/RESOURCE [IF EXISTS]: admin API key or organization administrator session. Workloads support IN <parent> and literal SETTINGS; resources support MASTER/WORKER THREAD and READ/WRITE DISK or ANY DISK operations.
+- CREATE SETTINGS PROFILE [OR REPLACE | IF NOT EXISTS], DROP SETTINGS PROFILE [IF EXISTS]: admin API key or organization administrator session. Only workload = '<name>' and use_concurrency_control = 0/1, optionally READONLY/CONST, assigned TO 1–32 distinct existing roles.
+- CREATE ROW POLICY [OR REPLACE | IF NOT EXISTS], DROP ROW POLICY [IF EXISTS]: admin API key or organization administrator session. One table in the selected user database; SELECT USING a scalar filter, optional AS PERMISSIVE/RESTRICTIVE, TO 1–32 distinct existing roles. No subqueries, user targets, or wildcard targets.
+- CREATE NAMED COLLECTION [IF NOT EXISTS] <name> AS key = literal, ...: admin API key or organization administrator session. Unique keys with string/numeric/boolean values and optional OVERRIDABLE/NOT OVERRIDABLE; no ALTER or DROP.
 
-**Returns:** RawTree's query response: meta, data, rows, statistics, and optional hints.
+Role, workload/resource, profile, policy, and named-collection management accept optional ON CLUSTER 'default' and preserve the engine's replication semantics; row policies with ON CLUSTER require an explicit matching database.table. These management operations can affect the cluster beyond the selected database. All write families are unavailable in RawTree's internal organization. Other SQL mutations, including UPDATE, DELETE, DROP TABLE, and arbitrary ALTER, are unsupported; use delete-table for table deletion.
 
-**When to use:**
-- User asks questions about data already in RawTree
-- You need to verify an insert
-- You need a quick aggregate, sample, or schema-oriented SELECT
-- You need RawTree query hints after an error
+Returns JSON meta, data, rows, statistics, and optional hints. DDL normally returns an empty result; INSERT SELECT reports statistics.written_rows; KILL MUTATION returns matched mutations. MATERIALIZE/CLEAR run in the background: inspect system.mutations for progress and system.projections or system.data_skipping_indices for definitions. Repeating writes may duplicate data or change state; inspect results before retrying. For exploratory reads, use LIMIT and deterministic ORDER BY.
 
-**Workflow:** Start with a bounded SELECT. For exploratory queries, include LIMIT and order by a time column when available.
-
-**Key trigger phrases:** "query RawTree", "run SQL", "count rows", "show sample rows", "check the data"`,
+Detailed syntax and replication limits: https://rawtree.com/docs/reference/api and https://rawtree.com/docs/reference/authentication#existing-database-roles.`,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+      },
       inputSchema: {
         ...databaseScopeInput(scopeOptions),
         sql: z
           .string()
           .min(1)
           .describe(
-            'Read-only SQL to execute. Prefer bounded SELECT queries with LIMIT for exploration.',
+            'One supported SQL statement to execute: a read query or an authorized INSERT SELECT, CREATE TABLE, ALTER TABLE, KILL MUTATION, or management statement listed in the tool description. Writes can change persistent state. Use LIMIT for exploratory reads.',
           ),
       },
     },

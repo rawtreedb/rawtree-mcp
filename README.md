@@ -4,7 +4,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 
 ## Features
 
-- **Queries** — Run read-only SQL against a RawTree database and receive JSON rows, metadata, statistics, and hints.
+- **Queries** — Execute SQL reads and supported writes, including inserts from queries, table configuration, and access management, with permissions enforced by the Query API.
 - **Workflows** — Create, inspect, update, pause, resume, and delete scheduled SQL workflows with HTTP or table sinks.
 - **Saved queries** — List, create, update, and delete saved SQL definitions. Run a saved query by passing its SQL and database to `run-query`.
 - **Ingest** — Insert a single JSON object, arrays of JSON objects, or public URL data.
@@ -135,10 +135,73 @@ Environment variables:
 
 ### Data
 
-- `run-query` — Run read-only SQL and return RawTree's JSON query response. Accepts organization, cluster, and database overrides.
+- `run-query` — Execute one supported SQL statement and return RawTree's JSON query response. Supports reads and writes described below, with organization, cluster, and database overrides.
 - `query-format` — Format complete SQL without execution or database query logs. Accepts the same scope overrides and forwards cancellation to the API.
 - `insert-json` — Insert JSON object(s) into a table.
 - `insert-from-url` — Ingest data from a public URL and wait for completion, returning the inserted row count (or `null` when unavailable).
+
+#### Query statements and permissions
+
+`run-query` calls `POST /v1/query` using the existing connection. An API key with
+sufficient permission can execute supported writes without browser login. The
+tool advertises `readOnlyHint: false`, `destructiveHint: true`, and
+`idempotentHint: false` because SQL can change persistent data and access controls.
+The backend validates syntax, scope, and permissions; MCP does not implement a
+separate SQL allowlist.
+
+| Statement family | Permission | Supported forms and limits |
+|---|---|---|
+| Reads | `read_only`, `read_write`, `admin`, or signed-in session; database-role keys use their grants | `SELECT`, `WITH`, `EXPLAIN`, `DESCRIBE`. Use bounded, ordered reads for exploration. |
+| Insert from query | `read_write`, `admin`, or signed-in session | `INSERT INTO <table> [(columns)] SELECT ...`, including a `WITH` source. Existing target in the selected user database; no `VALUES`, `FORMAT`, `url()`, or `urlCluster()`. SQL `SETTINGS` are validated by the engine; default execution time is 30 seconds. |
+| Create table | `admin` or signed-in session | `CREATE TABLE [IF NOT EXISTS] <table> ENGINE = ReplicatedRawMergeTree [ORDER BY <expressions>]`. Selected user database only. Optional `ON CLUSTER 'default'` is accepted. No columns, engine arguments, other engines, `AS SELECT`, or other table clauses. |
+| Table configuration | `admin` or signed-in session | `ALTER TABLE <table> MODIFY ORDER BY ...`, or `ADD/MATERIALIZE/CLEAR/DROP PROJECTION` or `INDEX`, including text indexes. One operation, in the selected user database; no `ON CLUSTER` or `IN PARTITION`. `ADD` accepts `IF NOT EXISTS`; the other operations accept `IF EXISTS`. Index creation requires an expression and `TYPE`, with optional positive integer `GRANULARITY`; no `AFTER`. |
+| Cancel mutations | `admin` or signed-in session | `KILL MUTATION WHERE table = '<table>' [AND mutation_id = '<id>']`. The backend adds the selected user database filter. Only these equality conditions are accepted, in either order; doubled quotes are supported, backslash escapes are not. |
+| Roles and grants | `admin` or organization administrator session | `CREATE ROLE <name>`, `DROP ROLE [IF EXISTS] <name>`, `GRANT SELECT/INSERT [(columns)] ON <database>.<table> TO <role>`. Grants may combine both privileges and use `database.*` or `*.*`. The grant target must be an existing role. No user grants, inheritance, delegation, `REVOKE`, or role replacement. |
+| Workloads and resources | `admin` or organization administrator session | `CREATE [OR REPLACE] WORKLOAD/RESOURCE`, `CREATE WORKLOAD/RESOURCE IF NOT EXISTS`, `DROP WORKLOAD/RESOURCE [IF EXISTS]`. Workloads accept `IN <parent>` and numeric/string `SETTINGS`, optionally `FOR <resource>`. Resources accept `MASTER THREAD`, `WORKER THREAD`, `READ/WRITE DISK <name>`, and `READ/WRITE ANY DISK`; no memory or query-slot resources. |
+| Settings profiles | `admin` or organization administrator session | `CREATE SETTINGS PROFILE [OR REPLACE \| IF NOT EXISTS]` and `DROP SETTINGS PROFILE [IF EXISTS]`. Only `workload = '<name>'` and `use_concurrency_control = 0/1`, optionally `READONLY`/`CONST`, assigned `TO` 1–32 distinct existing roles. No user targets, inheritance, other settings, or `ALTER`. |
+| Row policies | `admin` or organization administrator session | `CREATE ROW POLICY [OR REPLACE \| IF NOT EXISTS]` and `DROP ROW POLICY [IF EXISTS]`, on one table in the selected user database. A scalar `SELECT USING` filter, optional `AS PERMISSIVE/RESTRICTIVE`, and 1–32 distinct existing roles. No subqueries, wildcard/user targets, access-storage selectors, or `ALTER`. |
+| Named collections | `admin` or organization administrator session | `CREATE NAMED COLLECTION [IF NOT EXISTS] <name> AS key = literal, ...`. Unique keys with string, numeric, or boolean literals and optional `OVERRIDABLE`/`NOT OVERRIDABLE`. No expressions, replacement, `ALTER`, or `DROP`. |
+
+`write_only` keys cannot use the Query API. Database-role keys support reads here,
+even if their roles have insert grants; their inserts use the JSON insert API.
+Grant, profile, and policy targets must be existing roles without same-named
+database users. Profiles and policies reject selectors such as `ALL`, `NONE`,
+and `CURRENT_USER`. All write families reject RawTree's internal organization.
+Table writes and row policies reject system databases. Other mutations, including
+`UPDATE`, `DELETE`, `DROP TABLE`, and arbitrary `ALTER`, are unsupported; use
+`delete-table` for table deletion.
+
+Role, workload/resource, profile, policy, and named-collection management accept
+optional `ON CLUSTER 'default'`, preserving engine replication semantics. No
+other cluster name is accepted. Row policies with that clause require an explicit
+`database.table` matching the selected database. Management can affect the cluster
+beyond the selected database: grant scopes are explicit, while roles, workloads,
+resources, profiles, and collections are not database-local. Consult the
+[API reference](https://rawtree.com/docs/reference/api) and
+[role reference](https://rawtree.com/docs/reference/authentication#existing-database-roles)
+for syntax, local versus replicated storage, and distributed DDL limitations.
+Named-collection credentials in `ON CLUSTER` statements are visible to readers of
+the distributed DDL queue; use Keeper-backed collection storage without that
+clause for credentials.
+
+Index and projection definitions use storage paths such as `__raw_data.field`,
+with casts where a concrete type is required. `ADD` applies to new data;
+`MATERIALIZE` builds existing data. `CLEAR` removes stored index/projection data
+while keeping its definition; `DROP` removes the definition. `MATERIALIZE` and
+`CLEAR` run in the background. Inspect `system.mutations` for progress and mutation
+IDs, and `system.projections` or `system.data_skipping_indices` for definitions.
+
+Responses contain `meta`, `data`, `rows`, `statistics`, and optional `hints`.
+DDL normally returns an empty result; inserts also report
+`statistics.written_rows`; `KILL MUTATION` returns matched mutations. Writes are
+not generally idempotent, and distributed DDL is not transactional: inspect
+state before retrying an error or timeout. A successful materialization request
+does not mean its background build has finished.
+
+This contract is derived from Platform's `backend/src/validation.rs`, Query API
+dispatch, and each statement family's validators, checked against the canonical
+public API and authentication docs. It describes Query API execution, not the
+separate workflow SQL restrictions or the formatter's broader syntax support.
 
 ### Workflows
 
