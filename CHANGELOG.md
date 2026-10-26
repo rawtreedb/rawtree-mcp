@@ -6,6 +6,9 @@
 
 - Discover user-authenticated clusters across enabled regional deployments and route requests to their public API hosts. Preserve authoritative regional metadata over gateway duplicates. Bound regional discovery to five seconds per deployment, return healthy clusters with `unavailable_regions` during partial outages, and safely retry routing for undiscovered clusters after recovery. Authentication failures and total outages remain errors.
 
+- Add Slack workflow sinks: `{ "type": "slack", "settings": { "integration_id", "channel_id" } }`. Saved Slack sinks return `channel_name`.
+- Add `list-integrations` and `list-slack-channels` to look up Slack integration and channel IDs. `list-integrations` returns a `settings_url` built from the new `--app-url` / `RAWTREE_APP_URL` option, default `https://rawtree.com`.
+
 ## 0.4.2
 
 - Replace workflow `enabled` and `interval_seconds` with `schedule: { cron, enabled }` and add `description`, matching the Platform cron workflow API. `schedule: null` creates or converts to a manual-only workflow. Tool descriptions now document the returned `schedule.next_run_at` and HTTP sink `url`.

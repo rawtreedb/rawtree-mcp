@@ -25,6 +25,7 @@ import {
   appendQuery,
   errorMessage,
   normalizeApiUrl,
+  normalizeAppUrl,
   parseJson,
   type QueryParams,
   RawTreeApiError,
@@ -52,6 +53,7 @@ export interface RawTreeClientOptions {
   /** Cluster-bound credentials use gateway routing, without user discovery. */
   credentialScope?: 'cluster' | 'user';
   apiUrl?: string;
+  appUrl?: string;
   cluster?: string;
   database?: string;
   organization?: string;
@@ -171,6 +173,7 @@ export class RawTreeClient {
       : this.requestJson('GET', path);
   });
   private readonly apiUrl: string;
+  private readonly appUrl: string;
   private readonly cluster?: string;
   private readonly database?: string;
   private readonly fetchFn: typeof fetch;
@@ -181,6 +184,7 @@ export class RawTreeClient {
 
   constructor(options: RawTreeClientOptions) {
     this.apiUrl = normalizeApiUrl(options.apiUrl);
+    this.appUrl = normalizeAppUrl(options.appUrl);
     this.cluster = options.cluster;
     this.database = options.database;
     this.fetchFn = options.fetchFn ?? globalThis.fetch.bind(globalThis);
@@ -202,6 +206,33 @@ export class RawTreeClient {
 
   async listOrganizations(): Promise<unknown> {
     return this.requestJson('GET', this.apiPath('/organizations'));
+  }
+
+  integrationsSettingsUrl(organization: string): string {
+    return `${this.appUrl}/${encodePathPart(organization)}/~/integrations`;
+  }
+
+  async listIntegrations(organization: string): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      `${this.apiPath('/organizations')}/${encodePathPart(organization)}/integrations`,
+    );
+  }
+
+  async listSlackChannels({
+    organization,
+    integrationId,
+    cursor,
+  }: {
+    organization: string;
+    integrationId: string;
+    cursor?: string;
+  }): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      `${this.apiPath('/organizations')}/${encodePathPart(organization)}/integrations/${encodePathPart(integrationId)}/channels`,
+      { query: { cursor } },
+    );
   }
 
   async listOrganizationMembers(organization: string): Promise<unknown> {

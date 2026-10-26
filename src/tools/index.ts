@@ -6,6 +6,7 @@ export * from './data.js';
 export * from './databases.js';
 export * from './federation-issuers.js';
 export * from './federation-rules.js';
+export * from './integrations.js';
 export * from './logs.js';
 export * from './organizations.js';
 export * from './saved-queries.js';

@@ -10,6 +10,7 @@ import {
   addDataTools,
   addFederationIssuerTools,
   addFederationRuleTools,
+  addIntegrationTools,
   addLogTools,
   addOrganizationTools,
   addSavedQueryTools,
@@ -58,6 +59,7 @@ export function createMcpServer(
   addServiceAccountTools(server, rawtree);
   addFederationIssuerTools(server, rawtree);
   addFederationRuleTools(server, rawtree);
+  addIntegrationTools(server, rawtree);
   addDataTools(server, rawtree, options);
   addSavedQueryTools(server, rawtree, options);
   addTableTools(server, rawtree, options);

@@ -118,6 +118,7 @@ MCP_PORT=3000 npx -y @rawtree/mcp --http
 
 - `--api-key`: RawTree database API key for stdio mode
 - `--api-url`: RawTree API base URL, default `https://api.rawtree.com`
+- `--app-url`: RawTree app base URL for links in tool results, default `https://rawtree.com`
 - `--database`: Database name for scoped routes
 - `--org`: Organization name for scoped routes
 - `--http`: Use HTTP transport instead of stdio
@@ -127,6 +128,7 @@ Environment variables:
 
 - `RAWTREE_API_KEY`: RawTree database API key
 - `RAWTREE_API_URL`: RawTree API base URL, default `https://api.rawtree.com`
+- `RAWTREE_APP_URL`: RawTree app base URL for links in tool results, default `https://rawtree.com`
 - `RAWTREE_DATABASE`: Database name for scoped routes
 - `RAWTREE_ORG`: Organization name for scoped routes
 - `MCP_PORT`: HTTP port when using `--http`
@@ -234,7 +236,8 @@ API-key access requires an **admin** key bound to the selected organization and 
   "schedule": {"cron": "*/30 * * * * *", "enabled": false},
   "sinks": [
     {"type": "http", "settings": {"url": "https://example.com/events", "headers": {"Authorization": "Bearer example-only"}}},
-    {"type": "table", "settings": {"database": "default", "table": "alerts"}}
+    {"type": "table", "settings": {"database": "default", "table": "alerts"}},
+    {"type": "slack", "settings": {"integration_id": "00000000-0000-4000-8000-000000000004", "channel_id": "C0123456789"}}
   ]
 }
 ```
@@ -258,7 +261,8 @@ Create, get, and update return the same complete object shape:
   "updated_at": "2026-10-05T10:00:00Z",
   "sinks": [
     {"type": "http", "id": "00000000-0000-4000-8000-000000000002", "settings": {"url": "https://example.com/events", "url_configured": true, "header_names": ["Authorization"]}},
-    {"type": "table", "id": "00000000-0000-4000-8000-000000000003", "settings": {"database": "default", "table": "alerts"}}
+    {"type": "table", "id": "00000000-0000-4000-8000-000000000003", "settings": {"database": "default", "table": "alerts"}},
+    {"type": "slack", "id": "00000000-0000-4000-8000-000000000005", "settings": {"integration_id": "00000000-0000-4000-8000-000000000004", "channel_id": "C0123456789", "channel_name": "alerts"}}
   ]
 }
 ```
@@ -291,6 +295,8 @@ Returns `{ "workflows": [<workflow objects as above>] }`, or `{ "workflows": [] 
 The returned object includes the new `schedule`, its `next_run_at`, and the backend's updated revision and timestamp. Set `schedule.enabled: false` to pause; omitted `schedule.cron` or `schedule.enabled` keep their saved values, and `schedule: null` makes the workflow manual-only. Scheduling a manual-only workflow again requires `schedule.cron`. `description: null` clears the description. Other omitted fields stay unchanged; empty updates are rejected. Already buffered deliveries may continue after pausing.
 
 Supplying `sinks` replaces the whole list (maximum five); omission preserves it and `[]` removes all. New sinks omit `id`; new HTTP sinks require `settings.url`. When editing an existing sink, preserve its `id` and type. Header values are write-only: returned HTTP `settings` contains `url` (null when the stored configuration is unreadable), `url_configured`, and `header_names`. For an existing HTTP sink, omit `settings`, `settings.url`, or `settings.headers` to preserve the stored configuration. Within a supplied `settings.headers` map, `null` preserves the existing value for that name, omitted header names are removed, and `{}` clears all headers.
+
+Slack sinks post a summary and a preview of the result rows through an organization's Slack integration. They take `settings.integration_id` from `list-integrations` and a channel ID (not a name) from `list-slack-channels`, and always require `settings`, including when editing. The API confirms the channel with Slack on save and returns its `channel_name`. Each Slack sink must use a distinct integration and channel, and the RawTree app must be a member of private channels.
 
 For example, this update keeps one existing HTTP sink and its Authorization value, replaces its header list, and removes every other sink:
 
@@ -596,6 +602,13 @@ are `[]`; successful deletions are `null`.
 
 These tools require the Platform federation-management OAuth routes. Deploy
 that backend change together with the hosted MCP dependency pin.
+
+### Integrations
+
+- `list-integrations` — List an organization's connected integrations, such as Slack workspaces, with `slack_available` and a `settings_url` link to the organization's integrations page in the RawTree app.
+- `list-slack-channels` — List a Slack integration's channels (`id`, `name`, `is_private`). Pass `next_cursor` back as `cursor` for the next page; it is `null` on the last page.
+
+Both are read-only and accept a user credential such as OAuth, or an admin API key bound to the organization. Connecting or disconnecting Slack is not available through MCP: an organization admin does it at `settings_url`, built from `--app-url`.
 
 ### Clusters
 

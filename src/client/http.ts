@@ -1,6 +1,7 @@
 import type { JsonValue } from '../types.js';
 
 const DEFAULT_API_URL = 'https://api.rawtree.com';
+const DEFAULT_APP_URL = 'https://rawtree.com';
 
 type QueryValue =
   | string
@@ -59,6 +60,10 @@ export function normalizeApiUrl(apiUrl: string | undefined): string {
   const trimmed = (apiUrl ?? DEFAULT_API_URL).trim();
   if (!trimmed) return DEFAULT_API_URL;
   return trimmed.replace(/\/+$/, '').replace(/\/v1$/, '');
+}
+
+export function normalizeAppUrl(appUrl: string | undefined): string {
+  return (appUrl?.trim() || DEFAULT_APP_URL).replace(/\/+$/, '');
 }
 
 export function errorMessage(

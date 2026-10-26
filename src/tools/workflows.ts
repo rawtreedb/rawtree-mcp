@@ -25,13 +25,13 @@ const slackFields = {
     integration_id: z
       .uuid()
       .describe(
-        'Slack integration connected to the organization. Find its ID on the organization Integrations page in the RawTree app.',
+        'Slack integration connected to the organization, from list-integrations.',
       ),
     channel_id: z
       .string()
       .regex(/^[A-Z0-9]{2,64}$/)
       .describe(
-        'Slack channel ID, such as C0123456789, not the channel name. The RawTree app must be a member of private channels.',
+        'Slack channel ID, such as C0123456789, from list-slack-channels; not the channel name. The RawTree app must be a member of private channels.',
       ),
   }),
 };
@@ -119,7 +119,7 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
       .max(5)
       .optional()
       .describe(
-        'Up to five sinks. Omit for none. New HTTP sinks require settings.url. Slack sinks post a summary and a preview of the result rows through an organization Slack integration; the API confirms the channel with Slack, and each Slack sink must use a distinct integration and channel. All sink IDs are assigned by the API.',
+        'Up to five sinks. Omit for none. New HTTP sinks require settings.url. Slack sinks post a summary and a preview of the result rows through an organization Slack integration; find their integration_id and channel_id with list-integrations and list-slack-channels. The API confirms the channel with Slack, and each Slack sink must use a distinct integration and channel. All sink IDs are assigned by the API.',
       ),
   });
   const update = create

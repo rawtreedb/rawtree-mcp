@@ -39,6 +39,8 @@ describe('createMcpServer', () => {
         'add-organization-member',
         'update-organization-member',
         'remove-organization-member',
+        'list-integrations',
+        'list-slack-channels',
         'list-clusters',
         'list-regions',
         'list-cluster-sizes',
