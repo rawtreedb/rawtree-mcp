@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { RawTreeClient } from '../client.js';
-import { jsonResult } from './common.js';
+import { jsonResult, slackChannelName } from './common.js';
 
 const auth =
   '**Auth:** Requires a user credential such as OAuth, or an admin API key bound to the organization. Authorization is enforced by the RawTree API.';
@@ -48,22 +48,27 @@ ${auth}
     'list-slack-channels',
     {
       title: 'List Slack Channels',
-      description: `**Purpose:** List the channels of a Slack workspace connected to a RawTree organization.
+      description: `**Purpose:** List or search the channels of a Slack workspace connected to a RawTree organization.
 
-**Returns:** { channels, next_cursor }. Each channel has id, name, and is_private. next_cursor is null on the last page.
+**Returns:** { channels, next_cursor }. Each channel has id, name, and is_private. next_cursor is null when there are no more results.
 
-**Behavior:** Results are paginated by Slack. Pass next_cursor as cursor to read the next page. Workflow Slack sinks take the channel id, not its name. The RawTree app must be a member of a private channel before it can post there.
+**Behavior:** Results are paginated. Pass next_cursor as cursor, with the same name when searching, to continue. With name, returns channels whose name contains it, ignoring a leading #, surrounding spaces, and case. Each search request scans a bounded part of the workspace, so a page can have no channels while next_cursor is set: the search has not finished, so call again with that cursor and the same name. Workflow Slack sinks accept a channel_name directly; use this tool to find a channel or confirm its exact name. The RawTree app must be a member of a private channel before it can post there.
 
 ${auth}
 
 **When to use:**
-- You need a Slack channel ID for a workflow Slack sink
-- The user names a channel and you need its ID`,
+- You need to find a Slack channel for a workflow Slack sink
+- The user describes a channel only partially and you need its exact name or ID`,
       inputSchema: {
         organization,
         integration_id: z
           .uuid()
           .describe('Slack integration ID returned by list-integrations.'),
+        name: slackChannelName
+          .optional()
+          .describe(
+            'Text that channel names must contain, such as alerts or #alerts. Omit to list all channels.',
+          ),
         cursor: z
           .string()
           .min(1)
@@ -78,11 +83,12 @@ ${auth}
         idempotentHint: true,
       },
     },
-    async ({ organization, integration_id, cursor }) =>
+    async ({ organization, integration_id, name, cursor }) =>
       jsonResult(
         await rawtree.listSlackChannels({
           organization,
           integrationId: integration_id,
+          name,
           cursor,
         }),
       ),

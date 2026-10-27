@@ -222,16 +222,18 @@ export class RawTreeClient {
   async listSlackChannels({
     organization,
     integrationId,
+    name,
     cursor,
   }: {
     organization: string;
     integrationId: string;
+    name?: string;
     cursor?: string;
   }): Promise<unknown> {
     return this.requestJson(
       'GET',
       `${this.apiPath('/organizations')}/${encodePathPart(organization)}/integrations/${encodePathPart(integrationId)}/channels`,
-      { query: { cursor } },
+      { query: { name, cursor } },
     );
   }
 

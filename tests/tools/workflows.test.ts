@@ -193,6 +193,10 @@ describe('workflow MCP tools', () => {
       },
       { type: 'table', settings: { database: 'default', table: 'alerts' } },
       { type: 'slack', settings: slack },
+      {
+        type: 'slack',
+        settings: { integration_id: integrationId, channel_name: '#alerts' },
+      },
     ];
     const { client, fetchFn } = await connect([json(workflow, 201)]);
     const result = await client.callTool({
@@ -264,6 +268,15 @@ describe('workflow MCP tools', () => {
     },
     { sinks: [{ type: 'http', settings: { url: 'https://example.com/new' } }] },
     { sinks: [{ type: 'slack', settings: slack }] },
+    {
+      sinks: [
+        {
+          type: 'slack',
+          id: sinkId,
+          settings: { integration_id: integrationId, channel_name: 'alerts' },
+        },
+      ],
+    },
     {
       sinks: [
         {
@@ -389,6 +402,10 @@ describe('workflow MCP tools', () => {
       { type: 'slack', settings: { ...slack, channel_id: 'c0123456789' } },
       { type: 'slack', settings: { ...slack, integration_id: 'slack' } },
       { type: 'slack', settings: { ...slack, channel_name: 'alerts' } },
+      ...['', '#', ' ', 'a'.repeat(81)].map((channel_name) => ({
+        type: 'slack',
+        settings: { integration_id: integrationId, channel_name },
+      })),
       { type: 'slack', settings: { ...slack, token: 'xoxb-synthetic' } },
       { type: 'slack', id: sinkId },
     ].flatMap((sink) => [

@@ -123,6 +123,31 @@ describe('integration MCP tools', () => {
     ]);
   });
 
+  it('searches channels by name and passes through an empty page with a cursor', async () => {
+    const pending = { channels: [], next_cursor: 'c2Nhbjoy' };
+    const { client, fetchFn } = await connect([
+      json(pending),
+      json({ ...channels, next_cursor: null }),
+    ]);
+    const args = {
+      organization: 'acme team',
+      integration_id: integrationId,
+      name: '#Alerts',
+    };
+    expect(
+      await client.callTool({ name: 'list-slack-channels', arguments: args }),
+    ).toMatchObject({ content: content(pending) });
+    await client.callTool({
+      name: 'list-slack-channels',
+      arguments: { ...args, cursor: pending.next_cursor },
+    });
+    const base = `${apiUrl}/integrations/${integrationId}/channels`;
+    expect(fetchFn.mock.calls.map(([url]) => String(url))).toEqual([
+      `${base}?name=%23Alerts`,
+      `${base}?name=%23Alerts&cursor=c2Nhbjoy`,
+    ]);
+  });
+
   it.each([
     { name: 'list-integrations', args: {} },
     { name: 'list-slack-channels', args: { organization: 'acme' } },
@@ -134,6 +159,10 @@ describe('integration MCP tools', () => {
       name: 'list-slack-channels',
       args: { organization: 'acme', integration_id: integrationId, cursor: '' },
     },
+    ...['', ' # ', 'a'.repeat(81)].map((name) => ({
+      name: 'list-slack-channels',
+      args: { organization: 'acme', integration_id: integrationId, name },
+    })),
   ])('rejects invalid inputs without calling the API: %j', async ({
     name,
     args,

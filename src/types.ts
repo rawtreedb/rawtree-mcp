@@ -59,10 +59,9 @@ export type NewWorkflowSink =
   | { type: 'table'; settings: { database: string; table: string } }
   | { type: 'slack'; settings: SlackSinkSettings };
 
-export interface SlackSinkSettings {
-  integration_id: string;
-  channel_id: string;
-}
+export type SlackSinkSettings =
+  | { integration_id: string; channel_name: string }
+  | { integration_id: string; channel_id: string };
 
 export type WorkflowSinkInput =
   | NewWorkflowSink
