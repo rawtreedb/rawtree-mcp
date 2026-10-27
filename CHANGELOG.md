@@ -7,7 +7,7 @@
 - Discover user-authenticated clusters across enabled regional deployments and route requests to their public API hosts. Preserve authoritative regional metadata over gateway duplicates. Bound regional discovery to five seconds per deployment, return healthy clusters with `unavailable_regions` during partial outages, and safely retry routing for undiscovered clusters after recovery. Authentication failures and total outages remain errors.
 
 - Add Slack workflow sinks: `{ "type": "slack", "settings": { "integration_id", "channel_id" } }`. Saved Slack sinks return `channel_name`.
-- Add `list-integrations` and `list-slack-channels` to look up Slack integration and channel IDs. `list-integrations` returns a `settings_url` built from the new `--app-url` / `RAWTREE_APP_URL` option, default `https://rawtree.com`.
+- Add `list-integrations` and `list-slack-channels` to look up Slack integration and channel IDs. `list-integrations` returns a `settings_url` built from the new `--app-url` / `RAWTREE_APP_URL` option, or from the API URL when it is not set: `https://rawtree.com` for hosted APIs, the API's origin otherwise.
 
 ## 0.4.2
 

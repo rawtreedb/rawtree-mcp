@@ -184,7 +184,7 @@ export class RawTreeClient {
 
   constructor(options: RawTreeClientOptions) {
     this.apiUrl = normalizeApiUrl(options.apiUrl);
-    this.appUrl = normalizeAppUrl(options.appUrl);
+    this.appUrl = normalizeAppUrl(options.appUrl, this.apiUrl);
     this.cluster = options.cluster;
     this.database = options.database;
     this.fetchFn = options.fetchFn ?? globalThis.fetch.bind(globalThis);

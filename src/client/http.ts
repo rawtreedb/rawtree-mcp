@@ -62,8 +62,29 @@ export function normalizeApiUrl(apiUrl: string | undefined): string {
   return trimmed.replace(/\/+$/, '').replace(/\/v1$/, '');
 }
 
-export function normalizeAppUrl(appUrl: string | undefined): string {
-  return (appUrl?.trim() || DEFAULT_APP_URL).replace(/\/+$/, '');
+export function normalizeAppUrl(
+  appUrl: string | undefined,
+  apiUrl: string,
+): string {
+  const explicit = appUrl?.trim();
+  if (explicit) return explicit.replace(/\/+$/, '');
+  return appUrlForApi(apiUrl);
+}
+
+// Every hosted API, regional ones included, serves its app from rawtree.com.
+// Other APIs, such as a local gateway, serve the app from their own origin.
+function appUrlForApi(apiUrl: string): string {
+  let url: URL;
+  try {
+    url = new URL(apiUrl);
+  } catch {
+    return DEFAULT_APP_URL;
+  }
+  const host = url.hostname;
+  if (host === 'rawtree.com' || host.endsWith('.rawtree.com')) {
+    return DEFAULT_APP_URL;
+  }
+  return url.origin === 'null' ? DEFAULT_APP_URL : url.origin;
 }
 
 export function errorMessage(

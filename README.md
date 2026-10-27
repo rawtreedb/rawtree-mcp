@@ -118,7 +118,7 @@ MCP_PORT=3000 npx -y @rawtree/mcp --http
 
 - `--api-key`: RawTree database API key for stdio mode
 - `--api-url`: RawTree API base URL, default `https://api.rawtree.com`
-- `--app-url`: RawTree app base URL for links in tool results, default `https://rawtree.com`
+- `--app-url`: RawTree app base URL for links in tool results. Defaults to `https://rawtree.com` for hosted APIs and to the API URL's origin otherwise, such as a local gateway
 - `--database`: Database name for scoped routes
 - `--org`: Organization name for scoped routes
 - `--http`: Use HTTP transport instead of stdio
@@ -128,7 +128,7 @@ Environment variables:
 
 - `RAWTREE_API_KEY`: RawTree database API key
 - `RAWTREE_API_URL`: RawTree API base URL, default `https://api.rawtree.com`
-- `RAWTREE_APP_URL`: RawTree app base URL for links in tool results, default `https://rawtree.com`
+- `RAWTREE_APP_URL`: RawTree app base URL for links in tool results, defaulting as for `--app-url`
 - `RAWTREE_DATABASE`: Database name for scoped routes
 - `RAWTREE_ORG`: Organization name for scoped routes
 - `MCP_PORT`: HTTP port when using `--http`
@@ -608,7 +608,7 @@ that backend change together with the hosted MCP dependency pin.
 - `list-integrations` — List an organization's connected integrations, such as Slack workspaces, with `slack_available` and a `settings_url` link to the organization's integrations page in the RawTree app.
 - `list-slack-channels` — List a Slack integration's channels (`id`, `name`, `is_private`). Pass `next_cursor` back as `cursor` for the next page; it is `null` on the last page.
 
-Both are read-only and accept a user credential such as OAuth, or an admin API key bound to the organization. Connecting or disconnecting Slack is not available through MCP: an organization admin does it at `settings_url`, built from `--app-url`.
+Both are read-only and accept a user credential such as OAuth, or an admin API key bound to the organization. Connecting or disconnecting Slack is not available through MCP: an organization admin does it at `settings_url`, built from `--app-url`, or from the API URL when it is not set.
 
 ### Clusters
 
