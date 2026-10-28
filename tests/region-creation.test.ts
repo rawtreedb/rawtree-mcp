@@ -101,11 +101,20 @@ describe('region-aware creation', () => {
     }
   });
 
+  it('supports a legacy 32-character deployment for creation', async () => {
+    const deployment = '0123456789abcdef0123456789abcdef';
+    const { rawtree, calls } = fixture({ deployment_id: deployment });
+    await rawtree.createCluster(creation);
+    expect(calls.at(-1)?.headers.get('X-RawTree-Deployment-Id')).toBe(
+      deployment,
+    );
+  });
+
   it.each([
     { enabled: false },
     { deployment_id: null },
     { deployment_id: 'bad' },
-    { deployment_id: '0123456789abcdef0123456789abcdef' },
+    { deployment_id: '0123456789abcdef' },
     { cloud_region: 'bad' },
     { id: 'other' },
   ])('rejects unusable regions before mutation: %j', async (overrides) => {

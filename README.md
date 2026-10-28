@@ -517,7 +517,7 @@ Structured log filters include:
 
 ### Clusters
 
-- `list-clusters` — List dedicated clusters accessible in an organization.
+- `list-clusters` — List dedicated clusters accessible in an organization. User-authenticated discovery spans enabled regions with a five-second limit per deployment. Partial outages return healthy clusters plus `unavailable_regions` (IDs and names); retry before concluding a missing cluster does not exist. Authentication failures and total regional outages remain errors.
 - `list-regions` — List public and BYOC regions accessible to an organization.
 - `list-cluster-sizes` — List current replica limits, supported per-replica sizes, and default vertical autoscaling bounds.
 - `verify-cluster-s3-access` — Verify an optional customer-owned S3 configuration before cluster creation. The check temporarily writes, reads, and removes a probe object in both configured destinations.
