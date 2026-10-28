@@ -42,9 +42,9 @@ export function addDatabaseTools(
 
 **Returns:** Whether access was verified and a human-readable result message.
 
-**Behavior:** RawTree assumes roleArn using externalId, checks the data and backup bucket locations, lists each configured path, and writes, reads, then removes a temporary probe object under each path. Paths are optional and default to the bucket root. Both configured buckets must be in the cluster environment's AWS region.
+**Behavior:** RawTree assumes roleArn using the cluster's saved external_id, checks the data and backup bucket locations, lists each configured path, and writes, reads, then removes a temporary probe object under each path. Paths are optional and default to the bucket root. Both configured buckets must be in the cluster environment's AWS region.
 
-**Safety:** This check temporarily writes to and deletes from both configured destinations. Confirm the exact organization, cluster, database name, buckets, paths, role ARN, and External ID before running it. The IAM trust policy's External ID must match externalId exactly.
+**Safety:** This check temporarily writes to and deletes from both configured destinations. Confirm the exact organization, cluster, database name, buckets, paths, role ARN, and External ID before running it. The IAM trust policy's External ID must match the cluster's saved external_id exactly; this tool does not accept an identity override.
 
 **Auth:** Organization-admin access is required. Authorization is enforced by the RawTree API.
 
@@ -54,7 +54,7 @@ export function addDatabaseTools(
         destructiveHint: false,
         idempotentHint: true,
       },
-      inputSchema: {
+      inputSchema: z.strictObject({
         ...clusterScopeInput(scopeOptions),
         name: z
           .string()
@@ -63,7 +63,7 @@ export function addDatabaseTools(
         s3Storage: s3StorageInput.describe(
           'Customer-owned S3 configuration to verify for the database.',
         ),
-      },
+      }),
     },
     async ({ organization, cluster, name, s3Storage }) =>
       namedJsonResult(
@@ -83,7 +83,7 @@ export function addDatabaseTools(
 
 **Returns:** The created database and organization context.
 
-**Behavior:** s3Storage is optional. Omit it to use the cluster's default storage. When provided, it configures customer-owned database storage that tables inherit unless they specify their own storage. Destination paths are optional; the buckets, roleArn, and externalId are required inside s3Storage.
+**Behavior:** s3Storage is optional. Omit it to use the cluster's default storage. When provided, it configures customer-owned database storage that all tables in the database inherit. Destination paths are optional; data and backups (each with a bucket), plus roleArn are required inside s3Storage. The API reuses the cluster's saved External ID; do not supply an identity override.
 
 **Safety:** You MUST first call list-databases and confirm the exact organization, cluster, database name, and optional S3 configuration with the user. If s3Storage is provided, first call verify-database-s3-access with the identical configuration. Never reuse a successful verification after changing any s3Storage field.
 
@@ -95,7 +95,7 @@ export function addDatabaseTools(
         destructiveHint: false,
         idempotentHint: false,
       },
-      inputSchema: {
+      inputSchema: z.strictObject({
         ...clusterScopeInput(scopeOptions),
         name: z.string().min(1).describe('Name of the database to create.'),
         s3Storage: s3StorageInput
@@ -103,7 +103,7 @@ export function addDatabaseTools(
           .describe(
             "Optional customer-owned S3 configuration. Omit to use the cluster's default storage.",
           ),
-      },
+      }),
     },
     async ({ organization, cluster, name, s3Storage }) =>
       namedJsonResult(

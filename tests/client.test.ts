@@ -405,9 +405,8 @@ describe('RawTreeClient', () => {
           name: 'analytics',
           s3Storage: {
             data: { bucket: 'acme-data', path: 'rawtree/data' },
-            backups: { bucket: 'acme-backups' },
+            backups: { bucket: 'acme-backups', path: '' },
             roleArn: 'arn:aws:iam::123456789012:role/RawTreeS3',
-            externalId: 'rawtree-acme-analytics',
           },
         },
         { organization: 'acme team', cluster: 'production' },
@@ -423,9 +422,8 @@ describe('RawTreeClient', () => {
         name: 'analytics',
         s3_storage: {
           data: { bucket: 'acme-data', path: 'rawtree/data' },
-          backups: { bucket: 'acme-backups' },
+          backups: { bucket: 'acme-backups', path: '' },
           role_arn: 'arn:aws:iam::123456789012:role/RawTreeS3',
-          external_id: 'rawtree-acme-analytics',
         },
       }),
     );
@@ -447,7 +445,6 @@ describe('RawTreeClient', () => {
             data: { bucket: 'acme-data', path: 'rawtree/data' },
             backups: { bucket: 'acme-backups', path: 'rawtree/backups' },
             roleArn: 'arn:aws:iam::123456789012:role/RawTreeS3',
-            externalId: 'rawtree-acme-analytics',
           },
         },
         { organization: 'acme team', cluster: 'production' },
@@ -465,7 +462,6 @@ describe('RawTreeClient', () => {
           data: { bucket: 'acme-data', path: 'rawtree/data' },
           backups: { bucket: 'acme-backups', path: 'rawtree/backups' },
           role_arn: 'arn:aws:iam::123456789012:role/RawTreeS3',
-          external_id: 'rawtree-acme-analytics',
         },
       }),
     );
@@ -583,9 +579,9 @@ describe('RawTreeClient', () => {
               path: 'rawtree/backups',
             },
           },
-          database_s3_access: {
+          s3_storage_access: {
             external_id: 'rawtree-acme-production',
-            database_bucket_tag: 'rawtree-acme-database',
+            resource_tag: 'rawtree-acme-database',
           },
         },
       ],
@@ -635,6 +631,10 @@ describe('RawTreeClient', () => {
       client.createCluster({
         organization: 'acme',
         name: 'production',
+        s3StorageAccess: {
+          externalId: 'rawtree-acme-production',
+          resourceTag: 'rawtree-acme-database',
+        },
         replicas: 2,
         minimumSize: { cpuCores: 4, memoryGiB: 16 },
         maximumSize: { cpuCores: 8, memoryGiB: 32 },
@@ -649,6 +649,10 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.body).toBe(
       JSON.stringify({
         name: 'production',
+        s3_storage_access: {
+          external_id: 'rawtree-acme-production',
+          resource_tag: 'rawtree-acme-database',
+        },
         replicas: 2,
         size: {
           cpu_cores: 4,
@@ -682,24 +686,27 @@ describe('RawTreeClient', () => {
     await client.createCluster({
       organization: 'acme',
       name: 'production',
+      s3StorageAccess: {
+        externalId: 'rawtree-acme-production',
+        resourceTag: 'rawtree-acme-database',
+      },
       replicas: 2,
       minimumSize: { cpuCores: 4, memoryGiB: 16 },
       maximumSize: { cpuCores: 8, memoryGiB: 32 },
       s3Storage: {
         data: { bucket: 'acme-rawtree-data', path: 'cluster-data' },
-        backups: { bucket: 'acme-rawtree-backups' },
+        backups: { bucket: 'acme-rawtree-backups', path: '' },
         roleArn: 'arn:aws:iam::123456789012:role/RawTreeS3',
-        externalId: 'rawtree-acme-production',
-      },
-      databaseS3Access: {
-        externalId: 'rawtree-acme-production',
-        databaseBucketTag: 'rawtree-acme-database',
       },
     });
 
     expect(calls[0].init.body).toBe(
       JSON.stringify({
         name: 'production',
+        s3_storage_access: {
+          external_id: 'rawtree-acme-production',
+          resource_tag: 'rawtree-acme-database',
+        },
         replicas: 2,
         size: {
           cpu_cores: 4,
@@ -717,19 +724,14 @@ describe('RawTreeClient', () => {
         },
         s3_storage: {
           data: { bucket: 'acme-rawtree-data', path: 'cluster-data' },
-          backups: { bucket: 'acme-rawtree-backups' },
+          backups: { bucket: 'acme-rawtree-backups', path: '' },
           role_arn: 'arn:aws:iam::123456789012:role/RawTreeS3',
-          external_id: 'rawtree-acme-production',
-        },
-        database_s3_access: {
-          external_id: 'rawtree-acme-production',
-          database_bucket_tag: 'rawtree-acme-database',
         },
       }),
     );
   });
 
-  it('creates a cluster with independent database S3 access', async () => {
+  it('creates a managed-storage cluster with explicit identity', async () => {
     const calls: RecordedCall[] = [];
     const client = new RawTreeClient({
       apiKey: 'jwt_test',
@@ -742,18 +744,22 @@ describe('RawTreeClient', () => {
     await client.createCluster({
       organization: 'acme',
       name: 'production',
+      s3StorageAccess: {
+        externalId: 'rawtree-acme-production',
+        resourceTag: 'rawtree-acme-database',
+      },
       replicas: 1,
       minimumSize: { cpuCores: 2, memoryGiB: 8 },
       maximumSize: { cpuCores: 4, memoryGiB: 16 },
-      databaseS3Access: {
-        externalId: 'rawtree-acme-production',
-        databaseBucketTag: 'rawtree-acme-database',
-      },
     });
 
     expect(calls[0].init.body).toBe(
       JSON.stringify({
         name: 'production',
+        s3_storage_access: {
+          external_id: 'rawtree-acme-production',
+          resource_tag: 'rawtree-acme-database',
+        },
         replicas: 1,
         size: {
           cpu_cores: 2,
@@ -768,10 +774,6 @@ describe('RawTreeClient', () => {
             cpu_cores: 4,
             memory_gib: 16,
           },
-        },
-        database_s3_access: {
-          external_id: 'rawtree-acme-production',
-          database_bucket_tag: 'rawtree-acme-database',
         },
       }),
     );
@@ -788,11 +790,11 @@ describe('RawTreeClient', () => {
     await expect(
       client.verifyClusterS3Access({
         organization: 'acme team',
+        s3StorageAccess: { externalId: 'rawtree-acme-production' },
         s3Storage: {
           data: { bucket: 'acme-rawtree-data', path: 'cluster-data' },
           backups: { bucket: 'acme-rawtree-backups', path: 'backups' },
           roleArn: 'arn:aws:iam::123456789012:role/RawTreeS3',
-          externalId: 'rawtree-acme-production',
         },
       }),
     ).resolves.toEqual(response);
@@ -803,11 +805,11 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBe(
       JSON.stringify({
+        s3_storage_access: { external_id: 'rawtree-acme-production' },
         s3_storage: {
           data: { bucket: 'acme-rawtree-data', path: 'cluster-data' },
           backups: { bucket: 'acme-rawtree-backups', path: 'backups' },
           role_arn: 'arn:aws:iam::123456789012:role/RawTreeS3',
-          external_id: 'rawtree-acme-production',
         },
       }),
     );

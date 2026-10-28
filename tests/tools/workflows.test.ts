@@ -13,14 +13,18 @@ const input = {
 const workflow = {
   ...input,
   id,
-  enabled: false,
-  interval_seconds: 60,
+  description: null,
+  schedule: { cron: '*/30 * * * * *', enabled: false, next_run_at: null },
   revision: 1,
   sinks: [
     {
       type: 'http',
       id: sinkId,
-      settings: { url_configured: true, header_names: ['Authorization'] },
+      settings: {
+        url: 'https://example.com/events',
+        url_configured: true,
+        header_names: ['Authorization'],
+      },
     },
   ],
   created_at: '2026-10-05T10:00:00Z',
@@ -80,7 +84,7 @@ describe('workflow MCP tools', () => {
   it.each([
     true,
     false,
-  ])('advertises all five tools with explicit scope, seconds, and effect annotations (%s)', async (explicit) => {
+  ])('advertises all five tools with explicit scope, cron schedules, and effect annotations (%s)', async (explicit) => {
     const { client } = await connect([], explicit);
     const { tools } = await client.listTools();
     for (const name of names) {
@@ -91,10 +95,16 @@ describe('workflow MCP tools', () => {
       );
       expect(tool?.inputSchema.additionalProperties).toBe(false);
       expect(tool?.inputSchema.properties).not.toHaveProperty('interval_ms');
+      expect(tool?.inputSchema.properties).not.toHaveProperty(
+        'interval_seconds',
+      );
+      expect(tool?.inputSchema.properties).not.toHaveProperty('enabled');
       expect(tool?.inputSchema.properties).not.toHaveProperty('database');
       expect(tool?.inputSchema.properties).not.toHaveProperty('sql');
       if (name === 'create-workflow' || name === 'update-workflow') {
         expect(tool?.inputSchema.properties).toHaveProperty('query');
+        expect(tool?.inputSchema.properties).toHaveProperty('schedule');
+        expect(tool?.inputSchema.properties).toHaveProperty('description');
       }
       const read = name === 'list-workflows' || name === 'get-workflow';
       expect(tool?.annotations).toMatchObject({
@@ -114,11 +124,6 @@ describe('workflow MCP tools', () => {
       'name',
       'query',
     ]);
-    expect(create?.inputSchema.properties.interval_seconds).toMatchObject({
-      type: 'integer',
-      minimum: 1,
-      maximum: 86400,
-    });
     expect(
       tools.find((t) => t.name === 'update-workflow')?.inputSchema.required,
     ).toEqual(['organization', 'cluster', 'id']);
@@ -170,7 +175,7 @@ describe('workflow MCP tools', () => {
     });
   });
 
-  it('sends new sink credentials only in the request and returns sanitized metadata', async () => {
+  it('sends new sink header values only in the request', async () => {
     const sinks = [
       {
         type: 'http',
@@ -187,8 +192,8 @@ describe('workflow MCP tools', () => {
       arguments: {
         ...scope,
         ...input,
-        enabled: false,
-        interval_seconds: 86400,
+        description: 'Recent events',
+        schedule: { cron: '0 0 * * *', enabled: false },
         sinks,
       },
     });
@@ -196,17 +201,34 @@ describe('workflow MCP tools', () => {
     expect(JSON.stringify(result)).not.toContain('synthetic-secret');
     expect(JSON.parse(String(fetchFn.mock.calls[0][1]?.body))).toEqual({
       ...input,
-      enabled: false,
-      interval_seconds: 86400,
+      description: 'Recent events',
+      schedule: { cron: '0 0 * * *', enabled: false },
       sinks,
     });
   });
 
+  it('creates a manual-only workflow with a null schedule', async () => {
+    const { client, fetchFn } = await connect([
+      json({ ...workflow, schedule: null }, 201),
+    ]);
+    await client.callTool({
+      name: 'create-workflow',
+      arguments: { ...scope, ...input, schedule: null },
+    });
+    expect(JSON.parse(String(fetchFn.mock.calls[0][1]?.body))).toEqual({
+      ...input,
+      schedule: null,
+    });
+  });
+
   it.each([
-    { enabled: false },
-    { enabled: true },
-    { interval_seconds: 1 },
-    { interval_seconds: 86400 },
+    { schedule: { enabled: false } },
+    { schedule: { enabled: true } },
+    { schedule: { cron: '* * * * * *' } },
+    { schedule: { cron: '0 9 * * 1-5', enabled: true } },
+    { schedule: null },
+    { description: 'Hourly rollup' },
+    { description: null },
     { query: { sql: 'INSERT INTO alerts SELECT 1 AS value' } },
     { name: 'renamed' },
     { query: { database: 'other' } },
@@ -262,9 +284,19 @@ describe('workflow MCP tools', () => {
   });
 
   it.each([
-    ...[0, -1, 86401, 1.5, '1', null].map((interval_seconds) => ({
+    ...[
+      { interval_seconds: 60 },
+      { enabled: false },
+      { schedule: {} },
+      { schedule: { enabled: true } },
+      { schedule: { cron: '  ' } },
+      { schedule: { cron: 60 } },
+      { schedule: { cron: '* * * * *', interval_seconds: 60 } },
+      { description: null },
+      { description: 'x'.repeat(1001) },
+    ].map((fields) => ({
       name: 'create-workflow',
-      args: { ...input, interval_seconds },
+      args: { ...input, ...fields },
     })),
     { name: 'create-workflow', args: { ...input, query: { sql: 'SELECT 1' } } },
     { name: 'create-workflow', args: { ...input, id } },
@@ -345,15 +377,24 @@ describe('workflow MCP tools', () => {
     { name: 'update-workflow', args: { id, interval_ms: 1000 } },
     {
       name: 'update-workflow',
-      args: { id, enabled: false, interval_ms: 1000 },
+      args: { id, schedule: { enabled: false }, interval_ms: 1000 },
     },
-    { name: 'update-workflow', args: { id, interval_seconds: 0 } },
-    { name: 'update-workflow', args: { id, interval_seconds: null } },
+    { name: 'update-workflow', args: { id, interval_seconds: 60 } },
+    { name: 'update-workflow', args: { id, enabled: false } },
+    { name: 'update-workflow', args: { id, schedule: {} } },
+    { name: 'update-workflow', args: { id, schedule: { cron: '' } } },
+    {
+      name: 'update-workflow',
+      args: { id, schedule: { enabled: false, paused: true } },
+    },
     {
       name: 'update-workflow',
       args: { id, sinks: [{ type: 'http', settings: { headers: {} } }] },
     },
-    { name: 'update-workflow', args: { id: 'invalid', enabled: false } },
+    {
+      name: 'update-workflow',
+      args: { id: 'invalid', schedule: { enabled: false } },
+    },
     { name: 'update-workflow', args: { id, revision: 99 } },
     { name: 'get-workflow', args: {} },
     { name: 'list-workflows', args: { database: 'default' } },
@@ -381,7 +422,7 @@ describe('workflow MCP tools', () => {
         ...(name === 'list-workflows' || name === 'create-workflow'
           ? {}
           : { id }),
-        ...(name === 'update-workflow' ? { enabled: false } : {}),
+        ...(name === 'update-workflow' ? { schedule: { enabled: false } } : {}),
       },
     });
     expect(result.isError).toBe(true);

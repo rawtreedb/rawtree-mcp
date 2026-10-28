@@ -1,13 +1,12 @@
 import {
-  type DatabaseS3AccessInput,
-  databaseS3AccessRequestBody,
+  type S3StorageAccessInput,
   type S3StorageInput,
+  s3StorageAccessRequestBody,
   s3StorageRequestBody,
 } from './client/storage.js';
 
 export type {
-  DatabaseS3AccessInput,
-  S3DestinationInput,
+  S3StorageAccessInput,
   S3StorageInput,
 } from './client/storage.js';
 
@@ -502,7 +501,7 @@ export class RawTreeClient {
     maximumSize,
     idleTimeoutMinutes,
     s3Storage,
-    databaseS3Access,
+    s3StorageAccess,
   }: {
     organization: string;
     regionId?: string;
@@ -512,13 +511,16 @@ export class RawTreeClient {
     maximumSize: { cpuCores: number; memoryGiB: number };
     idleTimeoutMinutes?: number;
     s3Storage?: S3StorageInput;
-    databaseS3Access?: DatabaseS3AccessInput;
+    s3StorageAccess?: S3StorageAccessInput;
   }): Promise<unknown> {
     return this.requestJson('POST', this.apiPath('/clusters'), {
       query: { organization },
       headers: await this.regions.headers(organization, regionId, this.apiKey),
       body: {
         name,
+        ...(s3StorageAccess === undefined
+          ? {}
+          : { s3_storage_access: s3StorageAccessRequestBody(s3StorageAccess) }),
         ...(regionId === undefined ? {} : { region_id: regionId }),
         replicas,
         size: {
@@ -541,11 +543,6 @@ export class RawTreeClient {
         ...(s3Storage === undefined
           ? {}
           : { s3_storage: s3StorageRequestBody(s3Storage) }),
-        ...(databaseS3Access === undefined
-          ? {}
-          : {
-              database_s3_access: databaseS3AccessRequestBody(databaseS3Access),
-            }),
       },
     });
   }
@@ -554,10 +551,12 @@ export class RawTreeClient {
     organization,
     regionId,
     s3Storage,
+    s3StorageAccess,
   }: {
     organization: string;
     regionId?: string;
     s3Storage: S3StorageInput;
+    s3StorageAccess: S3StorageAccessInput & { externalId: string };
   }): Promise<unknown> {
     return this.requestJson(
       'POST',
@@ -569,7 +568,10 @@ export class RawTreeClient {
           regionId,
           this.apiKey,
         ),
-        body: { s3_storage: s3StorageRequestBody(s3Storage) },
+        body: {
+          s3_storage_access: s3StorageAccessRequestBody(s3StorageAccess),
+          s3_storage: s3StorageRequestBody(s3Storage),
+        },
       },
     );
   }

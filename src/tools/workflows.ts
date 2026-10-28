@@ -48,6 +48,24 @@ const workflowQuery = z.strictObject({
       'Read query or INSERT INTO ... SELECT ... SQL. The API validates supported statements.',
     ),
 });
+const description = z
+  .string()
+  .max(1000)
+  .describe(
+    'Free-form text. The API trims it and stores blank values as null.',
+  );
+const cron = z
+  .string()
+  .trim()
+  .min(1)
+  .max(1024)
+  .describe(
+    'UTC cron: `minute hour day-of-month month day-of-week`, with an optional leading seconds field. Fields accept *, values, a-b ranges, /step, and comma lists; day of week is 0-7 with 0 and 7 as Sunday. Example: "*/30 * * * * *" runs every 30 seconds. The API validates the expression.',
+  );
+const scheduleEnabled = z
+  .boolean()
+  .optional()
+  .describe('False pauses automatic runs without removing the schedule.');
 const definitionFields = {
   name: z
     .string()
@@ -56,26 +74,11 @@ const definitionFields = {
     .max(64)
     .regex(/^[A-Za-z0-9_-]+$/),
   query: workflowQuery,
-  enabled: z
-    .boolean()
-    .optional()
-    .describe(
-      'Defaults to true on create, activating scheduled execution. False pauses future evaluations.',
-    ),
-  interval_seconds: z
-    .number()
-    .int()
-    .min(1)
-    .max(86400)
-    .optional()
-    .describe(
-      'Whole seconds between evaluations, 1–86400. Defaults to 1 on create; omission preserves it on update.',
-    ),
 };
 const auth =
   'Requires an admin API key bound to the selected organization and cluster, or OAuth. Organization members may read; organization admins may create, update, or delete. Workflows execute with organization credentials and continue after the creating key is revoked or expires.';
 const result =
-  'Returns the workflow object: id, name, query, enabled, revision, interval_seconds, created_at, updated_at, and sinks. The query object contains database and sql. Each sink has id, type, and settings. HTTP settings expose only url_configured and header_names; table settings expose database and table.';
+  'Returns the workflow object: id, name, description, query, schedule, revision, created_at, updated_at, and sinks. The query object contains database and sql. schedule is null for manual-only workflows; otherwise it contains cron, enabled, and next_run_at (null while paused). Each sink has id, type, and settings. HTTP settings contain url (null when unreadable), url_configured, and header_names; header values are never returned. Table settings contain database and table.';
 
 export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
   // These API routes require both names even for API-key callers.
@@ -85,6 +88,14 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
   const selected = scope.extend({ id });
   const create = scope.extend({
     ...definitionFields,
+    description: description.optional(),
+    schedule: z
+      .strictObject({ cron, enabled: scheduleEnabled })
+      .nullable()
+      .optional()
+      .describe(
+        'Omit for the default schedule, "* * * * * *" (every second), enabled. null creates a manual-only workflow. enabled defaults to true.',
+      ),
     sinks: z
       .array(newSink)
       .max(5)
@@ -94,15 +105,32 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
       ),
   });
   const update = create
-    .omit({ name: true, query: true, sinks: true })
+    .omit({
+      name: true,
+      description: true,
+      query: true,
+      schedule: true,
+      sinks: true,
+    })
     .extend({
       id,
       name: definitionFields.name.optional(),
+      description: description
+        .nullable()
+        .optional()
+        .describe('Omit to preserve the description; null or blank clears it.'),
       query: workflowQuery
         .partial()
         .optional()
         .describe(
           'Omit to preserve the query. Omitted database or sql fields retain their saved values.',
+        ),
+      schedule: z
+        .strictObject({ cron: cron.optional(), enabled: scheduleEnabled })
+        .nullable()
+        .optional()
+        .describe(
+          'Omit to preserve the schedule; null makes the workflow manual-only. Omitted cron or enabled keep their saved values. cron is required when scheduling a manual-only workflow.',
         ),
       sinks: z
         .array(sink)
@@ -113,13 +141,15 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
         ),
     })
     .refine(
-      ({ name, query, enabled, interval_seconds, sinks }) =>
+      ({ name, description, query, schedule, sinks }) =>
+        schedule === null ||
         [
           name,
+          description,
           query?.database,
           query?.sql,
-          enabled,
-          interval_seconds,
+          schedule?.cron,
+          schedule?.enabled,
           sinks,
         ].some((value) => value !== undefined),
       'Supply at least one workflow field to update.',
@@ -160,7 +190,7 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
     'create-workflow',
     {
       title: 'Create Workflow',
-      description: `Create a scheduled SQL workflow. Requires name and query (database and sql). Defaults: enabled=true, interval_seconds=1, sinks=[]. An enabled workflow starts recurring SQL execution and sink delivery; use enabled=false to create it paused. SQL may write rows through INSERT SELECT. Creation is not idempotent: reconcile an uncertain result with list-workflows before retrying. ${result} ${auth}`,
+      description: `Create a scheduled SQL workflow. Requires name and query (database and sql). Defaults: schedule={ cron: "* * * * * *", enabled: true }, sinks=[]. An enabled schedule starts recurring SQL execution and sink delivery; use schedule.enabled=false to create it paused, or schedule=null for manual-only. SQL may write rows through INSERT SELECT. Creation is not idempotent: reconcile an uncertain result with list-workflows before retrying. ${result} ${auth}`,
       inputSchema: create,
       annotations: {
         readOnlyHint: false,
@@ -178,7 +208,7 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
     'update-workflow',
     {
       title: 'Update Workflow',
-      description: `Update only supplied fields of an existing workflow; at least one changed field is required. Omitted fields remain unchanged. Set enabled=false to pause or enabled=true to resume. Supplying sinks replaces the whole list and may remove delivery targets. Read get-workflow before editing sinks so you can preserve their IDs. Already buffered deliveries can continue after pausing. ${result} ${auth}`,
+      description: `Update only supplied fields of an existing workflow; at least one changed field is required. Omitted fields remain unchanged. Set schedule.enabled=false to pause or schedule.enabled=true to resume; set schedule.cron to change the cadence. Supplying sinks replaces the whole list and may remove delivery targets. Read get-workflow before editing sinks so you can preserve their IDs. Already buffered deliveries can continue after pausing. ${result} ${auth}`,
       inputSchema: update,
       annotations: {
         readOnlyHint: false,

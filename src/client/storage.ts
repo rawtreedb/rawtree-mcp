@@ -1,44 +1,32 @@
-export interface S3DestinationInput {
-  bucket: string;
-  path?: string;
-}
-
 export interface S3StorageInput {
-  data: S3DestinationInput;
-  backups: S3DestinationInput;
+  data: { bucket: string; path?: string };
+  backups: { bucket: string; path?: string };
   roleArn: string;
-  externalId: string;
-}
-
-export interface DatabaseS3AccessInput {
-  externalId: string;
-  databaseBucketTag: string;
 }
 
 export function s3StorageRequestBody(s3Storage: S3StorageInput) {
   return {
-    data: {
-      bucket: s3Storage.data.bucket,
-      ...(s3Storage.data.path === undefined
-        ? {}
-        : { path: s3Storage.data.path }),
-    },
+    data: { bucket: s3Storage.data.bucket, path: s3Storage.data.path ?? '' },
     backups: {
       bucket: s3Storage.backups.bucket,
-      ...(s3Storage.backups.path === undefined
-        ? {}
-        : { path: s3Storage.backups.path }),
+      path: s3Storage.backups.path ?? '',
     },
     role_arn: s3Storage.roleArn,
-    external_id: s3Storage.externalId,
   };
 }
 
-export function databaseS3AccessRequestBody(
-  databaseS3Access: DatabaseS3AccessInput,
-) {
+export interface S3StorageAccessInput {
+  externalId?: string;
+  resourceTag?: string;
+}
+
+export function s3StorageAccessRequestBody(access: S3StorageAccessInput) {
   return {
-    external_id: databaseS3Access.externalId,
-    database_bucket_tag: databaseS3Access.databaseBucketTag,
+    ...(access.externalId === undefined
+      ? {}
+      : { external_id: access.externalId }),
+    ...(access.resourceTag === undefined
+      ? {}
+      : { resource_tag: access.resourceTag }),
   };
 }

@@ -4,7 +4,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 
 ## Features
 
-- **Queries** — Run read-only SQL against a RawTree database and receive JSON rows, metadata, statistics, and hints.
+- **Queries** — Execute SQL reads and supported writes, including inserts from queries, table configuration, and access management, with permissions enforced by the Query API.
 - **Workflows** — Create, inspect, update, pause, resume, and delete scheduled SQL workflows with HTTP or table sinks.
 - **Saved queries** — List, create, update, and delete saved SQL definitions. Run a saved query by passing its SQL and database to `run-query`.
 - **Ingest** — Insert a single JSON object, arrays of JSON objects, or public URL data.
@@ -135,14 +135,77 @@ Environment variables:
 
 ### Data
 
-- `run-query` — Run read-only SQL and return RawTree's JSON query response. Accepts organization, cluster, and database overrides.
+- `run-query` — Execute one supported SQL statement and return RawTree's JSON query response. Supports reads and writes described below, with organization, cluster, and database overrides.
 - `query-format` — Format complete SQL without execution or database query logs. Accepts the same scope overrides and forwards cancellation to the API.
 - `insert-json` — Insert JSON object(s) into a table.
 - `insert-from-url` — Ingest data from a public URL and wait for completion, returning the inserted row count (or `null` when unavailable).
 
+#### Query statements and permissions
+
+`run-query` calls `POST /v1/query` using the existing connection. An API key with
+sufficient permission can execute supported writes without browser login. The
+tool advertises `readOnlyHint: false`, `destructiveHint: true`, and
+`idempotentHint: false` because SQL can change persistent data and access controls.
+The backend validates syntax, scope, and permissions; MCP does not implement a
+separate SQL allowlist.
+
+| Statement family | Permission | Supported forms and limits |
+|---|---|---|
+| Reads | `read_only`, `read_write`, `admin`, or signed-in session; database-role keys use their grants | `SELECT`, `WITH`, `EXPLAIN`, `DESCRIBE`. Use bounded, ordered reads for exploration. |
+| Insert from query | `read_write`, `admin`, or signed-in session | `INSERT INTO <table> [(columns)] SELECT ...`, including a `WITH` source. Existing target in the selected user database; no `VALUES`, `FORMAT`, `url()`, or `urlCluster()`. SQL `SETTINGS` are validated by the engine; default execution time is 30 seconds. |
+| Create table | `admin` or signed-in session | `CREATE TABLE [IF NOT EXISTS] <table> ENGINE = ReplicatedRawMergeTree [ORDER BY <expressions>]`. Selected user database only. Optional `ON CLUSTER 'default'` is accepted. No columns, engine arguments, other engines, `AS SELECT`, or other table clauses. |
+| Table configuration | `admin` or signed-in session | `ALTER TABLE <table> MODIFY ORDER BY ...`, or `ADD/MATERIALIZE/CLEAR/DROP PROJECTION` or `INDEX`, including text indexes. One operation, in the selected user database; no `ON CLUSTER` or `IN PARTITION`. `ADD` accepts `IF NOT EXISTS`; the other operations accept `IF EXISTS`. Index creation requires an expression and `TYPE`, with optional positive integer `GRANULARITY`; no `AFTER`. |
+| Cancel mutations | `admin` or signed-in session | `KILL MUTATION WHERE table = '<table>' [AND mutation_id = '<id>']`. The backend adds the selected user database filter. Only these equality conditions are accepted, in either order; doubled quotes are supported, backslash escapes are not. |
+| Roles and grants | `admin` or organization administrator session | `CREATE ROLE <name>`, `DROP ROLE [IF EXISTS] <name>`, `GRANT SELECT/INSERT [(columns)] ON <database>.<table> TO <role>`. Grants may combine both privileges and use `database.*` or `*.*`. The grant target must be an existing role. No user grants, inheritance, delegation, `REVOKE`, or role replacement. |
+| Workloads and resources | `admin` or organization administrator session | `CREATE [OR REPLACE] WORKLOAD/RESOURCE`, `CREATE WORKLOAD/RESOURCE IF NOT EXISTS`, `DROP WORKLOAD/RESOURCE [IF EXISTS]`. Workloads accept `IN <parent>` and numeric/string `SETTINGS`, optionally `FOR <resource>`. Resources accept `MASTER THREAD`, `WORKER THREAD`, `READ/WRITE DISK <name>`, and `READ/WRITE ANY DISK`; no memory or query-slot resources. |
+| Settings profiles | `admin` or organization administrator session | `CREATE SETTINGS PROFILE [OR REPLACE \| IF NOT EXISTS]` and `DROP SETTINGS PROFILE [IF EXISTS]`. Only `workload = '<name>'` and `use_concurrency_control = 0/1`, optionally `READONLY`/`CONST`, assigned `TO` 1–32 distinct existing roles. No user targets, inheritance, other settings, or `ALTER`. |
+| Row policies | `admin` or organization administrator session | `CREATE ROW POLICY [OR REPLACE \| IF NOT EXISTS]` and `DROP ROW POLICY [IF EXISTS]`, on one table in the selected user database. A scalar `SELECT USING` filter, optional `AS PERMISSIVE/RESTRICTIVE`, and 1–32 distinct existing roles. No subqueries, wildcard/user targets, access-storage selectors, or `ALTER`. |
+| Named collections | `admin` or organization administrator session | `CREATE NAMED COLLECTION [IF NOT EXISTS] <name> AS key = literal, ...`. Unique keys with string, numeric, or boolean literals and optional `OVERRIDABLE`/`NOT OVERRIDABLE`. No expressions, replacement, `ALTER`, or `DROP`. |
+
+`write_only` keys cannot use the Query API. Database-role keys support reads here,
+even if their roles have insert grants; their inserts use the JSON insert API.
+Grant, profile, and policy targets must be existing roles without same-named
+database users. Profiles and policies reject selectors such as `ALL`, `NONE`,
+and `CURRENT_USER`. All write families reject RawTree's internal organization.
+Table writes and row policies reject system databases. Other mutations, including
+`UPDATE`, `DELETE`, `DROP TABLE`, and arbitrary `ALTER`, are unsupported; use
+`delete-table` for table deletion.
+
+Role, workload/resource, profile, policy, and named-collection management accept
+optional `ON CLUSTER 'default'`, preserving engine replication semantics. No
+other cluster name is accepted. Row policies with that clause require an explicit
+`database.table` matching the selected database. Management can affect the cluster
+beyond the selected database: grant scopes are explicit, while roles, workloads,
+resources, profiles, and collections are not database-local. Consult the
+[API reference](https://rawtree.com/docs/reference/api) and
+[role reference](https://rawtree.com/docs/reference/authentication#existing-database-roles)
+for syntax, local versus replicated storage, and distributed DDL limitations.
+Named-collection credentials in `ON CLUSTER` statements are visible to readers of
+the distributed DDL queue; use Keeper-backed collection storage without that
+clause for credentials.
+
+Index and projection definitions use storage paths such as `__raw_data.field`,
+with casts where a concrete type is required. `ADD` applies to new data;
+`MATERIALIZE` builds existing data. `CLEAR` removes stored index/projection data
+while keeping its definition; `DROP` removes the definition. `MATERIALIZE` and
+`CLEAR` run in the background. Inspect `system.mutations` for progress and mutation
+IDs, and `system.projections` or `system.data_skipping_indices` for definitions.
+
+Responses contain `meta`, `data`, `rows`, `statistics`, and optional `hints`.
+DDL normally returns an empty result; inserts also report
+`statistics.written_rows`; `KILL MUTATION` returns matched mutations. Writes are
+not generally idempotent, and distributed DDL is not transactional: inspect
+state before retrying an error or timeout. A successful materialization request
+does not mean its background build has finished.
+
+This contract is derived from Platform's `backend/src/validation.rs`, Query API
+dispatch, and each statement family's validators, checked against the canonical
+public API and authentication docs. It describes Query API execution, not the
+separate workflow SQL restrictions or the formatter's broader syntax support.
+
 ### Workflows
 
-These tools target the `/v1/workflows` API with `interval_seconds` (Platform PR [#1306](https://github.com/rawtreedb/rawtree-platform/pull/1306)). The backend must have the `interval_seconds` and workflow `query` and `sinks` with nested `settings` contracts deployed. The former workflow `destinations` field is rejected; connector destinations are unchanged. Flattened sink settings are rejected. There are no `trigger` aliases or workflow-specific telemetry tools.
+These tools target the `/v1/workflows` API with cron schedules. The backend must have the workflow `schedule`, `query`, and `sinks` with nested `settings` contracts deployed; top-level `enabled` and `interval_seconds` are rejected. The former workflow `destinations` field is rejected; connector destinations are unchanged. Flattened sink settings are rejected. There are no `trigger` aliases or workflow-specific telemetry tools.
 
 All five tools require explicit `organization` and `cluster` **names**, including standalone/API-key usage. Configured defaults do not replace these required tool arguments. Workflow definitions have their own `query.database`; the MCP's default database is never added as a workflow query parameter or substituted for that field.
 
@@ -150,8 +213,8 @@ All five tools require explicit `organization` and `cluster` **names**, includin
 | --- | --- | --- | --- |
 | `list-workflows` | `organization`, `cluster` | None | `{ "workflows": [...] }`; no pagination |
 | `get-workflow` | `organization`, `cluster`, `id` | None | Complete workflow object |
-| `create-workflow` | `organization`, `cluster`, `name`, `query.database`, `query.sql` | `enabled`, `interval_seconds`, `sinks` | Complete saved workflow object |
-| `update-workflow` | `organization`, `cluster`, `id`, and at least one changed field | `name`, `query`, `enabled`, `interval_seconds`, `sinks` | Complete saved workflow object |
+| `create-workflow` | `organization`, `cluster`, `name`, `query.database`, `query.sql` | `description`, `schedule`, `sinks` | Complete saved workflow object |
+| `update-workflow` | `organization`, `cluster`, `id`, and at least one changed field | `name`, `description`, `query`, `schedule`, `sinks` | Complete saved workflow object |
 | `delete-workflow` | `organization`, `cluster`, `id` | None | `{ "id": "...", "deleted": true }` after confirmed deletion |
 
 API-key access requires an **admin** key bound to the selected organization and cluster. With OAuth, organization members can read and organization admins can create/update/delete. The backend enforces authorization. Workflows execute with organization credentials; expiration or revocation of the creating key does not stop scheduled execution.
@@ -167,8 +230,8 @@ API-key access requires an **admin** key bound to the selected organization and 
     "database": "default",
     "sql": "SELECT 1 AS value"
   },
-  "enabled": false,
-  "interval_seconds": 60,
+  "description": "Recent events every 30 seconds",
+  "schedule": {"cron": "*/30 * * * * *", "enabled": false},
   "sinks": [
     {"type": "http", "settings": {"url": "https://example.com/events", "headers": {"Authorization": "Bearer example-only"}}},
     {"type": "table", "settings": {"database": "default", "table": "alerts"}}
@@ -176,7 +239,7 @@ API-key access requires an **admin** key bound to the selected organization and 
 }
 ```
 
-Defaults on creation are `enabled: true`, `interval_seconds: 1`, and `sinks: []`. Enabled workflows activate recurring SQL execution and sink delivery. SQL supports reads and `INSERT INTO ... SELECT ...`; validation is performed by the API. Intervals must be integers from 1 through 86400; `interval_ms` is rejected. If creation has an uncertain result, inspect `list-workflows` before retrying.
+Defaults on creation are `schedule: {"cron": "* * * * * *", "enabled": true}` and `sinks: []`; `schedule.enabled` defaults to `true` when a schedule is supplied, and `schedule: null` creates a manual-only workflow. Enabled schedules activate recurring SQL execution and sink delivery. SQL supports reads and `INSERT INTO ... SELECT ...`; validation is performed by the API. `schedule.cron` is a UTC expression with five fields (`minute hour day-of-month month day-of-week`) or six with a leading seconds field; the API validates it. If creation has an uncertain result, inspect `list-workflows` before retrying.
 
 Create, get, and update return the same complete object shape:
 
@@ -188,13 +251,13 @@ Create, get, and update return the same complete object shape:
     "database": "default",
     "sql": "SELECT 1 AS value"
   },
-  "enabled": false,
-  "interval_seconds": 60,
+  "description": "Recent events every 30 seconds",
+  "schedule": {"cron": "*/30 * * * * *", "enabled": false, "next_run_at": null},
   "revision": 1,
   "created_at": "2026-10-05T10:00:00Z",
   "updated_at": "2026-10-05T10:00:00Z",
   "sinks": [
-    {"type": "http", "id": "00000000-0000-4000-8000-000000000002", "settings": {"url_configured": true, "header_names": ["Authorization"]}},
+    {"type": "http", "id": "00000000-0000-4000-8000-000000000002", "settings": {"url": "https://example.com/events", "url_configured": true, "header_names": ["Authorization"]}},
     {"type": "table", "id": "00000000-0000-4000-8000-000000000003", "settings": {"database": "default", "table": "alerts"}}
   ]
 }
@@ -221,14 +284,13 @@ Returns `{ "workflows": [<workflow objects as above>] }`, or `{ "workflows": [] 
   "organization": "acme",
   "cluster": "production",
   "id": "00000000-0000-4000-8000-000000000001",
-  "enabled": true,
-  "interval_seconds": 30
+  "schedule": {"cron": "0 * * * *", "enabled": true}
 }
 ```
 
-The returned object includes `enabled: true`, `interval_seconds: 30`, and the backend's updated revision and timestamp. Set `enabled: false` to pause. Omitted fields stay unchanged; empty updates and null field values are rejected. Already buffered deliveries may continue after pausing.
+The returned object includes the new `schedule`, its `next_run_at`, and the backend's updated revision and timestamp. Set `schedule.enabled: false` to pause; omitted `schedule.cron` or `schedule.enabled` keep their saved values, and `schedule: null` makes the workflow manual-only. Scheduling a manual-only workflow again requires `schedule.cron`. `description: null` clears the description. Other omitted fields stay unchanged; empty updates are rejected. Already buffered deliveries may continue after pausing.
 
-Supplying `sinks` replaces the whole list (maximum five); omission preserves it and `[]` removes all. New sinks omit `id`; new HTTP sinks require `settings.url`. When editing an existing sink, preserve its `id` and type. HTTP URLs and header values are write-only: returned `settings` contains only `url_configured` and `header_names`. For an existing HTTP sink, omit `settings`, `settings.url`, or `settings.headers` to preserve the stored configuration. Within a supplied `settings.headers` map, `null` preserves the existing value for that name, omitted header names are removed, and `{}` clears all headers.
+Supplying `sinks` replaces the whole list (maximum five); omission preserves it and `[]` removes all. New sinks omit `id`; new HTTP sinks require `settings.url`. When editing an existing sink, preserve its `id` and type. Header values are write-only: returned HTTP `settings` contains `url` (null when the stored configuration is unreadable), `url_configured`, and `header_names`. For an existing HTTP sink, omit `settings`, `settings.url`, or `settings.headers` to preserve the stored configuration. Within a supplied `settings.headers` map, `null` preserves the existing value for that name, omitted header names are removed, and `{}` clears all headers.
 
 For example, this update keeps one existing HTTP sink and its Authorization value, replaces its header list, and removes every other sink:
 
@@ -443,7 +505,7 @@ Structured log filters include:
 - `create-database` — Create a database with cluster-default storage or an optional customer-owned S3 configuration.
 - `delete-database` — Delete a database and all its data after explicit confirmation.
 
-`create-database.s3Storage` is optional. Omit it to use the cluster's default storage. When provided, tables in that database inherit its storage. Call `verify-database-s3-access` with the identical configuration before creation. Database listings expose `s3_storage` metadata with bucket and path values only; credentials are never returned.
+`create-database.s3Storage` is optional. Omit it to use the cluster's default storage. When provided, tables in that database inherit its storage. Call `verify-database-s3-access` with the identical configuration before creation. Database listings expose `s3_storage` metadata with `data` and `backups` destinations, each containing `bucket` and `path`; credentials are never returned.
 
 ### Organizations
 
@@ -459,7 +521,7 @@ Structured log filters include:
 - `list-regions` — List public and BYOC regions accessible to an organization.
 - `list-cluster-sizes` — List current replica limits, supported per-replica sizes, and default vertical autoscaling bounds.
 - `verify-cluster-s3-access` — Verify an optional customer-owned S3 configuration before cluster creation. The check temporarily writes, reads, and removes a probe object in both configured destinations.
-- `create-cluster` — Provision a dedicated cluster after confirming its organization, replica count, minimum size, maximum size, autoscaling behavior, optional idle timeout, optional customer-owned default S3 configuration, and optional independent per-database S3 access.
+- `create-cluster` — Provision a dedicated cluster after confirming its organization, replica count, minimum size, maximum size, autoscaling behavior, optional idle timeout, optional customer-owned default S3 configuration, and immutable cluster identity.
 - `get-cluster` — Get one dedicated cluster and its current lifecycle status by ID.
 - `update-cluster` — Change a dedicated cluster's idle timeout after confirming the organization, cluster ID, and new value. Use `0` to disable idling.
 - `pause-cluster` — Pause a dedicated cluster after explicit confirmation. Its databases become unavailable until the cluster is resumed.
@@ -467,9 +529,34 @@ Structured log filters include:
 
 Cluster tools are advertised to every MCP client. To choose a region, call `list-regions` with `organization`, then pass the same `organization` and `regionId` to `list-cluster-sizes`, `verify-cluster-s3-access` (when needed), and `create-cluster`. These requests use the selected deployment; creation also saves its `region_id`. Omitted `regionId` preserves the default backend. Explicit unavailable regions fail before creation, except the supported legacy public default. Region selection requires a user credential such as OAuth; API keys retain their embedded routing. Call `list-cluster-sizes` before `create-cluster`; creation starts at the selected minimum per-replica size and can vertically autoscale to the selected maximum. `idleTimeoutMinutes` accepts `0` to disable idling or a value from 15 through 43200; omit it during creation to use the server default.
 
-`create-cluster.s3Storage` is optional. Omit it to use RawTree-managed storage. When provided, `data` and `backups` each require a bucket and accept an optional object-key path; `roleArn` identifies the customer IAM role RawTree may assume, and `externalId` must exactly match the role trust policy. Call `verify-cluster-s3-access` with the identical configuration before creation, and repeat verification after changing any `s3Storage` field.
+`create-cluster` accepts optional `s3StorageAccess` containing `externalId` and `resourceTag`. The API generates omitted values independently as `rawtree-<UUID>` using secure randomness; MCP forwards optional values without generating identities. Both are persisted when the cluster is created and remain immutable. Cluster list/get responses expose `s3_storage_access` containing `external_id` and `resource_tag`; older clusters without identity may return null. `resourceTag` is the value of the `rawtree.com/cluster` AWS resource tag on eligible customer buckets and IAM roles.
 
-`create-cluster.databaseS3Access` is optional and independent from `s3Storage`. Provide it when databases may later use dedicated customer-owned buckets, including when the cluster uses RawTree-managed default storage. It contains `externalId` and `databaseBucketTag`; tag every customer database bucket with `rawtree.com/cluster=<databaseBucketTag>`. If both `s3Storage` and `databaseS3Access` are supplied, their External ID values must match. The role ARN and bucket destinations for a specific database are supplied later through `create-database.s3Storage`. Cluster list and get responses expose `database_s3_access` metadata only; credentials are never returned.
+`s3Storage` is optional. Omit it for RawTree-managed default storage. Custom storage requires `data` and `backups` destinations (each with `bucket` and optional `path`), plus `roleArn`. When specifying custom cluster storage, you must supply an explicit `s3StorageAccess.externalId` matching the IAM trust policy. Call `verify-cluster-s3-access` first, passing that same `s3StorageAccess.externalId` and the identical `s3Storage`, then reuse both for creation. Repeat verification after changing either.
+
+Example `create-cluster` tool arguments (choose replica counts and sizes from `list-cluster-sizes`):
+
+```json
+{
+  "organization": "acme",
+  "name": "production",
+  "replicas": 2,
+  "minimumSize": { "cpuCores": 2, "memoryGiB": 8 },
+  "maximumSize": { "cpuCores": 4, "memoryGiB": 16 },
+  "s3StorageAccess": {
+    "externalId": "rawtree-5b71c457-7d83-474b-9db9-6dc48a1ec042",
+    "resourceTag": "rawtree-dc1fb78e-341d-48f8-a183-9ecea12eb41d"
+  },
+  "s3Storage": {
+    "data": { "bucket": "acme-data", "path": "production/data" },
+    "backups": { "bucket": "acme-backups", "path": "production/backups" },
+    "roleArn": "arn:aws:iam::123456789012:role/RawTreeS3"
+  }
+}
+```
+
+For `verify-database-s3-access` and `create-database`, pass only the database name, scope, and `s3Storage`. The backend reuses the cluster's saved External ID and resource tag; neither tool accepts identity overrides. Tables inherit database storage, falling back to cluster storage when the database has none.
+
+The old `databaseS3Access` block, flat `dataBucket`/`backupBucket` fields, and `s3Storage.externalId` are rejected. These tools target the API introduced by [Platform PR #1482](https://github.com/rawtreedb/rawtree-platform/pull/1482) and must be released with that server contract.
 
 The RawTree API remains the authorization boundary: cluster access requires a user access token, and cluster creation, S3 verification, updates, pausing, and resuming additionally require organization-admin access.
 
