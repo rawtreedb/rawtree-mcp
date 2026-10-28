@@ -61,6 +61,8 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Returns:** Cluster IDs, names, creation times, lifecycle status, resources, whether each cluster can be paused or resumed, optional s3_storage metadata for customer-owned default storage, and s3_storage_access containing external_id and resource_tag (null for older clusters without saved identity). s3_storage exposes data and backups, each with bucket and path. An empty path means the bucket root. Role ARNs and secret credentials are never returned.
 
+With user authentication, discovery spans enabled regions. If a region is unavailable, healthy clusters are returned with unavailable_regions (region IDs and names). This is a partial list: do not infer that missing clusters do not exist; retry discovery. Each regional lookup is limited to five seconds. Authentication failures and total regional outages remain errors.
+
 **Auth:** The RawTree API requires a user access token and organization membership. Authorization is enforced by the API.
 
 **When to use:**

@@ -5,6 +5,7 @@ function fixture(
   apiUrl = 'https://api.rawtree.com',
   deployment = '1234abcd',
   gatewayFirst = true,
+  gatewayDuplicate = true,
 ) {
   const calls: { url: URL; headers: Headers }[] = [];
   let failEurope = false;
@@ -93,7 +94,12 @@ function fixture(
         organization: { name: 'acme' },
         clusters: europe
           ? [cluster, cluster]
-          : [cluster, { id: 'eu-cluster', name: 'europe' }],
+          : [
+              cluster,
+              ...(gatewayDuplicate
+                ? [{ id: 'eu-cluster', name: 'europe' }]
+                : []),
+            ],
       });
     }
     return Response.json({ data: [] });
@@ -163,16 +169,29 @@ it.each([
   expect(calls.at(-1)?.headers.get('X-RawTree-Deployment-Id')).toBe('1234abcd');
 });
 
-it('does not cache a partial list after regional failure and recovers on retry', async () => {
-  const { client, calls, failEurope } = fixture();
-  failEurope(true);
-  await expect(client.listClusters('acme')).rejects.toThrow(
-    'Europe unavailable',
+it('keeps healthy clusters usable during regional failure and recovers on retry', async () => {
+  const { client, calls, failEurope } = fixture(
+    'https://api.rawtree.com',
+    '1234abcd',
+    true,
+    false,
   );
+  failEurope(true);
+  expect(await client.listClusters('acme')).toMatchObject({
+    clusters: [{ id: 'us-cluster' }],
+    unavailable_regions: [
+      { id: 'eu', name: 'Ireland' },
+      { id: 'duplicate', name: 'Duplicate' },
+    ],
+  });
+  await client.listDatabases({ organization: 'acme', cluster: 'america' });
+  expect(calls.at(-1)?.url.hostname).toBe('api.rawtree.com');
   await expect(
     client.listDatabases({ organization: 'acme', cluster: 'europe' }),
-  ).rejects.toThrow('Europe unavailable');
-  expect(calls.some(({ url }) => url.pathname === '/v1/databases')).toBe(false);
+  ).rejects.toThrow('Some regions are unavailable');
+  expect(
+    calls.filter(({ url }) => url.pathname === '/v1/databases'),
+  ).toHaveLength(1);
   failEurope(false);
   await client.listDatabases({ organization: 'acme', cluster: 'europe' });
   expect(calls.at(-1)?.url.hostname).toBe(

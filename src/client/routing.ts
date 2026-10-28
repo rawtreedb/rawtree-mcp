@@ -174,10 +174,33 @@ export class ClusterRouting {
       organization = await this.organizationName(organizationId, signal);
     if (!organization) return {};
     signal?.throwIfAborted();
-    const response = await this.metadata(clustersPath(organization));
-    const target = records(response, 'clusters').find((item) =>
-      clusterId !== null ? item.id === clusterId : item.name === clusterName,
-    );
+    const path = clustersPath(organization);
+    const cached = this.cache.get(path);
+    const wasCached = cached !== undefined && cached.expires > Date.now();
+    let response = await this.metadata(path);
+    const findTarget = (value: unknown) =>
+      records(value, 'clusters').find((item) =>
+        clusterId !== null ? item.id === clusterId : item.name === clusterName,
+      );
+    let target = findTarget(response);
+    if (
+      !target &&
+      wasCached &&
+      records(response, 'unavailable_regions').length > 0
+    ) {
+      this.cache.delete(path);
+      response = await this.metadata(path);
+      signal?.throwIfAborted();
+      target = findTarget(response);
+    }
+    if (!target && records(response, 'unavailable_regions').length > 0) {
+      // Absence from a partial catalog cannot establish a gateway placement.
+      // Retry discovery next time so a recovered region is immediately usable.
+      this.cache.delete(path);
+      throw new Error(
+        'Some regions are unavailable. Retry loading the cluster before continuing.',
+      );
+    }
     return deploymentHeaders(target?.deployment_id, target?.cloud_region) ?? {};
   }
 }

@@ -31,7 +31,25 @@ describe('storage tool contracts', () => {
     const bodies: unknown[] = [];
     const rawtree = new RawTreeClient({
       apiKey: 'fixture-token',
-      fetchFn: async (_url, init) => {
+      fetchFn: async (input, init) => {
+        const url = new URL(String(input));
+        if (url.pathname === '/v1/organizations')
+          return Response.json({
+            organizations: [{ organization_id: 'org-id', name: 'acme' }],
+          });
+        if (url.pathname.endsWith('/regions'))
+          return Response.json({
+            regions: [
+              {
+                id: 'us',
+                name: 'Virginia',
+                cloud_region: 'us-east-1',
+                deployment_id: null,
+                enabled: true,
+                organization_id: null,
+              },
+            ],
+          });
         if (init?.method === 'GET') return Response.json({ clusters: [] });
         const body: unknown = JSON.parse(String(init?.body));
         bodies.push(body);

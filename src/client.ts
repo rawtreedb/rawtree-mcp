@@ -465,8 +465,11 @@ export class RawTreeClient {
       ? await this.requestJson('GET', '/v1/clusters', {
           query: { organization },
         })
-      : await discoverClusters(organization, this.regions, (path, headers) =>
-          this.requestJson('GET', path, { headers }),
+      : await discoverClusters(
+          organization,
+          this.regions,
+          (path, headers, signal) =>
+            this.requestJson('GET', path, { headers, signal }),
         );
     this.routing.remember(
       this.endpoint('/v1/clusters', { organization }),
