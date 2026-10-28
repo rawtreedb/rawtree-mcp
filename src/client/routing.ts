@@ -178,10 +178,20 @@ export class ClusterRouting {
     const cached = this.cache.get(path);
     const wasCached = cached !== undefined && cached.expires > Date.now();
     let response = await this.metadata(path);
-    const findTarget = (value: unknown) =>
-      records(value, 'clusters').find((item) =>
+    const findTarget = (value: unknown) => {
+      const target = records(value, 'clusters').find((item) =>
         clusterId !== null ? item.id === clusterId : item.name === clusterName,
       );
+      // A gateway stub cannot prove default placement while regional discovery
+      // is incomplete. Treat it as undiscovered so retry can resolve its region.
+      if (
+        records(value, 'unavailable_regions').length > 0 &&
+        !target?.region_id &&
+        !deploymentHeaders(target?.deployment_id, target?.cloud_region)
+      )
+        return undefined;
+      return target;
+    };
     let target = findTarget(response);
     if (
       !target &&

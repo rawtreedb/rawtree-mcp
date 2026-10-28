@@ -209,6 +209,49 @@ it('rejects an unknown region reference before executing a cluster operation', a
 });
 
 it.each([
+  { gatewayFirst: true, cached: true },
+  { gatewayFirst: false, cached: true },
+  { gatewayFirst: true, cached: false },
+  { gatewayFirst: false, cached: false },
+])('does not route gateway stubs during an outage and recovers on retry: %j', async ({
+  gatewayFirst,
+  cached,
+}) => {
+  const { client, calls, failEurope } = fixture(
+    'https://api.rawtree.com',
+    '1234abcd',
+    gatewayFirst,
+  );
+  failEurope(true);
+  if (cached) await client.listClusters('acme');
+  const operation = () =>
+    cached
+      ? client.listDatabases({ organization: 'acme', cluster: 'europe' })
+      : client.pauseCluster({ organization: 'acme', clusterId: 'eu-cluster' });
+  await expect(operation()).rejects.toThrow('Some regions are unavailable');
+  expect(calls.some(({ url }) => url.pathname === '/v1/databases')).toBe(false);
+  expect(calls.some(({ url }) => url.pathname.endsWith('/stop'))).toBe(false);
+  await client.listDatabases({ organization: 'acme', cluster: 'america' });
+  expect(calls.at(-1)?.url.hostname).toBe('api.rawtree.com');
+  failEurope(false);
+  await operation();
+  expect(calls.at(-1)?.url.hostname).toBe(
+    'api.1234abcd.eu-west-1.aws.rawtree.com',
+  );
+});
+
+it('refreshes a cached gateway stub immediately after its region recovers', async () => {
+  const { client, calls, failEurope } = fixture();
+  failEurope(true);
+  await client.listClusters('acme');
+  failEurope(false);
+  await client.listDatabases({ organization: 'acme', cluster: 'europe' });
+  expect(calls.at(-1)?.url.hostname).toBe(
+    'api.1234abcd.eu-west-1.aws.rawtree.com',
+  );
+});
+
+it.each([
   true,
   false,
 ])('prefers complete regional metadata regardless of gateway order (%s)', async (gatewayFirst) => {
