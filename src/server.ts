@@ -11,6 +11,7 @@ import {
   addLogTools,
   addOrganizationTools,
   addSavedQueryTools,
+  addServiceAccountTools,
   addTableTools,
   addWorkflowTools,
 } from './tools/index.js';
@@ -19,6 +20,7 @@ export type {
   ConnectorDestinationInput,
   ConnectorStatus,
   CreateConnectorInput,
+  CreateServiceAccountInput,
   KafkaConnectorSettingsInput,
   NewConnectorDestinationInput,
   RawTreeClientOptions,
@@ -51,6 +53,7 @@ export function createMcpServer(
   });
 
   addOrganizationTools(server, rawtree);
+  addServiceAccountTools(server, rawtree);
   addDataTools(server, rawtree, options);
   addSavedQueryTools(server, rawtree, options);
   addTableTools(server, rawtree, options);

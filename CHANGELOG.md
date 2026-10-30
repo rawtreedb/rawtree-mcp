@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.4.3
+
+- Add `create-service-account` and `list-service-accounts` for organization admins using user sessions or OAuth. Hosted MCP requires the Platform OAuth create/list support; API keys cannot manage service accounts.
 
 - Discover user-authenticated clusters across enabled regional deployments and route requests to their public API hosts. Preserve authoritative regional metadata over gateway duplicates. Bound regional discovery to five seconds per deployment, return healthy clusters with `unavailable_regions` during partial outages, and safely retry routing for undiscovered clusters after recovery. Authentication failures and total outages remain errors.
 

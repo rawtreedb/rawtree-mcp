@@ -7,5 +7,6 @@ export * from './databases.js';
 export * from './logs.js';
 export * from './organizations.js';
 export * from './saved-queries.js';
+export * from './service-accounts.js';
 export * from './tables.js';
 export * from './workflows.js';

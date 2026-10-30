@@ -515,6 +515,19 @@ Structured log filters include:
 - `update-organization-member` — Change an accepted member's role to `admin` or `member` after explicit confirmation.
 - `remove-organization-member` — Remove an accepted member and revoke organization access after explicit confirmation.
 
+### Service accounts
+
+- `list-service-accounts` — List an organization's service account IDs, names, descriptions, and stored roles.
+- `create-service-account` — Create a service account with an immutable name, optional description, and optional `member` (default) or `admin` role.
+
+Both tools require an explicit `organization` name and an organization admin
+using a user session or OAuth. API keys cannot manage service accounts. No
+cluster or database is required. Names contain 1–128 lowercase letters or
+digits separated by single hyphens; descriptions accept up to 2000 UTF-8 bytes
+without null characters. Creation returns the account object; listing returns
+an array of accounts. These tools create identities without credentials. API
+key permissions are configured separately.
+
 ### Clusters
 
 - `list-clusters` — List dedicated clusters accessible in an organization. User-authenticated discovery spans enabled regions with a five-second limit per deployment. Partial outages return healthy clusters plus `unavailable_regions` (IDs and names); retry before concluding a missing cluster does not exist. Authentication failures and total regional outages remain errors.
