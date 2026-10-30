@@ -10,6 +10,7 @@ export type {
   S3StorageInput,
 } from './client/storage.js';
 
+import { z } from 'zod';
 import packageJson from '../package.json' with { type: 'json' };
 import { discoverClusters } from './client/discovery.js';
 import {
@@ -51,6 +52,12 @@ export interface RawTreeScope {
   cluster?: string;
   database?: string;
   organization?: string;
+}
+
+export interface CreateServiceAccountInput {
+  name: string;
+  description?: string;
+  role?: 'member' | 'admin';
 }
 
 export interface ConnectorDestinationInput {
@@ -185,6 +192,48 @@ export class RawTreeClient {
     return this.requestJson(
       'GET',
       `${this.apiPath('/organizations')}/${encodePathPart(organization)}/members`,
+    );
+  }
+
+  private async serviceAccountsPath(organization: string): Promise<string> {
+    const response = z
+      .object({
+        organizations: z.array(
+          z.object({
+            name: z.string(),
+            organization_id: z.uuid(),
+          }),
+        ),
+      })
+      .parse(await this.listOrganizations());
+    const selected = response.organizations.find(
+      (item) => item.name === organization,
+    );
+    if (!selected) {
+      throw new Error(
+        `Organization '${organization}' was not found. Use list-organizations to select an organization.`,
+      );
+    }
+    return `${this.apiPath('/organizations')}/${encodePathPart(selected.organization_id)}/service-accounts`;
+  }
+
+  async listServiceAccounts(organization: string): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      await this.serviceAccountsPath(organization),
+    );
+  }
+
+  async createServiceAccount(
+    organization: string,
+    input: CreateServiceAccountInput,
+  ): Promise<unknown> {
+    return this.requestJson(
+      'POST',
+      await this.serviceAccountsPath(organization),
+      {
+        body: { ...input },
+      },
     );
   }
 
