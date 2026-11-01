@@ -8,6 +8,8 @@ import {
   addConnectorTools,
   addDatabaseTools,
   addDataTools,
+  addFederationIssuerTools,
+  addFederationRuleTools,
   addLogTools,
   addOrganizationTools,
   addSavedQueryTools,
@@ -54,6 +56,8 @@ export function createMcpServer(
 
   addOrganizationTools(server, rawtree);
   addServiceAccountTools(server, rawtree);
+  addFederationIssuerTools(server, rawtree);
+  addFederationRuleTools(server, rawtree);
   addDataTools(server, rawtree, options);
   addSavedQueryTools(server, rawtree, options);
   addTableTools(server, rawtree, options);
@@ -67,3 +71,9 @@ export function createMcpServer(
 
   return server;
 }
+
+export type {
+  FederationIssuerInput,
+  FederationRuleInput,
+  FederationScope,
+} from './federation.js';
