@@ -528,6 +528,75 @@ without null characters. Creation returns the account object; listing returns
 an array of accounts. These tools create identities without credentials. API
 key permissions are configured separately.
 
+### Workload identity federation
+
+These tools manage organization issuers and cluster rules. Every call requires
+an explicit `organization`; rule tools also require `cluster`. Use an
+organization-admin user session or OAuth token with `full_access`. API keys and
+workload tokens cannot manage this configuration.
+
+| Tool | Input beyond scope | Response |
+| --- | --- | --- |
+| `list-federation-issuers` | None | Array of issuer objects |
+| `get-federation-issuer` | `id` | Issuer object |
+| `create-federation-issuer` | Issuer configuration | Issuer object |
+| `update-federation-issuer` | `id` and complete issuer configuration | Issuer object |
+| `delete-federation-issuer` | `id` | `null` |
+| `list-federation-rules` | None | Array of rule objects |
+| `get-federation-rule` | `id` | Rule object |
+| `create-federation-rule` | Rule configuration | Rule object |
+| `update-federation-rule` | `id` and complete rule configuration | Rule object |
+| `delete-federation-rule` | `id` | `null` |
+
+Create an issuer through discovery:
+
+```json
+{
+  "organization": "acme",
+  "name": "github",
+  "issuer_url": "https://token.actions.githubusercontent.com",
+  "jwks_source": "discovery"
+}
+```
+
+Alternatively, set `jwks_source` to `explicit_url` and supply `jwks_url`.
+Saving an issuer does not fetch signing keys. Create a rule using the returned
+issuer ID and an existing service account ID (illustrative UUIDs below):
+
+```json
+{
+  "organization": "acme",
+  "cluster": "production",
+  "name": "ci-read",
+  "issuer_id": "11111111-1111-4111-8111-111111111111",
+  "allowed_audiences": ["rawtree"],
+  "claim_conditions": {"sub": "repo:acme/app:ref:refs/heads/main"},
+  "principal_type": "service_account",
+  "principal_id": "22222222-2222-4222-8222-222222222222",
+  "permission": "read_only",
+  "database": "default",
+  "enabled": true
+}
+```
+
+A user principal must be your own user ID. Use exactly one access mode:
+`permission` (`admin`, `read_only`, or `read_write`) or a nonempty
+`database_roles` array. Claim conditions are exact string matches, not
+expressions or row filters. The database and enabled state must be explicit.
+
+**Updates replace the entire configuration (PUT).** Add `id` to the complete
+create input; omitted optional fields are cleared. Changes invalidate existing
+workload access tokens. Delete referencing rules before deleting their issuer;
+an issuer still in use returns 409.
+
+Responses preserve the API's snake_case fields and nullable values. Issuers
+include configuration, `id`, `organization_id`, `created_at`, and `updated_at`.
+Rules also include `cluster_id` and the resolved principal details. Empty lists
+are `[]`; successful deletions are `null`.
+
+These tools require the Platform federation-management OAuth routes. Deploy
+that backend change together with the hosted MCP dependency pin.
+
 ### Clusters
 
 - `list-clusters` — List dedicated clusters accessible in an organization. User-authenticated discovery spans enabled regions with a five-second limit per deployment. Partial outages return healthy clusters plus `unavailable_regions` (IDs and names); retry before concluding a missing cluster does not exist. Authentication failures and total regional outages remain errors.
@@ -691,6 +760,24 @@ pnpm build
 ```bash
 claude mcp add rawtree -e RAWTREE_API_KEY=rt_xxxxxxxxx -- node /absolute/path/to/rawtree-mcp/dist/index.js
 ```
+
+### Live federation test
+
+The default suite uses mocked HTTP responses. To exercise all ten federation
+tools against a bootstrapped Platform with the OAuth management routes, set:
+
+```bash
+export RAWTREE_LIVE_API_URL=http://localhost:8206
+export RAWTREE_LIVE_ORGANIZATION=your-local-organization
+export RAWTREE_LIVE_CLUSTER=your-local-cluster
+export RAWTREE_LIVE_USER_ID=your-user-uuid
+# Supply RAWTREE_LIVE_OAUTH_TOKEN securely from a user OAuth grant with full_access.
+pnpm test tests/live/federation.test.ts
+```
+
+The live test creates temporary issuers and rules, verifies replacement and
+in-use deletion behavior, and removes its resources. It is skipped when
+`RAWTREE_LIVE_API_URL` is unset. Never use production credentials for this test.
 
 ### Live Testing with an MCP Client
 

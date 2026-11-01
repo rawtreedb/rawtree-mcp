@@ -4,6 +4,14 @@ import {
   s3StorageAccessRequestBody,
   s3StorageRequestBody,
 } from './client/storage.js';
+import {
+  type FederationIssuerInput,
+  type FederationRuleInput,
+  type FederationScope,
+  federationScope,
+  issuerConfiguration,
+  ruleConfiguration,
+} from './federation.js';
 
 export type {
   S3StorageAccessInput,
@@ -195,7 +203,7 @@ export class RawTreeClient {
     );
   }
 
-  private async serviceAccountsPath(organization: string): Promise<string> {
+  private async organizationPath(organization: string): Promise<string> {
     const response = z
       .object({
         organizations: z.array(
@@ -214,13 +222,13 @@ export class RawTreeClient {
         `Organization '${organization}' was not found. Use list-organizations to select an organization.`,
       );
     }
-    return `${this.apiPath('/organizations')}/${encodePathPart(selected.organization_id)}/service-accounts`;
+    return `${this.apiPath('/organizations')}/${encodePathPart(selected.organization_id)}`;
   }
 
   async listServiceAccounts(organization: string): Promise<unknown> {
     return this.requestJson(
       'GET',
-      await this.serviceAccountsPath(organization),
+      `${await this.organizationPath(organization)}/service-accounts`,
     );
   }
 
@@ -230,10 +238,114 @@ export class RawTreeClient {
   ): Promise<unknown> {
     return this.requestJson(
       'POST',
-      await this.serviceAccountsPath(organization),
+      `${await this.organizationPath(organization)}/service-accounts`,
       {
         body: { ...input },
       },
+    );
+  }
+
+  async listFederationIssuers(organization: string): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      `${await this.organizationPath(organization)}/federation-issuers`,
+    );
+  }
+
+  async getFederationIssuer(
+    id: string,
+    organization: string,
+  ): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      `${await this.organizationPath(organization)}/federation-issuers/${encodePathPart(id)}`,
+    );
+  }
+
+  async createFederationIssuer(
+    input: FederationIssuerInput,
+    organization: string,
+  ): Promise<unknown> {
+    const body = issuerConfiguration.parse(input);
+    return this.requestJson(
+      'POST',
+      `${await this.organizationPath(organization)}/federation-issuers`,
+      { body },
+    );
+  }
+
+  async updateFederationIssuer(
+    id: string,
+    input: FederationIssuerInput,
+    organization: string,
+  ): Promise<unknown> {
+    const body = issuerConfiguration.parse(input);
+    return this.requestJson(
+      'PUT',
+      `${await this.organizationPath(organization)}/federation-issuers/${encodePathPart(id)}`,
+      { body },
+    );
+  }
+
+  async deleteFederationIssuer(
+    id: string,
+    organization: string,
+  ): Promise<unknown> {
+    return this.requestJson(
+      'DELETE',
+      `${await this.organizationPath(organization)}/federation-issuers/${encodePathPart(id)}`,
+    );
+  }
+
+  async listFederationRules(scope: FederationScope): Promise<unknown> {
+    return this.requestJson('GET', `${this.apiPath('/federation-rules')}`, {
+      query: federationScope.parse(scope),
+    });
+  }
+
+  async getFederationRule(
+    id: string,
+    scope: FederationScope,
+  ): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      `${this.apiPath('/federation-rules')}/${encodePathPart(id)}`,
+      { query: federationScope.parse(scope) },
+    );
+  }
+
+  async createFederationRule(
+    input: FederationRuleInput,
+    scope: FederationScope,
+  ): Promise<unknown> {
+    const body = ruleConfiguration.parse(input);
+    return this.requestJson('POST', `${this.apiPath('/federation-rules')}`, {
+      body,
+      query: federationScope.parse(scope),
+    });
+  }
+
+  async updateFederationRule(
+    id: string,
+    input: FederationRuleInput,
+    scope: FederationScope,
+  ): Promise<unknown> {
+    const body = ruleConfiguration.parse(input);
+    return this.requestJson(
+      'PUT',
+      `${this.apiPath('/federation-rules')}/${encodePathPart(id)}`,
+      { body, query: federationScope.parse(scope) },
+    );
+  }
+
+  async deleteFederationRule(
+    id: string,
+    scope: FederationScope,
+  ): Promise<unknown> {
+    return this.requestJson(
+      'DELETE',
+      `${this.apiPath('/federation-rules')}/${encodePathPart(id)}`,
+      { query: federationScope.parse(scope) },
     );
   }
 
