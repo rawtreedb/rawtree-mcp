@@ -187,3 +187,29 @@ describe('automatic cluster routing', () => {
     }
   });
 });
+
+describe('cluster-bound workload credentials', () => {
+  it('lists only the bound cluster and sends queries without regional discovery', async () => {
+    const { calls, fetchFn } = server();
+    const client = new RawTreeClient({
+      apiKey: 'workload.jwt.credential',
+      credentialScope: 'cluster',
+      fetchFn,
+    });
+    await client.listClusters('acme');
+    await client.query('SELECT 1', scope);
+    expect(calls.map(({ url }) => url.pathname)).toEqual([
+      '/v1/clusters',
+      '/v1/query',
+    ]);
+    for (const { headers } of calls) {
+      expect(headers.get('Authorization')).toBe(
+        'Bearer workload.jwt.credential',
+      );
+      expect(headers.has('X-RawTree-Deployment-Id')).toBe(false);
+      expect(headers.has('X-RawTree-Region')).toBe(false);
+    }
+    expect(calls[1]?.url.searchParams.get('organization')).toBe('acme');
+    expect(calls[1]?.url.searchParams.get('cluster')).toBe('production');
+  });
+});
