@@ -33,9 +33,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@modelcontextprotocol/express": "2.0.0",
-    "@modelcontextprotocol/node": "2.0.0",
-    "@modelcontextprotocol/server": "2.0.0",
+    "@modelcontextprotocol/express": "2.0.2",
+    "@modelcontextprotocol/node": "2.1.2",
+    "@modelcontextprotocol/server": "2.4.0",
+    "@opentelemetry/api": "1.9.0",
+    "@opentelemetry/core": "2.12.0",
+    "@opentelemetry/exporter-trace-otlp-http": "0.223.0",
+    "@opentelemetry/sdk-node": "0.223.0",
     "dotenv": "17.4.2",
     "express": "5.2.1",
     "minimist": "1.2.8",
@@ -46,7 +50,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.10",
-    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/client": "2.4.0",
     "@types/express": "5.0.6",
     "@types/minimist": "1.2.5",
     "@types/node": "25.9.1",

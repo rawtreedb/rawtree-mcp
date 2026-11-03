@@ -803,6 +803,38 @@ pnpm tsc --watch
 
 Restart the MCP client session after each rebuild.
 
+## OpenTelemetry preparation
+
+The CLI can register an OpenTelemetry trace exporter when
+`OTEL_EXPORTER_OTLP_ENDPOINT` is set. Export uses OTLP over HTTP with JSON:
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 \
+  rawtree-mcp --api-key "$RAWTREE_API_KEY"
+```
+
+The exporter appends `/v1/traces` to that base endpoint. Standard
+`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` and OTLP header settings can override the
+destination and authentication after the base endpoint enables tracing.
+`OTEL_SERVICE_NAME` defaults to `rawtree-mcp`; `OTEL_SDK_DISABLED=true` disables
+the setup. Without a base endpoint, the CLI does not start an SDK or exporter.
+Pending traces flush on SIGINT, SIGTERM, startup failure, and normal stdio exit.
+
+Only W3C trace context (`traceparent` and `tracestate`) is propagated to the
+RawTree API. Baggage is excluded. Automatic resource detection is disabled
+because process attributes can contain command-line credentials. This setup
+does not export metrics or logs, or install HTTP auto-instrumentation.
+
+The released MCP SDK is pinned to **2.4.0**, which does not emit built-in MCP
+operation spans or duration metrics. The exporter and API propagation are
+preparation for SDK 2.5.0; a normal standalone session will not yet produce
+per-tool traces. Before upgrading, verify success/error spans, review JSON-RPC
+error messages and exception events for private data, and test `_meta` trace
+context with real clients.
+
+Embedded servers use their host's OpenTelemetry provider. Importing the package
+root does not start the Node SDK or import Node exporters.
+
 ## Programmatic usage
 
 The package root exposes the reusable MCP server layer. The Node HTTP transport

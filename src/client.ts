@@ -32,6 +32,7 @@ import {
 } from './client/http.js';
 import { RegionCatalog } from './client/regions.js';
 import { ClusterRouting, deploymentApiUrl } from './client/routing.js';
+import { traceContextHeaders } from './telemetry.js';
 
 import type {
   CreateSavedQueryInput,
@@ -1135,6 +1136,7 @@ export class RawTreeClient {
       ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
       ...options.headers,
       ...routingHeaders,
+      ...traceContextHeaders(),
     };
     const response = await this.fetchFn(deploymentApiUrl(url, headers), {
       method,
