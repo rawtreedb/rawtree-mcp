@@ -52,6 +52,7 @@ function extractBearerApiKeyFromWebRequest(req: Request): string | null {
 export async function runHttp(
   port: number,
   config: HttpTransportOptions = {},
+  onShutdown?: () => Promise<void>,
 ): Promise<Server> {
   const app = createMcpExpressApp({ jsonLimit: `${MAX_MCP_REQUEST_BYTES}b` });
 
@@ -67,9 +68,11 @@ export async function runHttp(
       }
       return createMcpServer(new RawTreeClient({ ...config, apiKey }));
     },
-    { legacy: 'reject' },
+    { legacy: 'reject', maxRequestBodySize: MAX_MCP_REQUEST_BYTES },
   );
-  const modernNodeHandler = toNodeHandler(modernHandler);
+  const modernNodeHandler = toNodeHandler(modernHandler, {
+    maxRequestBodySize: MAX_MCP_REQUEST_BYTES,
+  });
 
   app.get('/health', (_req: IncomingMessage, res: ServerResponse) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -80,7 +83,11 @@ export async function runHttp(
     '/mcp',
     async (req: IncomingMessage & { body?: unknown }, res: ServerResponse) => {
       const webRequest = await toWebRequest(req, req.body);
-      if (!(await isLegacyRequest(webRequest, req.body))) {
+      if (
+        !(await isLegacyRequest(webRequest, req.body, {
+          maxRequestBodySize: MAX_MCP_REQUEST_BYTES,
+        }))
+      ) {
         const apiKey = extractBearerApiKeyFromWebRequest(webRequest);
         if (!apiKey) {
           sendJsonRpcError(
@@ -115,6 +122,7 @@ export async function runHttp(
         }
 
         transport = new NodeStreamableHTTPServerTransport({
+          maxRequestBodySize: MAX_MCP_REQUEST_BYTES,
           sessionIdGenerator: () => randomUUID(),
           onsessioninitialized: (sid) => {
             sessions[sid] = transport!;
@@ -167,6 +175,7 @@ export async function runHttp(
       }
       await modernHandler.close().catch(() => {});
       server.close();
+      await onShutdown?.();
       process.exit(0);
     };
     process.on('SIGINT', shutdown);
