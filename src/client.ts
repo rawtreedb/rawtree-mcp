@@ -162,9 +162,7 @@ function sameDestination(
 }
 
 export class RawTreeClient {
-  private readonly regions = new RegionCatalog((path) =>
-    this.requestJson('GET', path),
-  );
+  private readonly regions: RegionCatalog;
   private readonly routing = new ClusterRouting((path) => {
     const url = this.endpoint(path);
     const organization = url.searchParams.get('organization');
@@ -190,6 +188,10 @@ export class RawTreeClient {
     this.credentialScope =
       options.credentialScope ??
       (options.apiKey.startsWith('rt_') ? 'cluster' : 'user');
+    this.regions = new RegionCatalog(
+      (path) => this.requestJson('GET', path),
+      this.credentialScope,
+    );
     this.organization = options.organization;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
   }
@@ -658,7 +660,6 @@ export class RawTreeClient {
       headers: await this.regions.headers(
         placement.organization,
         placement.regionId,
-        this.apiKey,
       ),
     });
   }
@@ -686,7 +687,7 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson('POST', this.apiPath('/clusters'), {
       query: { organization },
-      headers: await this.regions.headers(organization, regionId, this.apiKey),
+      headers: await this.regions.headers(organization, regionId),
       body: {
         name,
         ...(s3StorageAccess === undefined
@@ -734,11 +735,7 @@ export class RawTreeClient {
       this.apiPath('/clusters/verify-s3-access'),
       {
         query: { organization },
-        headers: await this.regions.headers(
-          organization,
-          regionId,
-          this.apiKey,
-        ),
+        headers: await this.regions.headers(organization, regionId),
         body: {
           s3_storage_access: s3StorageAccessRequestBody(s3StorageAccess),
           s3_storage: s3StorageRequestBody(s3Storage),

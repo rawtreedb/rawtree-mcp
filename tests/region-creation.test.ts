@@ -1,6 +1,6 @@
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { describe, expect, it } from 'vitest';
-import { RawTreeClient } from '../src/client.js';
+import { RawTreeClient, type RawTreeClientOptions } from '../src/client.js';
 import { createMcpServer } from '../src/server.js';
 
 const regionId = '11111111-1111-4111-8111-111111111111';
@@ -28,6 +28,7 @@ const creation = {
 function fixture(
   overrides: Record<string, unknown> = {},
   apiKey = 'session.fixture',
+  credentialScope?: RawTreeClientOptions['credentialScope'],
 ) {
   const calls: { path: string; headers: Headers; body: unknown }[] = [];
   const fetchFn: typeof fetch = async (input, init) => {
@@ -45,8 +46,40 @@ function fixture(
           : { ok: true },
     );
   };
-  return { rawtree: new RawTreeClient({ apiKey, fetchFn }), calls };
+  return {
+    rawtree: new RawTreeClient({ apiKey, credentialScope, fetchFn }),
+    calls,
+  };
 }
+
+const regionalOperations = [
+  {
+    name: 'listClusterSizes',
+    path: '/v1/clusters/sizes',
+    invoke: (client: RawTreeClient, selectedRegion?: string) =>
+      client.listClusterSizes({
+        organization: 'acme',
+        regionId: selectedRegion,
+      }),
+  },
+  {
+    name: 'createCluster',
+    path: '/v1/clusters',
+    invoke: (client: RawTreeClient, selectedRegion?: string) =>
+      client.createCluster({ ...creation, regionId: selectedRegion }),
+  },
+  {
+    name: 'verifyClusterS3Access',
+    path: '/v1/clusters/verify-s3-access',
+    invoke: (client: RawTreeClient, selectedRegion?: string) =>
+      client.verifyClusterS3Access({
+        organization: 'acme',
+        regionId: selectedRegion,
+        s3Storage: storage,
+        s3StorageAccess: { externalId: 'external' },
+      }),
+  },
+];
 
 describe('region-aware creation', () => {
   it('routes MCP discovery, prerequisites and creation through the selected region', async () => {
@@ -152,5 +185,84 @@ describe('region-aware creation', () => {
       'user credential',
     );
     expect(apiKey.calls).toHaveLength(0);
+  });
+});
+
+describe.each([
+  { apiKey: 'rt_fixture', credentialScope: undefined },
+  { apiKey: 'rt_fixture', credentialScope: 'cluster' },
+  { apiKey: 'workload.jwt.fixture', credentialScope: 'cluster' },
+] as const)('cluster credentials: $apiKey / $credentialScope', ({
+  apiKey,
+  credentialScope,
+}) => {
+  it('rejects region discovery before sending any request', async () => {
+    const { rawtree, calls } = fixture({}, apiKey, credentialScope);
+    await expect(rawtree.listRegions('acme')).rejects.toThrow(
+      'user credential',
+    );
+    expect(calls).toEqual([]);
+  });
+
+  it.each(
+    regionalOperations,
+  )('rejects region selection for $name before sending any request', async ({
+    invoke,
+  }) => {
+    const { rawtree, calls } = fixture({}, apiKey, credentialScope);
+    await expect(invoke(rawtree, regionId)).rejects.toThrow('user credential');
+    expect(calls).toEqual([]);
+  });
+
+  it.each(
+    regionalOperations,
+  )('keeps $name without region selection on the default gateway', async ({
+    invoke,
+    path,
+  }) => {
+    const { rawtree, calls } = fixture({}, apiKey, credentialScope);
+    await invoke(rawtree);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.path).toBe(path);
+    expect(calls[0]?.headers.get('Authorization')).toBe(`Bearer ${apiKey}`);
+    expect(calls[0]?.headers.has('X-RawTree-Deployment-Id')).toBe(false);
+    expect(calls[0]?.headers.has('X-RawTree-Region')).toBe(false);
+  });
+});
+
+describe.each([
+  { apiKey: 'session.fixture', credentialScope: undefined },
+  { apiKey: 'oauth.fixture', credentialScope: 'user' },
+  { apiKey: 'rt_fixture', credentialScope: 'user' },
+] as const)('user routing: $apiKey / $credentialScope', ({
+  apiKey,
+  credentialScope,
+}) => {
+  it('allows region discovery', async () => {
+    const { rawtree, calls } = fixture({}, apiKey, credentialScope);
+    await expect(rawtree.listRegions('acme')).resolves.toEqual({
+      regions: [region],
+    });
+    expect(calls.map(({ path }) => path)).toEqual([
+      '/v1/organizations',
+      '/v1/organizations/org-id/regions',
+    ]);
+  });
+
+  it.each(
+    regionalOperations,
+  )('routes $name through the selected region', async ({ invoke, path }) => {
+    const { rawtree, calls } = fixture({}, apiKey, credentialScope);
+    await invoke(rawtree, regionId);
+    expect(calls.map(({ path }) => path)).toEqual([
+      '/v1/organizations',
+      '/v1/organizations/org-id/regions',
+      path,
+    ]);
+    expect(calls.at(-1)?.headers.get('Authorization')).toBe(`Bearer ${apiKey}`);
+    expect(calls.at(-1)?.headers.get('X-RawTree-Deployment-Id')).toBe(
+      'abcd1234',
+    );
+    expect(calls.at(-1)?.headers.get('X-RawTree-Region')).toBe('eu-central-1');
   });
 });
