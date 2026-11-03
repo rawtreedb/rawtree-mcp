@@ -187,3 +187,55 @@ describe('automatic cluster routing', () => {
     }
   });
 });
+
+describe('cluster-bound workload credentials', () => {
+  it.each([
+    { apiKey: 'rt_fixture', credentialScope: undefined },
+    { apiKey: 'rt_fixture', credentialScope: 'cluster' },
+    { apiKey: 'workload.jwt.credential', credentialScope: 'cluster' },
+  ] as const)('lists only the bound cluster and sends queries without regional discovery: $apiKey / $credentialScope', async ({
+    apiKey,
+    credentialScope,
+  }) => {
+    const { calls, fetchFn } = server();
+    const client = new RawTreeClient({
+      apiKey,
+      credentialScope,
+      fetchFn,
+    });
+    await client.listClusters('acme');
+    await client.query('SELECT 1', scope);
+    expect(calls.map(({ url }) => url.pathname)).toEqual([
+      '/v1/clusters',
+      '/v1/query',
+    ]);
+    for (const { headers } of calls) {
+      expect(headers.get('Authorization')).toBe(`Bearer ${apiKey}`);
+      expect(headers.has('X-RawTree-Deployment-Id')).toBe(false);
+      expect(headers.has('X-RawTree-Region')).toBe(false);
+    }
+    expect(calls[1]?.url.searchParams.get('organization')).toBe('acme');
+    expect(calls[1]?.url.searchParams.get('cluster')).toBe('production');
+  });
+
+  it('honors explicit user routing even when the credential has an API-key prefix', async () => {
+    const { calls, fetchFn } = server();
+    const client = new RawTreeClient({
+      apiKey: 'rt_fixture',
+      credentialScope: 'user',
+      fetchFn,
+    });
+    await client.listClusters('acme');
+    await client.query('SELECT 1', scope);
+    expect(calls.map(({ url }) => url.pathname)).toEqual([
+      '/v1/organizations',
+      `/v1/organizations/${organizationId}/regions`,
+      '/v1/clusters',
+      '/v1/query',
+    ]);
+    expectRouting(calls.at(-1)?.headers ?? new Headers());
+    expect(calls.at(-1)?.headers.get('Authorization')).toBe(
+      'Bearer rt_fixture',
+    );
+  });
+});

@@ -20,9 +20,16 @@ const regions = z.object({
 });
 
 export class RegionCatalog {
-  constructor(private readonly load: LoadMetadata) {}
+  constructor(
+    private readonly load: LoadMetadata,
+    private readonly credentialScope: 'cluster' | 'user',
+  ) {}
 
   async list(organization: string) {
+    if (this.credentialScope === 'cluster')
+      throw new Error(
+        'Region discovery and selection require a user credential such as OAuth.',
+      );
     const response = organizations.parse(await this.load('/v1/organizations'));
     const owner = response.organizations.find(
       (item) => item.name === organization,
@@ -39,13 +46,8 @@ export class RegionCatalog {
   async headers(
     organization: string | undefined,
     regionId: string | undefined,
-    credential: string,
   ): Promise<Record<string, string>> {
     if (regionId === undefined) return {};
-    if (credential.startsWith('rt_'))
-      throw new Error(
-        'Region selection requires a user credential such as OAuth.',
-      );
     if (!organization)
       throw new Error('Provide organization when selecting a region.');
     const response = await this.list(organization);

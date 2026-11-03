@@ -49,6 +49,8 @@ const DEFAULT_USER_AGENT = `rawtree-mcp/${packageJson.version}`;
 export interface RawTreeClientOptions {
   fetchFn?: typeof fetch;
   apiKey: string;
+  /** Cluster-bound credentials use gateway routing, without user discovery. */
+  credentialScope?: 'cluster' | 'user';
   apiUrl?: string;
   cluster?: string;
   database?: string;
@@ -160,9 +162,7 @@ function sameDestination(
 }
 
 export class RawTreeClient {
-  private readonly regions = new RegionCatalog((path) =>
-    this.requestJson('GET', path),
-  );
+  private readonly regions: RegionCatalog;
   private readonly routing = new ClusterRouting((path) => {
     const url = this.endpoint(path);
     const organization = url.searchParams.get('organization');
@@ -175,6 +175,7 @@ export class RawTreeClient {
   private readonly database?: string;
   private readonly fetchFn: typeof fetch;
   private readonly apiKey: string;
+  private readonly credentialScope: 'cluster' | 'user';
   private readonly organization?: string;
   private readonly userAgent: string;
 
@@ -184,6 +185,13 @@ export class RawTreeClient {
     this.database = options.database;
     this.fetchFn = options.fetchFn ?? globalThis.fetch.bind(globalThis);
     this.apiKey = options.apiKey;
+    this.credentialScope =
+      options.credentialScope ??
+      (options.apiKey.startsWith('rt_') ? 'cluster' : 'user');
+    this.regions = new RegionCatalog(
+      (path) => this.requestJson('GET', path),
+      this.credentialScope,
+    );
     this.organization = options.organization;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
   }
@@ -622,16 +630,17 @@ export class RawTreeClient {
 
   async listClusters(organization: string): Promise<unknown> {
     const version = this.routing.version;
-    const result = this.apiKey.startsWith('rt_')
-      ? await this.requestJson('GET', '/v1/clusters', {
-          query: { organization },
-        })
-      : await discoverClusters(
-          organization,
-          this.regions,
-          (path, headers, signal) =>
-            this.requestJson('GET', path, { headers, signal }),
-        );
+    const result =
+      this.credentialScope === 'cluster'
+        ? await this.requestJson('GET', '/v1/clusters', {
+            query: { organization },
+          })
+        : await discoverClusters(
+            organization,
+            this.regions,
+            (path, headers, signal) =>
+              this.requestJson('GET', path, { headers, signal }),
+          );
     this.routing.remember(
       this.endpoint('/v1/clusters', { organization }),
       result,
@@ -651,7 +660,6 @@ export class RawTreeClient {
       headers: await this.regions.headers(
         placement.organization,
         placement.regionId,
-        this.apiKey,
       ),
     });
   }
@@ -679,7 +687,7 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson('POST', this.apiPath('/clusters'), {
       query: { organization },
-      headers: await this.regions.headers(organization, regionId, this.apiKey),
+      headers: await this.regions.headers(organization, regionId),
       body: {
         name,
         ...(s3StorageAccess === undefined
@@ -727,11 +735,7 @@ export class RawTreeClient {
       this.apiPath('/clusters/verify-s3-access'),
       {
         query: { organization },
-        headers: await this.regions.headers(
-          organization,
-          regionId,
-          this.apiKey,
-        ),
+        headers: await this.regions.headers(organization, regionId),
         body: {
           s3_storage_access: s3StorageAccessRequestBody(s3StorageAccess),
           s3_storage: s3StorageRequestBody(s3Storage),
@@ -1121,9 +1125,10 @@ export class RawTreeClient {
   ): Promise<string> {
     const hasBody = options.body !== undefined;
     const url = this.endpoint(path, options.query);
-    const routingHeaders = this.apiKey.startsWith('rt_')
-      ? {}
-      : await this.routing.headers(url, options.signal);
+    const routingHeaders =
+      this.credentialScope === 'cluster'
+        ? {}
+        : await this.routing.headers(url, options.signal);
     const headers = {
       Authorization: `Bearer ${this.apiKey}`,
       'User-Agent': this.userAgent,
