@@ -4,12 +4,20 @@ import { RawTreeClient } from '../../src/client.js';
 import { createMcpServer } from '../../src/server.js';
 
 const integrationId = '00000000-0000-4000-8000-000000000001';
-const apiUrl = 'https://api.rawtree.com/v1/organizations/acme%20team';
+const organizationId = '00000000-0000-4000-8000-000000000002';
+const organizationsUrl = 'https://api.rawtree.com/v1/organizations';
+const apiUrl = `${organizationsUrl}/${organizationId}`;
+const organizations = {
+  organizations: [
+    { organization_id: '00000000-0000-4000-8000-000000000003', name: 'acme' },
+    { organization_id: organizationId, name: 'acme team' },
+  ],
+};
 const integrations = {
   integrations: [
     {
       id: integrationId,
-      organization_id: '00000000-0000-4000-8000-000000000002',
+      organization_id: organizationId,
       type: 'slack',
       settings: {
         team_id: 'T0123456789',
@@ -42,7 +50,8 @@ describe('integration MCP tools', () => {
   });
 
   async function connect(responses: Response[] = [], appUrl?: string) {
-    const fetchFn = vi.fn<typeof fetch>(async () => {
+    const fetchFn = vi.fn<typeof fetch>(async (url) => {
+      if (String(url) === organizationsUrl) return json(organizations);
       const response = responses.shift();
       if (!response) throw new Error('Unexpected API request.');
       return response;
@@ -59,7 +68,9 @@ describe('integration MCP tools', () => {
     closeables.push(client, server);
     await server.connect(serverTransport);
     await client.connect(clientTransport);
-    return { client, fetchFn };
+    const apiCalls = () =>
+      fetchFn.mock.calls.filter(([url]) => String(url) !== organizationsUrl);
+    return { client, fetchFn, apiCalls };
   }
 
   it('advertises read-only lookup tools and no install or disconnect tool', async () => {
@@ -96,15 +107,18 @@ describe('integration MCP tools', () => {
     ).toMatchObject({
       content: content({ ...integrations, settings_url: settingsUrl }),
     });
-    expect(String(fetchFn.mock.calls[0][0])).toBe(`${apiUrl}/integrations`);
-    expect(fetchFn.mock.calls[0][1]).toMatchObject({
+    expect(fetchFn.mock.calls.map(([url]) => String(url))).toEqual([
+      organizationsUrl,
+      `${apiUrl}/integrations`,
+    ]);
+    expect(fetchFn.mock.calls[1][1]).toMatchObject({
       method: 'GET',
       headers: { Authorization: 'Bearer oauth_test' },
     });
   });
 
   it('lists Slack channels and forwards the cursor', async () => {
-    const { client, fetchFn } = await connect([
+    const { client, apiCalls } = await connect([
       json(channels),
       json({ ...channels, next_cursor: null }),
     ]);
@@ -117,7 +131,7 @@ describe('integration MCP tools', () => {
       arguments: { ...args, cursor: channels.next_cursor },
     });
     const base = `${apiUrl}/integrations/${integrationId}/channels`;
-    expect(fetchFn.mock.calls.map(([url]) => String(url))).toEqual([
+    expect(apiCalls().map(([url]) => String(url))).toEqual([
       base,
       `${base}?cursor=dGVhbTpDMDEyMw%3D%3D`,
     ]);
@@ -125,7 +139,7 @@ describe('integration MCP tools', () => {
 
   it('searches channels by name and passes through an empty page with a cursor', async () => {
     const pending = { channels: [], next_cursor: 'c2Nhbjoy' };
-    const { client, fetchFn } = await connect([
+    const { client, apiCalls } = await connect([
       json(pending),
       json({ ...channels, next_cursor: null }),
     ]);
@@ -142,7 +156,7 @@ describe('integration MCP tools', () => {
       arguments: { ...args, cursor: pending.next_cursor },
     });
     const base = `${apiUrl}/integrations/${integrationId}/channels`;
-    expect(fetchFn.mock.calls.map(([url]) => String(url))).toEqual([
+    expect(apiCalls().map(([url]) => String(url))).toEqual([
       `${base}?name=%23Alerts`,
       `${base}?name=%23Alerts&cursor=c2Nhbjoy`,
     ]);
@@ -173,6 +187,19 @@ describe('integration MCP tools', () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
+  it('fails when the organization is not visible to the credential', async () => {
+    const { client, apiCalls } = await connect();
+    const result = await client.callTool({
+      name: 'list-integrations',
+      arguments: { organization: 'other' },
+    });
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result)).toContain(
+      "Organization 'other' was not found.",
+    );
+    expect(apiCalls()).toEqual([]);
+  });
+
   it('preserves backend failures', async () => {
     const { client } = await connect([
       json(
@@ -193,13 +220,3 @@ describe('integration MCP tools', () => {
     );
   });
 });
-
-vi.mock('../../src/client/routing.js', () => ({
-  ClusterRouting: class {
-    async headers() {
-      return {};
-    }
-    clear() {}
-    remember() {}
-  },
-}));

@@ -215,7 +215,7 @@ export class RawTreeClient {
   async listIntegrations(organization: string): Promise<unknown> {
     return this.requestJson(
       'GET',
-      `${this.apiPath('/organizations')}/${encodePathPart(organization)}/integrations`,
+      `${await this.organizationPath(organization)}/integrations`,
     );
   }
 
@@ -232,7 +232,7 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson(
       'GET',
-      `${this.apiPath('/organizations')}/${encodePathPart(organization)}/integrations/${encodePathPart(integrationId)}/channels`,
+      `${await this.organizationPath(organization)}/integrations/${encodePathPart(integrationId)}/channels`,
       { query: { name, cursor } },
     );
   }

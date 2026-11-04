@@ -4,7 +4,7 @@ import type { RawTreeClient } from '../client.js';
 import { jsonResult, slackChannelName } from './common.js';
 
 const auth =
-  '**Auth:** Requires a user credential such as OAuth, or an admin API key bound to the organization. Authorization is enforced by the RawTree API.';
+  '**Auth:** Requires a user credential such as OAuth and membership in the organization. API keys are not supported. Authorization is enforced by the RawTree API.';
 const connect =
   'Connecting or disconnecting Slack is not available through MCP: an organization admin must do it on the integrations settings page in the RawTree app.';
 const organization = z

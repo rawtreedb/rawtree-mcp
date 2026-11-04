@@ -22,7 +22,7 @@ const tableFields = {
 const integrationId = z
   .uuid()
   .describe(
-    'Slack integration connected to the organization, from list-integrations.',
+    'Slack integration connected to the organization, from list-integrations. list-integrations needs a user credential such as OAuth; with an API key, reuse the integration_id of an existing Slack sink or ask the user for it.',
   );
 const slackFields = {
   type: z.literal('slack'),

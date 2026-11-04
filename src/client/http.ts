@@ -71,8 +71,11 @@ export function normalizeAppUrl(
   return appUrlForApi(apiUrl);
 }
 
-// Every hosted API, regional ones included, serves its app from rawtree.com.
-// Other APIs, such as a local gateway, serve the app from their own origin.
+const HOSTED_DOMAINS = ['rawtree.com', 'rawtree.dev'];
+
+// Every hosted API, regional ones included, serves its app from the root of its
+// domain: rawtree.com in production, rawtree.dev in development. Other APIs,
+// such as a local gateway, serve the app from their own origin.
 function appUrlForApi(apiUrl: string): string {
   let url: URL;
   try {
@@ -81,9 +84,10 @@ function appUrlForApi(apiUrl: string): string {
     return DEFAULT_APP_URL;
   }
   const host = url.hostname;
-  if (host === 'rawtree.com' || host.endsWith('.rawtree.com')) {
-    return DEFAULT_APP_URL;
-  }
+  const domain = HOSTED_DOMAINS.find(
+    (domain) => host === domain || host.endsWith(`.${domain}`),
+  );
+  if (domain) return `https://${domain}`;
   return url.origin === 'null' ? DEFAULT_APP_URL : url.origin;
 }
 
