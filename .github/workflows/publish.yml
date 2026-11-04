@@ -24,6 +24,8 @@ jobs:
           node-version: 22
           cache: pnpm
           registry-url: https://registry.npmjs.org
+      - name: Use an npm that supports trusted publishing
+        run: npm install -g npm@^11.5.1
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm test
@@ -40,6 +42,5 @@ jobs:
             throw new Error(`Release tag ${process.env.TAG_NAME} does not match package version ${pkg.version}`);
           }
           NODE
+      # Auth uses npm trusted publishing (OIDC, no stored token), configured for this workflow on npmjs.com.
       - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
