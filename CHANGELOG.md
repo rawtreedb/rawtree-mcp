@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.4
 
 - Add Slack workflow sinks: `{ "type": "slack", "settings": { "integration_id", "channel_name" | "channel_id" } }`. Names are resolved to channel IDs on every save; saved Slack sinks return both `channel_id` and `channel_name`.
 - Add `list-integrations` and `list-slack-channels` to look up Slack integrations and channels. Both require a user credential such as OAuth. `list-slack-channels` searches channels with an optional `name`. `list-integrations` returns a `settings_url` derived from the API URL: `https://rawtree.com` for hosted APIs (`https://rawtree.dev` for development ones), the API's origin otherwise.
