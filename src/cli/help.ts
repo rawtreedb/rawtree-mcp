@@ -9,7 +9,6 @@ Usage:
 Options:
   --api-key <api-key>      RawTree database API key (stdio mode)
   --api-url <url>          RawTree API base URL (default: https://api.rawtree.com)
-  --ui-url <url>           RawTree UI base URL for links (default: derived from the API URL)
   --database <name>        Database name for scoped routes
   --org <name>             Organization name for scoped routes
   --http                   Run HTTP server (Streamable HTTP at /mcp) instead of stdio
@@ -19,7 +18,6 @@ Options:
 Environment:
   RAWTREE_API_KEY          RawTree database API key (rt_...)
   RAWTREE_API_URL          RawTree API base URL (default: https://api.rawtree.com)
-  RAWTREE_UI_URL           RawTree UI base URL for links (default: derived from the API URL)
   RAWTREE_DATABASE         Database name for scoped routes
   RAWTREE_ORG              Organization name for scoped routes
   MCP_PORT                 HTTP port when using --http

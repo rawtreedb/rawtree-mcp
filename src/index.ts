@@ -19,11 +19,9 @@ process.on('SIGINT', () => process.exit(0));
 process.on('SIGTERM', () => process.exit(0));
 
 if (config.transport === 'http') {
-  const { apiUrl, uiUrl, database, organization } = config;
-  runHttp(config.port, { apiUrl, uiUrl, database, organization }).catch(
-    onFatal,
-  );
+  const { apiUrl, database, organization } = config;
+  runHttp(config.port, { apiUrl, database, organization }).catch(onFatal);
 } else {
-  const { apiKey, apiUrl, uiUrl, database, organization } = config;
-  runStdio({ apiKey, apiUrl, uiUrl, database, organization }).catch(onFatal);
+  const { apiKey, apiUrl, database, organization } = config;
+  runStdio({ apiKey, apiUrl, database, organization }).catch(onFatal);
 }

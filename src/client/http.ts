@@ -62,21 +62,12 @@ export function normalizeApiUrl(apiUrl: string | undefined): string {
   return trimmed.replace(/\/+$/, '').replace(/\/v1$/, '');
 }
 
-export function normalizeUiUrl(
-  uiUrl: string | undefined,
-  apiUrl: string,
-): string {
-  const explicit = uiUrl?.trim();
-  if (explicit) return explicit.replace(/\/+$/, '');
-  return uiUrlForApi(apiUrl);
-}
-
 const HOSTED_DOMAINS = ['rawtree.com', 'rawtree.dev'];
 
 // Every hosted API, regional ones included, serves its UI from the root of its
 // domain: rawtree.com in production, rawtree.dev in development. Other APIs,
 // such as a local gateway, serve the UI from their own origin.
-function uiUrlForApi(apiUrl: string): string {
+export function uiUrlForApi(apiUrl: string): string {
   let url: URL;
   try {
     url = new URL(apiUrl);

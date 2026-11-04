@@ -41,29 +41,6 @@ describe('resolveConfig', () => {
     });
   });
 
-  it('accepts the ui-url arg and env', () => {
-    expect(
-      resolveConfig(
-        { 'api-key': 'rt_arg', 'ui-url': 'http://localhost:8081' },
-        { RAWTREE_UI_URL: 'https://ui.rawtree.test' },
-      ),
-    ).toEqual({
-      ok: true,
-      config: {
-        apiKey: 'rt_arg',
-        uiUrl: 'http://localhost:8081',
-        port: 3000,
-        transport: 'stdio',
-      },
-    });
-    expect(
-      resolveConfig(
-        { 'api-key': 'rt_arg' },
-        { RAWTREE_UI_URL: 'https://ui.rawtree.test' },
-      ),
-    ).toMatchObject({ config: { uiUrl: 'https://ui.rawtree.test' } });
-  });
-
   it('resolves database scope from args', () => {
     expect(
       resolveConfig(

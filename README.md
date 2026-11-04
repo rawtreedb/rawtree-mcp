@@ -118,7 +118,6 @@ MCP_PORT=3000 npx -y @rawtree/mcp --http
 
 - `--api-key`: RawTree database API key for stdio mode
 - `--api-url`: RawTree API base URL, default `https://api.rawtree.com`
-- `--ui-url`: RawTree UI base URL for links in tool results. Defaults to `https://rawtree.com` for hosted APIs, `https://rawtree.dev` for development ones, and to the API URL's origin otherwise, such as a local gateway
 - `--database`: Database name for scoped routes
 - `--org`: Organization name for scoped routes
 - `--http`: Use HTTP transport instead of stdio
@@ -128,7 +127,6 @@ Environment variables:
 
 - `RAWTREE_API_KEY`: RawTree database API key
 - `RAWTREE_API_URL`: RawTree API base URL, default `https://api.rawtree.com`
-- `RAWTREE_UI_URL`: RawTree UI base URL for links in tool results, defaulting as for `--ui-url`
 - `RAWTREE_DATABASE`: Database name for scoped routes
 - `RAWTREE_ORG`: Organization name for scoped routes
 - `MCP_PORT`: HTTP port when using `--http`
@@ -608,7 +606,7 @@ that backend change together with the hosted MCP dependency pin.
 - `list-integrations` — List an organization's connected integrations, such as Slack workspaces, with `slack_available` and a `settings_url` link to the organization's integrations page in the RawTree app.
 - `list-slack-channels` — List a Slack integration's channels (`id`, `name`, `is_private`). Optional `name` returns channels whose name contains it, ignoring a leading `#`, surrounding spaces, and case. Pass `next_cursor` back as `cursor` (with the same `name`) to continue; it is `null` when there are no more results. A search scans a bounded part of the workspace per request, so a page can be empty while `next_cursor` is still set.
 
-Both are read-only and require a user credential such as OAuth; API keys are not supported. Connecting or disconnecting Slack is not available through MCP: an organization admin does it at `settings_url`, built from `--ui-url`, or from the API URL when it is not set.
+Both are read-only and require a user credential such as OAuth; API keys are not supported. Connecting or disconnecting Slack is not available through MCP: an organization admin does it at `settings_url`. Its app URL follows the API URL: `https://rawtree.com` for hosted APIs, `https://rawtree.dev` for development ones, and the API URL's origin otherwise, such as a local gateway.
 
 ### Clusters
 

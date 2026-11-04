@@ -49,16 +49,20 @@ describe('integration MCP tools', () => {
     await Promise.all(closeables.splice(0).map((c) => c.close()));
   });
 
-  async function connect(responses: Response[] = [], uiUrl?: string) {
+  async function connect(
+    responses: Response[] = [],
+    rawtreeApiUrl = 'https://api.rawtree.com',
+  ) {
+    const lookupUrl = `${rawtreeApiUrl}/v1/organizations`;
     const fetchFn = vi.fn<typeof fetch>(async (url) => {
-      if (String(url) === organizationsUrl) return json(organizations);
+      if (String(url) === lookupUrl) return json(organizations);
       const response = responses.shift();
       if (!response) throw new Error('Unexpected API request.');
       return response;
     });
     const rawtree = new RawTreeClient({
       apiKey: 'oauth_test',
-      uiUrl,
+      apiUrl: rawtreeApiUrl,
       fetchFn,
     });
     const server = createMcpServer(rawtree);
@@ -69,7 +73,7 @@ describe('integration MCP tools', () => {
     await server.connect(serverTransport);
     await client.connect(clientTransport);
     const apiCalls = () =>
-      fetchFn.mock.calls.filter(([url]) => String(url) !== organizationsUrl);
+      fetchFn.mock.calls.filter(([url]) => String(url) !== lookupUrl);
     return { client, fetchFn, apiCalls };
   }
 
@@ -92,24 +96,28 @@ describe('integration MCP tools', () => {
   });
 
   it.each([
-    [undefined, 'https://rawtree.com/acme%20team/~/integrations'],
-    [
-      'http://localhost:8081/',
-      'http://localhost:8081/acme%20team/~/integrations',
-    ],
-  ])('lists integrations with the settings link (UI URL %s)', async (uiUrl, settingsUrl) => {
-    const { client, fetchFn } = await connect([json(integrations)], uiUrl);
+    ['https://api.rawtree.com', 'https://rawtree.com'],
+    ['https://api.rawtree.dev', 'https://rawtree.dev'],
+    ['http://localhost:8081', 'http://localhost:8081'],
+  ])('lists integrations with a settings link derived from API URL %s', async (rawtreeApiUrl, uiUrl) => {
+    const { client, fetchFn } = await connect(
+      [json(integrations)],
+      rawtreeApiUrl,
+    );
     expect(
       await client.callTool({
         name: 'list-integrations',
         arguments: { organization: 'acme team' },
       }),
     ).toMatchObject({
-      content: content({ ...integrations, settings_url: settingsUrl }),
+      content: content({
+        ...integrations,
+        settings_url: `${uiUrl}/acme%20team/~/integrations`,
+      }),
     });
     expect(fetchFn.mock.calls.map(([url]) => String(url))).toEqual([
-      organizationsUrl,
-      `${apiUrl}/integrations`,
+      `${rawtreeApiUrl}/v1/organizations`,
+      `${rawtreeApiUrl}/v1/organizations/${organizationId}/integrations`,
     ]);
     expect(fetchFn.mock.calls[1][1]).toMatchObject({
       method: 'GET',

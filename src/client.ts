@@ -25,11 +25,11 @@ import {
   appendQuery,
   errorMessage,
   normalizeApiUrl,
-  normalizeUiUrl,
   parseJson,
   type QueryParams,
   RawTreeApiError,
   type RequestOptions,
+  uiUrlForApi,
 } from './client/http.js';
 import { RegionCatalog } from './client/regions.js';
 import { ClusterRouting, deploymentApiUrl } from './client/routing.js';
@@ -53,7 +53,6 @@ export interface RawTreeClientOptions {
   /** Cluster-bound credentials use gateway routing, without user discovery. */
   credentialScope?: 'cluster' | 'user';
   apiUrl?: string;
-  uiUrl?: string;
   cluster?: string;
   database?: string;
   organization?: string;
@@ -184,7 +183,7 @@ export class RawTreeClient {
 
   constructor(options: RawTreeClientOptions) {
     this.apiUrl = normalizeApiUrl(options.apiUrl);
-    this.uiUrl = normalizeUiUrl(options.uiUrl, this.apiUrl);
+    this.uiUrl = uiUrlForApi(this.apiUrl);
     this.cluster = options.cluster;
     this.database = options.database;
     this.fetchFn = options.fetchFn ?? globalThis.fetch.bind(globalThis);
