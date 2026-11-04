@@ -41,17 +41,17 @@ describe('resolveConfig', () => {
     });
   });
 
-  it('accepts the app-url arg and env', () => {
+  it('accepts the ui-url arg and env', () => {
     expect(
       resolveConfig(
-        { 'api-key': 'rt_arg', 'app-url': 'http://localhost:8081' },
-        { RAWTREE_APP_URL: 'https://app.rawtree.test' },
+        { 'api-key': 'rt_arg', 'ui-url': 'http://localhost:8081' },
+        { RAWTREE_UI_URL: 'https://ui.rawtree.test' },
       ),
     ).toEqual({
       ok: true,
       config: {
         apiKey: 'rt_arg',
-        appUrl: 'http://localhost:8081',
+        uiUrl: 'http://localhost:8081',
         port: 3000,
         transport: 'stdio',
       },
@@ -59,9 +59,9 @@ describe('resolveConfig', () => {
     expect(
       resolveConfig(
         { 'api-key': 'rt_arg' },
-        { RAWTREE_APP_URL: 'https://app.rawtree.test' },
+        { RAWTREE_UI_URL: 'https://ui.rawtree.test' },
       ),
-    ).toMatchObject({ config: { appUrl: 'https://app.rawtree.test' } });
+    ).toMatchObject({ config: { uiUrl: 'https://ui.rawtree.test' } });
   });
 
   it('resolves database scope from args', () => {

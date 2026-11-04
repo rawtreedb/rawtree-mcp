@@ -49,7 +49,7 @@ describe('integration MCP tools', () => {
     await Promise.all(closeables.splice(0).map((c) => c.close()));
   });
 
-  async function connect(responses: Response[] = [], appUrl?: string) {
+  async function connect(responses: Response[] = [], uiUrl?: string) {
     const fetchFn = vi.fn<typeof fetch>(async (url) => {
       if (String(url) === organizationsUrl) return json(organizations);
       const response = responses.shift();
@@ -58,7 +58,7 @@ describe('integration MCP tools', () => {
     });
     const rawtree = new RawTreeClient({
       apiKey: 'oauth_test',
-      appUrl,
+      uiUrl,
       fetchFn,
     });
     const server = createMcpServer(rawtree);
@@ -97,8 +97,8 @@ describe('integration MCP tools', () => {
       'http://localhost:8081/',
       'http://localhost:8081/acme%20team/~/integrations',
     ],
-  ])('lists integrations with the settings link (app URL %s)', async (appUrl, settingsUrl) => {
-    const { client, fetchFn } = await connect([json(integrations)], appUrl);
+  ])('lists integrations with the settings link (UI URL %s)', async (uiUrl, settingsUrl) => {
+    const { client, fetchFn } = await connect([json(integrations)], uiUrl);
     expect(
       await client.callTool({
         name: 'list-integrations',

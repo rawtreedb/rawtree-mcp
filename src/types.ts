@@ -9,7 +9,7 @@ export interface JsonObject {
 
 interface RawTreeScopeConfig {
   apiUrl?: string;
-  appUrl?: string;
+  uiUrl?: string;
   database?: string;
   organization?: string;
 }

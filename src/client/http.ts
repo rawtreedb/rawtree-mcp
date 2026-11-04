@@ -1,7 +1,7 @@
 import type { JsonValue } from '../types.js';
 
 const DEFAULT_API_URL = 'https://api.rawtree.com';
-const DEFAULT_APP_URL = 'https://rawtree.com';
+const DEFAULT_UI_URL = 'https://rawtree.com';
 
 type QueryValue =
   | string
@@ -62,33 +62,33 @@ export function normalizeApiUrl(apiUrl: string | undefined): string {
   return trimmed.replace(/\/+$/, '').replace(/\/v1$/, '');
 }
 
-export function normalizeAppUrl(
-  appUrl: string | undefined,
+export function normalizeUiUrl(
+  uiUrl: string | undefined,
   apiUrl: string,
 ): string {
-  const explicit = appUrl?.trim();
+  const explicit = uiUrl?.trim();
   if (explicit) return explicit.replace(/\/+$/, '');
-  return appUrlForApi(apiUrl);
+  return uiUrlForApi(apiUrl);
 }
 
 const HOSTED_DOMAINS = ['rawtree.com', 'rawtree.dev'];
 
-// Every hosted API, regional ones included, serves its app from the root of its
+// Every hosted API, regional ones included, serves its UI from the root of its
 // domain: rawtree.com in production, rawtree.dev in development. Other APIs,
-// such as a local gateway, serve the app from their own origin.
-function appUrlForApi(apiUrl: string): string {
+// such as a local gateway, serve the UI from their own origin.
+function uiUrlForApi(apiUrl: string): string {
   let url: URL;
   try {
     url = new URL(apiUrl);
   } catch {
-    return DEFAULT_APP_URL;
+    return DEFAULT_UI_URL;
   }
   const host = url.hostname;
   const domain = HOSTED_DOMAINS.find(
     (domain) => host === domain || host.endsWith(`.${domain}`),
   );
   if (domain) return `https://${domain}`;
-  return url.origin === 'null' ? DEFAULT_APP_URL : url.origin;
+  return url.origin === 'null' ? DEFAULT_UI_URL : url.origin;
 }
 
 export function errorMessage(
