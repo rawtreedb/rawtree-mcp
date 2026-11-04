@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { RawTreeClient } from '../client.js';
-import { clusterScopeInput, jsonResult } from './common.js';
+import { clusterScopeInput, jsonResult, slackChannelName } from './common.js';
 
 const id = z
   .uuid()
@@ -19,9 +19,39 @@ const tableFields = {
   type: z.literal('table'),
   settings: z.strictObject({ database: identifier, table: identifier }),
 };
+const integrationId = z
+  .uuid()
+  .describe(
+    'Slack integration connected to the organization, from list-integrations. list-integrations needs a user credential such as OAuth; with an API key, reuse the integration_id of an existing Slack sink or ask the user for it.',
+  );
+const slackFields = {
+  type: z.literal('slack'),
+  settings: z
+    .union([
+      z.strictObject({
+        integration_id: integrationId,
+        channel_name: slackChannelName.describe(
+          'Slack channel name, such as #alerts. Resolved to its channel ID on every save.',
+        ),
+      }),
+      z.strictObject({
+        integration_id: integrationId,
+        channel_id: z
+          .string()
+          .regex(/^[A-Z0-9]{2,64}$/)
+          .describe(
+            'Slack channel ID, such as C0123456789. Send back the saved channel_id to keep an existing sink without a Slack lookup.',
+          ),
+      }),
+    ])
+    .describe(
+      'integration_id and exactly one of channel_name or channel_id. The RawTree app must be a member of private channels.',
+    ),
+};
 const newSink = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('http'), settings: httpSettings }),
   z.strictObject(tableFields),
+  z.strictObject(slackFields),
 ]);
 const sink = z.union([
   newSink,
@@ -36,6 +66,7 @@ const sink = z.union([
       .optional(),
   }),
   z.strictObject({ ...tableFields, id: z.uuid() }),
+  z.strictObject({ ...slackFields, id: z.uuid() }),
 ]);
 const workflowQuery = z.strictObject({
   database: identifier.describe(
@@ -78,7 +109,7 @@ const definitionFields = {
 const auth =
   'Requires an admin API key bound to the selected organization and cluster, or OAuth. Organization members may read; organization admins may create, update, or delete. Workflows execute with organization credentials and continue after the creating key is revoked or expires.';
 const result =
-  'Returns the workflow object: id, name, description, query, schedule, revision, created_at, updated_at, and sinks. The query object contains database and sql. schedule is null for manual-only workflows; otherwise it contains cron, enabled, and next_run_at (null while paused). Each sink has id, type, and settings. HTTP settings contain url (null when unreadable), url_configured, and header_names; header values are never returned. Table settings contain database and table.';
+  'Returns the workflow object: id, name, description, query, schedule, revision, created_at, updated_at, and sinks. The query object contains database and sql. schedule is null for manual-only workflows; otherwise it contains cron, enabled, and next_run_at (null while paused). Each sink has id, type, and settings. HTTP settings contain url (null when unreadable), url_configured, and header_names; header values are never returned. Table settings contain database and table. Slack settings contain integration_id, channel_id, and channel_name, resolved from Slack when the sink was saved.';
 
 export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
   // These API routes require both names even for API-key callers.
@@ -101,7 +132,7 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
       .max(5)
       .optional()
       .describe(
-        'Up to five sinks. Omit for none. New HTTP sinks require settings.url; all sink IDs are assigned by the API.',
+        'Up to five sinks. Omit for none. New HTTP sinks require settings.url. Slack sinks post a summary and a preview of the result rows through an organization Slack integration from list-integrations. Give the channel as channel_name (such as "#alerts"), or as channel_id; search channels with list-slack-channels and name. A name is resolved to its channel ID on every save, and only the ID is stored. Each Slack sink must use a distinct integration and channel. All sink IDs are assigned by the API.',
       ),
   });
   const update = create
@@ -137,7 +168,7 @@ export function addWorkflowTools(server: McpServer, rawtree: RawTreeClient) {
         .max(5)
         .optional()
         .describe(
-          'Replaces the entire list. Omit to preserve it; [] removes all. Preserve IDs when editing. Existing HTTP sinks may omit settings, settings.url, or settings.headers to retain them. Within a supplied settings.headers map, null preserves a stored value; omitted header names are removed.',
+          'Replaces the entire list. Omit to preserve it; [] removes all. Preserve IDs when editing. Existing HTTP sinks may omit settings, settings.url, or settings.headers to retain them; table and Slack sinks always require settings. To keep an existing Slack sink unchanged without a Slack lookup, send back its saved integration_id and channel_id, not channel_name. Within a supplied settings.headers map, null preserves a stored value; omitted header names are removed.',
         ),
     })
     .refine(

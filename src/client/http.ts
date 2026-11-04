@@ -1,6 +1,7 @@
 import type { JsonValue } from '../types.js';
 
 const DEFAULT_API_URL = 'https://api.rawtree.com';
+const DEFAULT_UI_URL = 'https://rawtree.com';
 
 type QueryValue =
   | string
@@ -59,6 +60,26 @@ export function normalizeApiUrl(apiUrl: string | undefined): string {
   const trimmed = (apiUrl ?? DEFAULT_API_URL).trim();
   if (!trimmed) return DEFAULT_API_URL;
   return trimmed.replace(/\/+$/, '').replace(/\/v1$/, '');
+}
+
+const HOSTED_DOMAINS = ['rawtree.com', 'rawtree.dev'];
+
+// Every hosted API, regional ones included, serves its UI from the root of its
+// domain: rawtree.com in production, rawtree.dev in development. Other APIs,
+// such as a local gateway, serve the UI from their own origin.
+export function uiUrlForApi(apiUrl: string): string {
+  let url: URL;
+  try {
+    url = new URL(apiUrl);
+  } catch {
+    return DEFAULT_UI_URL;
+  }
+  const host = url.hostname;
+  const domain = HOSTED_DOMAINS.find(
+    (domain) => host === domain || host.endsWith(`.${domain}`),
+  );
+  if (domain) return `https://${domain}`;
+  return url.origin === 'null' ? DEFAULT_UI_URL : url.origin;
 }
 
 export function errorMessage(

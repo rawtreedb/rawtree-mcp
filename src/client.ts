@@ -29,6 +29,7 @@ import {
   type QueryParams,
   RawTreeApiError,
   type RequestOptions,
+  uiUrlForApi,
 } from './client/http.js';
 import { RegionCatalog } from './client/regions.js';
 import { ClusterRouting, deploymentApiUrl } from './client/routing.js';
@@ -171,6 +172,7 @@ export class RawTreeClient {
       : this.requestJson('GET', path);
   });
   private readonly apiUrl: string;
+  private readonly uiUrl: string;
   private readonly cluster?: string;
   private readonly database?: string;
   private readonly fetchFn: typeof fetch;
@@ -181,6 +183,7 @@ export class RawTreeClient {
 
   constructor(options: RawTreeClientOptions) {
     this.apiUrl = normalizeApiUrl(options.apiUrl);
+    this.uiUrl = uiUrlForApi(this.apiUrl);
     this.cluster = options.cluster;
     this.database = options.database;
     this.fetchFn = options.fetchFn ?? globalThis.fetch.bind(globalThis);
@@ -202,6 +205,35 @@ export class RawTreeClient {
 
   async listOrganizations(): Promise<unknown> {
     return this.requestJson('GET', this.apiPath('/organizations'));
+  }
+
+  integrationsSettingsUrl(organization: string): string {
+    return `${this.uiUrl}/${encodePathPart(organization)}/~/integrations`;
+  }
+
+  async listIntegrations(organization: string): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      `${await this.organizationPath(organization)}/integrations`,
+    );
+  }
+
+  async listSlackChannels({
+    organization,
+    integrationId,
+    name,
+    cursor,
+  }: {
+    organization: string;
+    integrationId: string;
+    name?: string;
+    cursor?: string;
+  }): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      `${await this.organizationPath(organization)}/integrations/${encodePathPart(integrationId)}/channels`,
+      { query: { name, cursor } },
+    );
   }
 
   async listOrganizationMembers(organization: string): Promise<unknown> {

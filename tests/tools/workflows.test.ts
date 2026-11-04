@@ -6,6 +6,8 @@ import { createMcpServer } from '../../src/server.js';
 const scope = { organization: 'acme team', cluster: 'production/eu' };
 const id = '00000000-0000-4000-8000-000000000001';
 const sinkId = '00000000-0000-4000-8000-000000000002';
+const integrationId = '00000000-0000-4000-8000-000000000003';
+const slack = { integration_id: integrationId, channel_id: 'C0123456789' };
 const input = {
   name: 'recent-events',
   query: { database: 'analytics', sql: ' SELECT 1 AS value;\n' },
@@ -25,6 +27,11 @@ const workflow = {
         url_configured: true,
         header_names: ['Authorization'],
       },
+    },
+    {
+      type: 'slack',
+      id: '00000000-0000-4000-8000-000000000004',
+      settings: { ...slack, channel_name: 'alerts' },
     },
   ],
   created_at: '2026-10-05T10:00:00Z',
@@ -185,6 +192,11 @@ describe('workflow MCP tools', () => {
         },
       },
       { type: 'table', settings: { database: 'default', table: 'alerts' } },
+      { type: 'slack', settings: slack },
+      {
+        type: 'slack',
+        settings: { integration_id: integrationId, channel_name: '#alerts' },
+      },
     ];
     const { client, fetchFn } = await connect([json(workflow, 201)]);
     const result = await client.callTool({
@@ -255,6 +267,25 @@ describe('workflow MCP tools', () => {
       ],
     },
     { sinks: [{ type: 'http', settings: { url: 'https://example.com/new' } }] },
+    { sinks: [{ type: 'slack', settings: slack }] },
+    {
+      sinks: [
+        {
+          type: 'slack',
+          id: sinkId,
+          settings: { integration_id: integrationId, channel_name: 'alerts' },
+        },
+      ],
+    },
+    {
+      sinks: [
+        {
+          type: 'slack',
+          id: sinkId,
+          settings: { ...slack, channel_id: 'C9876543210' },
+        },
+      ],
+    },
   ])('PATCH preserves omitted fields and forwards exactly the requested change: %j', async (patch) => {
     const saved = { ...workflow, revision: 2 };
     const { client, fetchFn } = await connect([json(saved)]);
@@ -366,6 +397,17 @@ describe('workflow MCP tools', () => {
         settings: { database: 'default', table: 'events', headers: {} },
       },
       { type: 'http', id: sinkId, settings: null },
+      { type: 'slack', settings: { integration_id: integrationId } },
+      { type: 'slack', settings: { ...slack, channel_id: '#alerts' } },
+      { type: 'slack', settings: { ...slack, channel_id: 'c0123456789' } },
+      { type: 'slack', settings: { ...slack, integration_id: 'slack' } },
+      { type: 'slack', settings: { ...slack, channel_name: 'alerts' } },
+      ...['', '#', ' ', 'a'.repeat(81)].map((channel_name) => ({
+        type: 'slack',
+        settings: { integration_id: integrationId, channel_name },
+      })),
+      { type: 'slack', settings: { ...slack, token: 'xoxb-synthetic' } },
+      { type: 'slack', id: sinkId },
     ].flatMap((sink) => [
       { name: 'create-workflow', args: { ...input, sinks: [sink] } },
       { name: 'update-workflow', args: { id, sinks: [sink] } },

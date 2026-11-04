@@ -41,6 +41,11 @@ export const resourceTagInput = z
     'Immutable value of the rawtree.com/cluster AWS resource tag on eligible customer buckets and IAM roles.',
   );
 
+export const slackChannelName = z.string().refine((value) => {
+  const name = value.trim().replace(/^#/, '');
+  return name.length > 0 && [...name].length <= 80;
+}, 'Slack channel names have 1 to 80 characters, such as #alerts.');
+
 function scopeName(options: ToolScopeOptions, description: string) {
   const schema = z.string().min(1).describe(description);
   return options.requireExplicitScope ? schema : schema.optional();
