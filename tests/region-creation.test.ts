@@ -12,6 +12,12 @@ const region = {
   organization_id: null,
   enabled: true,
 };
+const byoc = {
+  ...region,
+  id: '00000000-0000-4000-8000-000000000002',
+  organization_id: 'org-id',
+  deployment_id: 'feed1234',
+};
 const storage = {
   data: { bucket: 'data' },
   backups: { bucket: 'backup' },
@@ -32,19 +38,23 @@ function fixture(
 ) {
   const calls: { path: string; headers: Headers; body: unknown }[] = [];
   const fetchFn: typeof fetch = async (input, init) => {
-    const path = new URL(String(input)).pathname;
+    const url = new URL(String(input));
+    const path = url.pathname;
     calls.push({
       path,
       headers: new Headers(init?.headers),
       body: init?.body ? JSON.parse(String(init.body)) : null,
     });
-    return Response.json(
-      path === '/v1/organizations'
-        ? { organizations: [{ name: 'acme', organization_id: 'org-id' }] }
-        : path.endsWith('/regions')
-          ? { regions: [{ ...region, ...overrides }] }
-          : { ok: true },
-    );
+    if (path === '/v1/organizations')
+      return Response.json({
+        organizations: [{ name: 'acme', organization_id: 'org-id' }],
+      });
+    if (
+      path === '/v1/regions' &&
+      url.searchParams.get('organization_id') === 'org-id'
+    )
+      return Response.json({ regions: [{ ...region, ...overrides }, byoc] });
+    return Response.json({ ok: true });
   };
   return {
     rawtree: new RawTreeClient({ apiKey, credentialScope, fetchFn }),
@@ -91,8 +101,14 @@ describe('region-aware creation', () => {
     await server.connect(serverTransport);
     await client.connect(clientTransport);
     try {
+      const catalog = await client.callTool({
+        name: 'list-regions',
+        arguments: { organization: 'acme' },
+      });
+      const content = catalog.content[0];
+      if (content?.type !== 'text') throw new Error('Expected a region list');
+      expect(JSON.parse(content.text)).toEqual({ regions: [region, byoc] });
       for (const [name, args] of [
-        ['list-regions', { organization: 'acme' }],
         ['list-cluster-sizes', { organization: 'acme', regionId }],
         [
           'verify-cluster-s3-access',
@@ -241,11 +257,11 @@ describe.each([
   it('allows region discovery', async () => {
     const { rawtree, calls } = fixture({}, apiKey, credentialScope);
     await expect(rawtree.listRegions('acme')).resolves.toEqual({
-      regions: [region],
+      regions: [region, byoc],
     });
     expect(calls.map(({ path }) => path)).toEqual([
       '/v1/organizations',
-      '/v1/organizations/org-id/regions',
+      '/v1/regions',
     ]);
   });
 
@@ -256,7 +272,7 @@ describe.each([
     await invoke(rawtree, regionId);
     expect(calls.map(({ path }) => path)).toEqual([
       '/v1/organizations',
-      '/v1/organizations/org-id/regions',
+      '/v1/regions',
       path,
     ]);
     expect(calls.at(-1)?.headers.get('Authorization')).toBe(`Bearer ${apiKey}`);

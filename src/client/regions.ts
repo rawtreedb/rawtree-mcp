@@ -38,7 +38,7 @@ export class RegionCatalog {
       throw new Error(`Organization '${organization}' was not found.`);
     return regions.parse(
       await this.load(
-        `/v1/organizations/${encodeURIComponent(owner.organization_id)}/regions`,
+        `/v1/regions?${new URLSearchParams({ organization_id: owner.organization_id })}`,
       ),
     );
   }
