@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import type { RawTreeClient } from '../client.js';
+import type { CreateConnectorInput, RawTreeClient } from '../client.js';
 import {
   clusterScopeInput,
   jsonResult,
@@ -84,6 +84,84 @@ const kafkaSettingsInput = z
   })
   .strict();
 
+const createDestinationInput = destinationInput.extend({
+  topics: destinationInput.shape.topics
+    .optional()
+    .describe('Kafka topics consumed by this destination. Omit for S3.'),
+  group_id: destinationInput.shape.group_id.describe(
+    'Kafka consumer group. Omit to let RawTree generate one. Omit for S3.',
+  ),
+});
+
+const s3SettingsInput = z
+  .object({
+    bucket_uri: z
+      .string()
+      .trim()
+      .min(1)
+      .describe(
+        's3://bucket/key-pattern, such as s3://acme-events/logs/**/*.parquet. * and ? match within one path segment, ** crosses segments, and **/ matches zero or more directories. The bucket cannot change after creation.',
+      ),
+    format: z
+      .enum(['ndjson', 'csv', 'parquet'])
+      .optional()
+      .describe(
+        'File format. Omit when bucket_uri ends in .ndjson, .jsonl, .csv, or .parquet; RawTree infers it from the extension.',
+      ),
+    region: z
+      .string()
+      .trim()
+      .min(1)
+      .describe('AWS region of the bucket, such as us-east-1.'),
+    auth: z
+      .discriminatedUnion('type', [
+        z
+          .object({
+            type: z.literal('iam_role'),
+            role_arn: z
+              .string()
+              .trim()
+              .min(1)
+              .describe(
+                'IAM role RawTree assumes, such as arn:aws:iam::123456789012:role/rawtree-s3.',
+              ),
+          })
+          .strict(),
+        z
+          .object({
+            type: z.literal('access_key'),
+            access_key_id: z.string().trim().min(1),
+            secret_access_key: z.string().min(1),
+          })
+          .strict(),
+      ])
+      .describe(
+        'iam_role is preferred: RawTree generates the external ID for the role trust policy. access_key uses long-lived IAM user keys; the secret is encrypted and never returned.',
+      ),
+    from_time: z.iso
+      .datetime({ offset: true })
+      .optional()
+      .describe('Skip objects last modified before this RFC 3339 time.'),
+  })
+  .strict();
+
+const createConnectorFields = {
+  name: z.string().trim().min(1).max(128),
+  type: z.enum(['kafka', 's3']),
+  destinations: z
+    .array(createDestinationInput)
+    .min(1)
+    .max(32)
+    .describe(
+      'Kafka: one or more topic-to-table destinations. S3: exactly one destination with only database and table.',
+    ),
+  settings: z
+    .union([kafkaSettingsInput, s3SettingsInput])
+    .describe(
+      "Kafka settings for type kafka; S3 settings for type s3. Each shape rejects the other type's fields.",
+    ),
+};
+
 export function addConnectorTools(
   server: McpServer,
   rawtree: RawTreeClient,
@@ -135,13 +213,17 @@ export function addConnectorTools(
     'create-connector',
     {
       title: 'Create Connector',
-      description: `**Purpose:** Create an active Kafka connector with one or more independent topic-to-table destinations.
+      description: `**Purpose:** Create an active Kafka or S3 connector that streams events into RawTree tables.
 
-**Behavior:** Consumption starts after the runtime applies the connector. Each destination uses its own consumer group; omit group_id to let RawTree generate one. Destination tables can be created automatically when their first events arrive.
+**Kafka:** One or more independent topic-to-table destinations. Each destination uses its own consumer group; omit group_id to let RawTree generate one.
+
+**S3:** Imports new objects matching settings.bucket_uri into exactly one table. Existing objects are not backfilled. Pass one destination with only database and table. After creating it, call get-connector-aws-iam-policies and have the user attach the returned policies in AWS: the access policy to the role or IAM user, and for iam_role auth, the trust policy with the generated external ID. S3 connectors may not be enabled in every environment; the API error says so.
+
+**Behavior:** Destination tables can be created automatically when their first events arrive.
 
 **Auth:** Requires organization-admin access.
 
-**Safety:** Confirm the exact organization, cluster, connector name, bootstrap servers, offset policy, topics, consumer groups, and destination tables before calling. Treat SASL values as secrets and never repeat them in confirmation text or logs.
+**Safety:** Confirm the exact organization, cluster, connector name, type, source settings, and destination tables before calling. Treat SASL passwords and S3 secret access keys as secrets and never repeat them in confirmation text or logs.
 
 **Reliability:** Creation is not idempotent. If the response is ambiguous, call list-connectors and reconcile by name before retrying.`,
       annotations: {
@@ -149,21 +231,49 @@ export function addConnectorTools(
         destructiveHint: false,
         idempotentHint: false,
       },
-      inputSchema: {
-        ...scopeInput,
-        name: z.string().trim().min(1).max(128),
-        type: z.literal('kafka'),
-        destinations: z.array(destinationInput).min(1).max(32),
-        settings: kafkaSettingsInput,
-      },
+      inputSchema: z
+        .object({ ...scopeInput, ...createConnectorFields })
+        .transform(({ organization, cluster, ...fields }, context) => {
+          const request = createConnectorRequest(fields);
+          if (typeof request === 'string') {
+            context.issues.push({
+              code: 'custom',
+              message: request,
+              input: fields,
+            });
+            return z.NEVER;
+          }
+          return { organization, cluster, request };
+        }),
     },
-    async ({ organization, cluster, name, type, destinations, settings }) =>
+    async ({ organization, cluster, request }) =>
       namedJsonResult(
         'Create connector result',
-        await rawtree.createConnector(
-          { name, type, destinations, settings },
-          { organization, cluster },
-        ),
+        await rawtree.createConnector(request, { organization, cluster }),
+      ),
+  );
+
+  server.registerTool(
+    'get-connector-aws-iam-policies',
+    {
+      title: 'Get Connector AWS IAM Policies',
+      description: `**Purpose:** Get the AWS IAM policies an S3 connector needs to read its bucket.
+
+**Returns:** access_policy, a read-only policy for the bucket and key prefix to attach to the connector's IAM role or IAM user. For iam_role auth, role_trust also contains RawTree's principal_arn, the connector's generated external_id, and a trust_policy to set on the role.
+
+**When to use:** Right after create-connector for an S3 connector, and whenever bucket access fails. Show the user both documents; they attach them in AWS.`,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+      },
+      inputSchema: { ...scopeInput, connectorId },
+    },
+    async ({ organization, cluster, connectorId }) =>
+      jsonResult(
+        await rawtree.getConnectorAwsIamPolicies(connectorId, {
+          organization,
+          cluster,
+        }),
       ),
   );
 
@@ -195,7 +305,7 @@ export function addConnectorTools(
     'add-connector-destination',
     {
       title: 'Add Connector Destination',
-      description: `**Purpose:** Add one Kafka topic-to-table destination to an existing connector without changing its current destinations.
+      description: `**Purpose:** Add one Kafka topic-to-table destination to an existing Kafka connector without changing its current destinations. S3 connectors have exactly one destination, set at creation.
 
 **Behavior:** The tool reads the latest connector, preserves every existing destination, and appends the new destination. Omit group_id to let RawTree generate an independent consumer group. An exact existing database/table destination is treated as an idempotent success; conflicting settings are rejected.
 
@@ -254,4 +364,43 @@ export function addConnectorTools(
         }),
       ),
   );
+}
+
+type CreateConnectorFields = z.output<
+  z.ZodObject<typeof createConnectorFields>
+>;
+
+/** Pairs the connector type with its settings and destination shape. */
+function createConnectorRequest({
+  name,
+  type,
+  destinations,
+  settings,
+}: CreateConnectorFields): CreateConnectorInput | string {
+  if (type === 's3') {
+    if (!('bucket_uri' in settings)) {
+      return 'S3 connectors take S3 settings: bucket_uri, region, and auth.';
+    }
+    const [destination, ...rest] = destinations;
+    if (
+      destination === undefined ||
+      rest.length > 0 ||
+      destination.topics !== undefined ||
+      destination.group_id !== undefined
+    ) {
+      return 'S3 connectors take exactly one destination with only database and table.';
+    }
+    const { database, table } = destination;
+    return { name, type, destinations: [{ database, table }], settings };
+  }
+
+  if (!('bootstrap_servers' in settings)) {
+    return 'Kafka connectors take Kafka settings, starting with bootstrap_servers.';
+  }
+  const kafkaDestinations = [];
+  for (const { topics, group_id, database, table } of destinations) {
+    if (topics === undefined) return 'Kafka destinations require topics.';
+    kafkaDestinations.push({ topics, group_id, database, table });
+  }
+  return { name, type, destinations: kafkaDestinations, settings };
 }

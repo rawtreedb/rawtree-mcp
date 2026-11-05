@@ -44,6 +44,24 @@ const connector = {
   status: 'active',
 };
 
+const s3Connector = {
+  id: 'connector/id',
+  name: 'events',
+  type: 's3',
+  destinations: [{ id: 'destination-1', database: 'default', table: 'events' }],
+  settings: {
+    bucket_uri: 's3://acme-events/logs/**/*.parquet',
+    format: 'parquet',
+    region: 'eu-west-1',
+    auth: {
+      type: 'iam_role',
+      role_arn: 'arn:aws:iam::123456789012:role/rawtree-s3',
+      external_id: 'rawtree-external-id',
+    },
+  },
+  status: 'active',
+};
+
 describe('RawTreeClient connector routes', () => {
   it('lists, gets, and reads metrics with cluster scope', async () => {
     const calls: RecordedCall[] = [];
@@ -201,6 +219,79 @@ describe('RawTreeClient connector routes', () => {
         scope,
       ),
     ).rejects.toThrow('with different topics or group_id');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('creates an S3 connector and reads its AWS IAM policies', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'oauth_token',
+      fetchFn: sequenceFetch(
+        [
+          jsonResponse(s3Connector, 201),
+          jsonResponse({ access_policy: { Version: '2012-10-17' } }),
+        ],
+        calls,
+      ),
+    });
+    const input = {
+      name: 'events',
+      type: 's3' as const,
+      destinations: [{ database: 'default', table: 'events' }] as [
+        { database: string; table: string },
+      ],
+      settings: {
+        bucket_uri: 's3://acme-events/logs/**/*.parquet',
+        region: 'eu-west-1',
+        auth: {
+          type: 'iam_role' as const,
+          role_arn: 'arn:aws:iam::123456789012:role/rawtree-s3',
+        },
+      },
+    };
+
+    await client.createConnector(input, scope);
+    await client.getConnectorAwsIamPolicies('connector/id', scope);
+
+    expect(calls[0].init.method).toBe('POST');
+    expect(calls[0].init.body).toBe(JSON.stringify(input));
+    expect(calls[1].url).toBe(
+      'https://api.rawtree.com/v1/connectors/connector%2Fid/aws-iam-policies?organization=acme+team&cluster=production%2Feu',
+    );
+    expect(calls[1].init.method).toBe('GET');
+  });
+
+  it('treats the existing S3 destination as an idempotent success', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'oauth_token',
+      fetchFn: sequenceFetch([jsonResponse(s3Connector)], calls),
+    });
+
+    await expect(
+      client.addConnectorDestination(
+        'connector/id',
+        { topics: ['ignored'], database: 'default', table: 'events' },
+        scope,
+      ),
+    ).resolves.toEqual(s3Connector);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('rejects a second S3 destination without writing', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'oauth_token',
+      fetchFn: sequenceFetch([jsonResponse(s3Connector)], calls),
+    });
+
+    await expect(
+      client.addConnectorDestination(
+        'connector/id',
+        { topics: ['orders'], database: 'default', table: 'other' },
+        scope,
+      ),
+    ).rejects.toThrow('exactly one destination table');
     expect(calls).toHaveLength(1);
   });
 

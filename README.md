@@ -665,9 +665,10 @@ App tools require a user credential. Organization members can list apps; install
 
 - `list-connectors` — List the managed connectors and destinations in a cluster.
 - `get-connector` — Get one connector's status and sanitized configuration.
-- `create-connector` — Create an active Kafka connector with one or more destinations.
+- `create-connector` — Create an active Kafka connector with one or more destinations, or an S3 connector with one destination.
+- `get-connector-aws-iam-policies` — Get the IAM access policy and, for IAM role auth, the trust policy an S3 connector needs.
 - `get-connector-metrics` — Read connector and per-destination health, lag, buffers, delivery counters, errors, source lag, and HTTP latency counters.
-- `add-connector-destination` — Preserve the existing routes and add another topic-to-table destination.
+- `add-connector-destination` — Preserve the existing routes and add another Kafka topic-to-table destination.
 - `set-connector-status` — Pause or resume all destinations in a connector.
 
 Connector tools use the same nested field names as the RawTree API. A minimal
@@ -697,6 +698,30 @@ Kafka connector request looks like:
       "password": "secret"
     },
     "batch": { "max_events": 1000, "timeout_secs": 1 }
+  }
+}
+```
+
+An S3 connector imports new objects matching `bucket_uri` into exactly one
+table; existing objects are not backfilled. `format` is inferred from a
+`.ndjson`, `.jsonl`, `.csv`, or `.parquet` extension. Create it, then call
+`get-connector-aws-iam-policies` and attach the returned policies in AWS. With
+`iam_role` auth, RawTree generates the external ID for the role trust policy:
+
+```json
+{
+  "organization": "acme",
+  "cluster": "production",
+  "name": "events",
+  "type": "s3",
+  "destinations": [{ "database": "default", "table": "events" }],
+  "settings": {
+    "bucket_uri": "s3://acme-events/logs/**/*.parquet",
+    "region": "us-east-1",
+    "auth": {
+      "type": "iam_role",
+      "role_arn": "arn:aws:iam::123456789012:role/rawtree-s3"
+    }
   }
 }
 ```

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add S3 connectors to `create-connector`: `type: "s3"` with `settings: { bucket_uri, format?, region, auth, from_time? }`, where `auth` is `{ "type": "iam_role", "role_arn" }` or `{ "type": "access_key", "access_key_id", "secret_access_key" }`, and exactly one `{ database, table }` destination. New objects are imported; existing objects are not backfilled. Requires the Platform S3 connector API; when S3 connectors are disabled, the tool returns the API error.
+- Add `get-connector-aws-iam-policies` to return an S3 connector's read-only access policy and, for IAM role auth, the role trust policy with the generated external ID.
+- `add-connector-destination` returns S3 connectors' existing destination unchanged and rejects a second one; S3 connectors import into exactly one table.
+
 ## 0.4.3
 
 - Add `create-service-account` and `list-service-accounts` for organization admins using user sessions or OAuth. Hosted MCP requires the Platform OAuth create/list support; API keys cannot manage service accounts.

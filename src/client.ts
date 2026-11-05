@@ -104,12 +104,36 @@ export interface KafkaConnectorSettingsInput {
   };
 }
 
-export interface CreateConnectorInput {
-  name: string;
-  type: 'kafka';
-  destinations: NewConnectorDestinationInput[];
-  settings: KafkaConnectorSettingsInput;
+export type S3ConnectorAuthInput =
+  | { type: 'iam_role'; role_arn: string }
+  | { type: 'access_key'; access_key_id: string; secret_access_key: string };
+
+export interface S3ConnectorSettingsInput {
+  bucket_uri: string;
+  format?: 'ndjson' | 'csv' | 'parquet';
+  region: string;
+  auth: S3ConnectorAuthInput;
+  from_time?: string;
 }
+
+export interface S3ConnectorDestinationInput {
+  database: string;
+  table: string;
+}
+
+export type CreateConnectorInput =
+  | {
+      name: string;
+      type: 'kafka';
+      destinations: NewConnectorDestinationInput[];
+      settings: KafkaConnectorSettingsInput;
+    }
+  | {
+      name: string;
+      type: 's3';
+      destinations: [S3ConnectorDestinationInput];
+      settings: S3ConnectorSettingsInput;
+    };
 
 export type ConnectorStatus = 'active' | 'paused';
 
@@ -146,6 +170,21 @@ function connectorDestinations(value: unknown): ConnectorDestinationInput[] {
       table: candidate.table,
     };
   });
+}
+
+function hasDestinationTable(
+  connector: Record<string, unknown>,
+  { database, table }: { database: string; table: string },
+): boolean {
+  return (
+    Array.isArray(connector.destinations) &&
+    connector.destinations.some(
+      (candidate) =>
+        isRecord(candidate) &&
+        candidate.database === database &&
+        candidate.table === table,
+    )
+  );
 }
 
 function sameDestination(
@@ -930,6 +969,12 @@ export class RawTreeClient {
     scope: Omit<RawTreeScope, 'database'> = {},
   ): Promise<unknown> {
     const connector = await this.getConnector(connectorId, scope);
+    if (isRecord(connector) && connector.type === 's3') {
+      if (hasDestinationTable(connector, destination)) return connector;
+      throw new Error(
+        'S3 connectors import into exactly one destination table, set when the connector is created. Create another S3 connector to import into a different table.',
+      );
+    }
     const destinations = connectorDestinations(connector);
     const existing = destinations.find(
       (candidate) =>
@@ -950,6 +995,17 @@ export class RawTreeClient {
         { body: { destinations: [...destinations, destination] } },
         scope,
       ),
+    );
+  }
+
+  async getConnectorAwsIamPolicies(
+    connectorId: string,
+    scope: Omit<RawTreeScope, 'database'> = {},
+  ): Promise<unknown> {
+    return this.requestJson(
+      'GET',
+      `${this.apiPath('/connectors')}/${encodePathPart(connectorId)}/aws-iam-policies`,
+      this.clusterScoped({}, scope),
     );
   }
 
