@@ -36,11 +36,23 @@ export class RegionCatalog {
     );
     if (!owner)
       throw new Error(`Organization '${organization}' was not found.`);
-    return regions.parse(
-      await this.load(
+    const [shared, byoc] = await Promise.all([
+      this.load('/v1/regions'),
+      this.load(
         `/v1/organizations/${encodeURIComponent(owner.organization_id)}/regions`,
       ),
-    );
+    ]);
+    return {
+      regions: [
+        ...regions.parse(shared).regions,
+        // Older organization endpoints also include public rows.
+        ...regions
+          .parse(byoc)
+          .regions.filter(
+            (region) => region.organization_id === owner.organization_id,
+          ),
+      ],
+    };
   }
 
   async headers(

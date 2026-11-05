@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.4
+
+- Read both the public and organization-owned region catalogs for `list-regions`, cluster discovery, and explicit region selection.
+
 ## 0.4.3
 
 - Add `create-service-account` and `list-service-accounts` for organization admins using user sessions or OAuth. Hosted MCP requires the Platform OAuth create/list support; API keys cannot manage service accounts.

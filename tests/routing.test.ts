@@ -81,6 +81,7 @@ describe('automatic cluster routing', () => {
     await client.listClusters('acme');
     expect(calls.map(({ url }) => url.pathname)).toEqual([
       '/v1/organizations',
+      '/v1/regions',
       `/v1/organizations/${organizationId}/regions`,
       collection,
     ]);
@@ -229,6 +230,7 @@ describe('cluster-bound workload credentials', () => {
     await client.query('SELECT 1', scope);
     expect(calls.map(({ url }) => url.pathname)).toEqual([
       '/v1/organizations',
+      '/v1/regions',
       `/v1/organizations/${organizationId}/regions`,
       '/v1/clusters',
       '/v1/query',
