@@ -82,7 +82,6 @@ describe('automatic cluster routing', () => {
     expect(calls.map(({ url }) => url.pathname)).toEqual([
       '/v1/organizations',
       '/v1/regions',
-      `/v1/organizations/${organizationId}/regions`,
       collection,
     ]);
     await client.pauseCluster({
@@ -231,7 +230,6 @@ describe('cluster-bound workload credentials', () => {
     expect(calls.map(({ url }) => url.pathname)).toEqual([
       '/v1/organizations',
       '/v1/regions',
-      `/v1/organizations/${organizationId}/regions`,
       '/v1/clusters',
       '/v1/query',
     ]);

@@ -2,7 +2,7 @@
 
 ## 0.4.4
 
-- Read both the public and organization-owned region catalogs for `list-regions`, cluster discovery, and explicit region selection.
+- Use the organization-scoped catalog at `GET /v1/regions` for `list-regions`, cluster discovery, and explicit region selection.
 
 ## 0.4.3
 

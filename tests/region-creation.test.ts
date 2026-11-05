@@ -38,7 +38,8 @@ function fixture(
 ) {
   const calls: { path: string; headers: Headers; body: unknown }[] = [];
   const fetchFn: typeof fetch = async (input, init) => {
-    const path = new URL(String(input)).pathname;
+    const url = new URL(String(input));
+    const path = url.pathname;
     calls.push({
       path,
       headers: new Headers(init?.headers),
@@ -48,10 +49,11 @@ function fixture(
       return Response.json({
         organizations: [{ name: 'acme', organization_id: 'org-id' }],
       });
-    if (path === '/v1/regions')
-      return Response.json({ regions: [{ ...region, ...overrides }] });
-    if (path === '/v1/organizations/org-id/regions')
-      return Response.json({ regions: [byoc] });
+    if (
+      path === '/v1/regions' &&
+      url.searchParams.get('organization_id') === 'org-id'
+    )
+      return Response.json({ regions: [{ ...region, ...overrides }, byoc] });
     return Response.json({ ok: true });
   };
   return {
@@ -260,7 +262,6 @@ describe.each([
     expect(calls.map(({ path }) => path)).toEqual([
       '/v1/organizations',
       '/v1/regions',
-      '/v1/organizations/org-id/regions',
     ]);
   });
 
@@ -272,7 +273,6 @@ describe.each([
     expect(calls.map(({ path }) => path)).toEqual([
       '/v1/organizations',
       '/v1/regions',
-      '/v1/organizations/org-id/regions',
       path,
     ]);
     expect(calls.at(-1)?.headers.get('Authorization')).toBe(`Bearer ${apiKey}`);
