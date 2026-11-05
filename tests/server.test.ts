@@ -55,6 +55,7 @@ describe('createMcpServer', () => {
         'list-connectors',
         'get-connector',
         'create-connector',
+        'get-connector-aws-iam-policies',
         'get-connector-metrics',
         'add-connector-destination',
         'set-connector-status',
@@ -390,9 +391,14 @@ describe('createMcpServer', () => {
       'destinations',
       'settings',
     ]);
+    expect(createConnector?.inputSchema.properties.type).toMatchObject({
+      enum: ['kafka', 's3'],
+    });
     expect(createConnector?.inputSchema.properties.settings).toMatchObject({
-      type: 'object',
-      required: ['bootstrap_servers'],
+      anyOf: [
+        { type: 'object', required: ['bootstrap_servers'] },
+        { type: 'object', required: ['bucket_uri', 'region', 'auth'] },
+      ],
     });
     expect(createConnector?.inputSchema.properties.destinations).toMatchObject({
       type: 'array',
