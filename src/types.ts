@@ -104,3 +104,12 @@ export interface UpdateWorkflowInput {
   schedule?: Partial<WorkflowSchedule> | null;
   sinks?: WorkflowSinkInput[];
 }
+
+export interface SubmitFeedbackInput {
+  message: string;
+  category: 'bug' | 'feature_request' | 'question' | 'other';
+  actor_type: 'human' | 'agent';
+  organization_id?: string;
+  cluster_id?: string;
+  extra?: JsonObject;
+}

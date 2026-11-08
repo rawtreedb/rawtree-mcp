@@ -38,6 +38,7 @@ import type {
   CreateSavedQueryInput,
   CreateWorkflowInput,
   JsonValue,
+  SubmitFeedbackInput,
   UpdateSavedQueryInput,
   UpdateWorkflowInput,
   WorkflowScope,
@@ -201,6 +202,16 @@ export class RawTreeClient {
 
   apiPath(path: `/${string}`): string {
     return `/v1${path}`;
+  }
+
+  async submitFeedback(input: SubmitFeedbackInput): Promise<unknown> {
+    return this.requestJson('POST', this.apiPath('/feedback'), {
+      body: { ...input },
+      query: {
+        organization_id: input.organization_id,
+        cluster_id: input.cluster_id,
+      },
+    });
   }
 
   async listOrganizations(): Promise<unknown> {
@@ -1164,6 +1175,8 @@ export class RawTreeClient {
     const headers = {
       Authorization: `Bearer ${this.apiKey}`,
       'User-Agent': this.userAgent,
+      'x-rawtree-client': 'mcp',
+      'x-rawtree-client-version': packageJson.version,
       ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
       ...options.headers,
       ...routingHeaders,
