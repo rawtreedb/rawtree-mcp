@@ -10,6 +10,7 @@ import {
   addDataTools,
   addFederationIssuerTools,
   addFederationRuleTools,
+  addFeedbackTools,
   addIntegrationTools,
   addLogTools,
   addOrganizationTools,
@@ -17,6 +18,7 @@ import {
   addServiceAccountTools,
   addTableTools,
   addWorkflowTools,
+  FEEDBACK_GUIDANCE,
 } from './tools/index.js';
 
 export type {
@@ -36,6 +38,7 @@ export type {
   CreateSavedQueryInput,
   CreateWorkflowInput,
   NewWorkflowSink,
+  SubmitFeedbackInput,
   UpdateSavedQueryInput,
   UpdateWorkflowInput,
   WorkflowScope,
@@ -50,12 +53,16 @@ export function createMcpServer(
   rawtree: RawTreeClient,
   options: McpServerOptions = {},
 ): McpServer {
-  const server = new McpServer({
-    name: 'rawtree',
-    version: packageJson.version,
-  });
+  const server = new McpServer(
+    {
+      name: 'rawtree',
+      version: packageJson.version,
+    },
+    { instructions: FEEDBACK_GUIDANCE },
+  );
 
   addOrganizationTools(server, rawtree);
+  addFeedbackTools(server, rawtree);
   addServiceAccountTools(server, rawtree);
   addFederationIssuerTools(server, rawtree);
   addFederationRuleTools(server, rawtree);

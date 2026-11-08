@@ -133,6 +133,48 @@ Environment variables:
 
 ## Tools
 
+### Feedback from agents and humans
+
+`submit-feedback` lets agents report bugs, inconsistencies, confusing errors,
+unclear behavior, missing documentation, and questions encountered while working
+with RawTree through the current MCP connection. This guidance is advertised in
+MCP initialization instructions and the tool description, so agents discover it
+when they connect.
+
+Required inputs are `message`, `category` (`bug`, `feature_request`, `question`,
+or `other`), and `actor_type`. Set `actor_type` to `agent` for the agent's own
+observations. When a user asks an agent to send their feedback, set it to `human`.
+Using MCP or an automated credential does not determine authorship.
+
+```json
+{
+  "message": "The tool error does not identify which table name is missing.",
+  "category": "bug",
+  "actor_type": "agent",
+  "extra": { "tool": "create-table", "error_code": "bad_request", "attempts": 1 }
+}
+```
+
+Describe what you tried, what happened, and what you expected. The optional
+`extra` object preserves arbitrary nested JSON values. Include useful tool names,
+error codes, or reproduction steps without credentials or private data.
+
+The tool uses the connection's API URL and credentials, with MCP client/version
+headers. It works before an organization exists, including when other tools
+require explicit scope. API keys and workload tokens supply their bound
+organization and cluster. User credentials can supply optional `organization_id`
+and `cluster_id` UUIDs; a cluster determines its organization. Configured
+organization/cluster names and database defaults do not populate these UUIDs.
+Supply both UUIDs when routing to a specific deployment with user credentials.
+
+A successful call returns `{ "id": "...", "created_at": "..." }` as JSON in the
+MCP text content after storage. It does not resolve the issue or guarantee a
+reply. Avoid repeated reports of the same issue during a task. Submissions are
+not deduplicated; do not automatically retry an uncertain result. Message text
+is limited to 16 KiB UTF-8 and the complete request to 32 KiB.
+
+Requires the feedback API from [Platform PR #1939](https://github.com/rawtreedb/rawtree-platform/pull/1939).
+
 ### Data
 
 - `run-query` — Execute one supported SQL statement and return RawTree's JSON query response. Supports reads and writes described below, with organization, cluster, and database overrides.
