@@ -72,7 +72,7 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.headers).toMatchObject({
       Authorization: 'Bearer rt_test',
       'Content-Type': 'application/json',
-      'User-Agent': 'rawtree-mcp/0.4.4',
+      'User-Agent': 'rawtree-mcp/0.4.5',
     });
   });
 
@@ -629,6 +629,7 @@ describe('RawTreeClient', () => {
 
     await expect(
       client.createCluster({
+        regionId: '11111111-1111-4111-8111-111111111111',
         organization: 'acme',
         name: 'production',
         s3StorageAccess: {
@@ -648,6 +649,7 @@ describe('RawTreeClient', () => {
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBe(
       JSON.stringify({
+        region_id: '11111111-1111-4111-8111-111111111111',
         name: 'production',
         s3_storage_access: {
           external_id: 'rawtree-acme-production',
@@ -684,6 +686,7 @@ describe('RawTreeClient', () => {
     });
 
     await client.createCluster({
+      regionId: '11111111-1111-4111-8111-111111111111',
       organization: 'acme',
       name: 'production',
       s3StorageAccess: {
@@ -702,6 +705,7 @@ describe('RawTreeClient', () => {
 
     expect(calls[0].init.body).toBe(
       JSON.stringify({
+        region_id: '11111111-1111-4111-8111-111111111111',
         name: 'production',
         s3_storage_access: {
           external_id: 'rawtree-acme-production',
@@ -742,6 +746,7 @@ describe('RawTreeClient', () => {
     });
 
     await client.createCluster({
+      regionId: '11111111-1111-4111-8111-111111111111',
       organization: 'acme',
       name: 'production',
       s3StorageAccess: {
@@ -755,6 +760,7 @@ describe('RawTreeClient', () => {
 
     expect(calls[0].init.body).toBe(
       JSON.stringify({
+        region_id: '11111111-1111-4111-8111-111111111111',
         name: 'production',
         s3_storage_access: {
           external_id: 'rawtree-acme-production',

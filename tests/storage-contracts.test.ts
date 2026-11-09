@@ -4,6 +4,7 @@ import { RawTreeClient } from '../src/client.js';
 import { createMcpServer } from '../src/server.js';
 
 const clusterArgs = {
+  regionId: '11111111-1111-4111-8111-111111111111',
   organization: 'acme',
   name: 'production',
   replicas: 2,

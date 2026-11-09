@@ -12,9 +12,8 @@ import {
 const regionIdInput = z
   .string()
   .uuid()
-  .optional()
   .describe(
-    'Region ID returned by list-regions. Use the same region for sizes, S3 verification and creation. Omit for the default backend.',
+    'Region ID returned by list-cluster-regions. Use the same region for sizes, S3 verification and creation.',
   );
 
 const positiveUint32 = z.number().int().min(1).max(4_294_967_295);
@@ -41,11 +40,11 @@ function clusterSizeInput(description: string) {
 
 export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
   server.registerTool(
-    'list-regions',
+    'list-cluster-regions',
     {
-      title: 'List Regions',
+      title: 'List Cluster Regions',
       description:
-        'List the public and BYOC regions accessible to an organization. Use an enabled region ID for cluster creation and its prerequisite size and S3 checks. Regions need a ready deployment, except the legacy public default.',
+        'List the public and BYOC regions accessible to an organization. Use an enabled region ID for cluster creation and its prerequisite size and S3 checks. Regions need a ready deployment.',
       annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: { organization: z.string().min(1) },
     },
@@ -97,7 +96,7 @@ With user authentication, discovery spans enabled regions. If a region is unavai
       },
       inputSchema: {
         organization: z.string().min(1).optional(),
-        regionId: regionIdInput,
+        regionId: regionIdInput.optional(),
       },
     },
     async (placement) => jsonResult(await rawtree.listClusterSizes(placement)),
@@ -133,7 +132,7 @@ With user authentication, discovery spans enabled regions. If a region is unavai
         s3StorageAccess: s3StorageAccessInput.extend({
           externalId: externalIdInput,
         }),
-        regionId: regionIdInput,
+        regionId: regionIdInput.optional(),
         s3Storage: s3StorageInput.describe(
           'Customer-owned S3 configuration to verify before cluster creation.',
         ),
@@ -163,7 +162,7 @@ With user authentication, discovery spans enabled regions. If a region is unavai
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 
-**Safety:** When selecting a region, first call list-regions and use the same regionId for list-cluster-sizes, verify-cluster-s3-access and create-cluster. You MUST first call list-cluster-sizes, then confirm the exact organization, region, name, replica count, minimum per-replica size, maximum per-replica size, vertical autoscaling behavior, and idle timeout with the user. If idleTimeoutMinutes is omitted, explain that the server default will apply. For one replica, warn that the cluster has no redundancy. If s3Storage is provided, first call verify-cluster-s3-access with the identical configuration and confirm the data and backup buckets, optional paths, role ARN, and External ID. Pass the same s3StorageAccess.externalId to verification and creation. Never reuse a successful verification after changing s3StorageAccess.externalId or any s3Storage field. Confirm any explicitly supplied identity values with the user; generated values are returned with the cluster.
+**Safety:** When selecting a region, first call list-cluster-regions and use the same regionId for list-cluster-sizes, verify-cluster-s3-access and create-cluster. You MUST first call list-cluster-sizes, then confirm the exact organization, region, name, replica count, minimum per-replica size, maximum per-replica size, vertical autoscaling behavior, and idle timeout with the user. If idleTimeoutMinutes is omitted, explain that the server default will apply. For one replica, warn that the cluster has no redundancy. If s3Storage is provided, first call verify-cluster-s3-access with the identical configuration and confirm the data and backup buckets, optional paths, role ARN, and External ID. Pass the same s3StorageAccess.externalId to verification and creation. Never reuse a successful verification after changing s3StorageAccess.externalId or any s3Storage field. Confirm any explicitly supplied identity values with the user; generated values are returned with the cluster.
 
 **Reliability:** This operation is not idempotent. If the response is ambiguous, call list-clusters to reconcile by organization and name before retrying.`,
       annotations: {
