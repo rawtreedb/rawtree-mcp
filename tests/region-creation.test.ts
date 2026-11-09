@@ -96,7 +96,7 @@ describe('region-aware creation', () => {
     await client.connect(clientTransport);
     try {
       const catalog = await client.callTool({
-        name: 'list-regions',
+        name: 'list-cluster-regions',
         arguments: { organization: 'acme' },
       });
       const content = catalog.content[0];
