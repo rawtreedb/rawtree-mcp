@@ -708,7 +708,7 @@ export class RawTreeClient {
     s3StorageAccess,
   }: {
     organization: string;
-    regionId?: string;
+    regionId: string;
     name: string;
     replicas: number;
     minimumSize: { cpuCores: number; memoryGiB: number };
@@ -717,15 +717,20 @@ export class RawTreeClient {
     s3Storage?: S3StorageInput;
     s3StorageAccess?: S3StorageAccessInput;
   }): Promise<unknown> {
+    if (this.credentialScope === 'cluster') {
+      throw new Error(
+        'Cluster creation requires a user credential such as OAuth.',
+      );
+    }
+    z.string().uuid().parse(regionId);
     return this.requestJson('POST', this.apiPath('/clusters'), {
       query: { organization },
-      headers: await this.regions.headers(organization, regionId),
       body: {
+        region_id: regionId,
         name,
         ...(s3StorageAccess === undefined
           ? {}
           : { s3_storage_access: s3StorageAccessRequestBody(s3StorageAccess) }),
-        ...(regionId === undefined ? {} : { region_id: regionId }),
         replicas,
         size: {
           cpu_cores: minimumSize.cpuCores,

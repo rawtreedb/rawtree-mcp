@@ -73,12 +73,6 @@ const regionalOperations = [
       }),
   },
   {
-    name: 'createCluster',
-    path: '/v1/clusters',
-    invoke: (client: RawTreeClient, selectedRegion?: string) =>
-      client.createCluster({ ...creation, regionId: selectedRegion }),
-  },
-  {
     name: 'verifyClusterS3Access',
     path: '/v1/clusters/verify-s3-access',
     invoke: (client: RawTreeClient, selectedRegion?: string) =>
@@ -132,7 +126,7 @@ describe('region-aware creation', () => {
         '/v1/clusters/verify-s3-access',
         '/v1/clusters',
       ]);
-      for (const { headers } of operations) {
+      for (const { headers } of operations.slice(0, 2)) {
         expect(headers.get('X-RawTree-Deployment-Id')).toBe('abcd1234');
         expect(headers.get('X-RawTree-Region')).toBe('eu-central-1');
         expect(headers.get('Authorization')).toBe('Bearer session.fixture');
@@ -150,44 +144,29 @@ describe('region-aware creation', () => {
     }
   });
 
-  it('supports a legacy 32-character deployment for creation', async () => {
-    const deployment = '0123456789abcdef0123456789abcdef';
-    const { rawtree, calls } = fixture({ deployment_id: deployment });
+  it('sends only the required region ID and lets the API resolve deployment', async () => {
+    const { rawtree, calls } = fixture();
     await rawtree.createCluster(creation);
-    expect(calls.at(-1)?.headers.get('X-RawTree-Deployment-Id')).toBe(
-      deployment,
-    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.path).toBe('/v1/clusters');
+    expect(calls[0]?.body).toMatchObject({ region_id: regionId });
+    expect(calls[0]?.headers.has('X-RawTree-Deployment-Id')).toBe(false);
+    expect(calls[0]?.headers.has('X-RawTree-Region')).toBe(false);
   });
 
   it.each([
-    { enabled: false },
-    { deployment_id: null },
-    { deployment_id: 'bad' },
-    { deployment_id: '0123456789abcdef' },
-    { cloud_region: 'bad' },
-    { id: 'other' },
-  ])('rejects unusable regions before mutation: %j', async (overrides) => {
-    const { rawtree, calls } = fixture(overrides);
-    await expect(rawtree.createCluster(creation)).rejects.toThrow();
-    expect(calls.every(({ path }) => !path.startsWith('/v1/clusters'))).toBe(
-      true,
-    );
-  });
-
-  it('keeps omitted selection and the legacy public region on the default backend', async () => {
-    const legacyId = '0c0f0a56-7f03-4d39-8e5d-000000000001';
-    const { rawtree, calls } = fixture({
-      id: legacyId,
-      deployment_id: null,
-      cloud_region: 'us-east-1',
-    });
-    await rawtree.createCluster({ ...creation, regionId: undefined });
-    expect(calls).toHaveLength(1);
-    await rawtree.createCluster({ ...creation, regionId: legacyId });
-    expect(calls.every(({ headers }) => !headers.has('X-RawTree-Region'))).toBe(
-      true,
-    );
-    expect(calls[0]?.body).not.toHaveProperty('region_id');
+    undefined,
+    null,
+    '',
+    'not-a-uuid',
+  ])('rejects an invalid region ID: %s', async (invalid) => {
+    const { rawtree, calls } = fixture();
+    // Exercise JavaScript callers that bypass TypeScript's required property.
+    // @ts-expect-error invalid region is deliberately supplied
+    await expect(
+      rawtree.createCluster({ ...creation, regionId: invalid }),
+    ).rejects.toThrow();
+    expect(calls).toEqual([]);
   });
 
   it('requires organization for a selected size catalog and user credentials for placement', async () => {

@@ -101,6 +101,7 @@ describe('createMcpServer', () => {
     );
     expect(createCluster?.inputSchema.required).toEqual([
       'organization',
+      'regionId',
       'name',
       'replicas',
       'minimumSize',

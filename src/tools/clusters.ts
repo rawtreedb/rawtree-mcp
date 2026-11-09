@@ -12,9 +12,8 @@ import {
 const regionIdInput = z
   .string()
   .uuid()
-  .optional()
   .describe(
-    'Region ID returned by list-regions. Use the same region for sizes, S3 verification and creation. Omit for the default backend.',
+    'Region ID returned by list-regions. Use the same region for sizes, S3 verification and creation.',
   );
 
 const positiveUint32 = z.number().int().min(1).max(4_294_967_295);
@@ -97,7 +96,7 @@ With user authentication, discovery spans enabled regions. If a region is unavai
       },
       inputSchema: {
         organization: z.string().min(1).optional(),
-        regionId: regionIdInput,
+        regionId: regionIdInput.optional(),
       },
     },
     async (placement) => jsonResult(await rawtree.listClusterSizes(placement)),
@@ -133,7 +132,7 @@ With user authentication, discovery spans enabled regions. If a region is unavai
         s3StorageAccess: s3StorageAccessInput.extend({
           externalId: externalIdInput,
         }),
-        regionId: regionIdInput,
+        regionId: regionIdInput.optional(),
         s3Storage: s3StorageInput.describe(
           'Customer-owned S3 configuration to verify before cluster creation.',
         ),
