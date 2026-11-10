@@ -42,7 +42,7 @@ describe('createMcpServer', () => {
         'list-integrations',
         'list-slack-channels',
         'list-clusters',
-        'list-regions',
+        'list-cluster-regions',
         'list-cluster-sizes',
         'verify-cluster-s3-access',
         'create-cluster',
@@ -101,6 +101,7 @@ describe('createMcpServer', () => {
     );
     expect(createCluster?.inputSchema.required).toEqual([
       'organization',
+      'regionId',
       'name',
       'replicas',
       'minimumSize',
