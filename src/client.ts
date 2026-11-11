@@ -104,15 +104,14 @@ export interface KafkaConnectorSettingsInput {
   };
 }
 
-export type S3ConnectorAuthInput =
-  | { type: 'iam_role'; role_arn: string }
-  | { type: 'access_key'; access_key_id: string; secret_access_key: string };
+export type S3IngestionMode = 'events' | 'backfill_and_events' | 'backfill';
 
 export interface S3ConnectorSettingsInput {
+  ingestion_mode?: S3IngestionMode;
   bucket_uri: string;
   format?: 'ndjson' | 'csv' | 'parquet';
   region: string;
-  auth: S3ConnectorAuthInput;
+  auth: { type: 'iam_role'; role_arn: string };
   from_time?: string;
 }
 
@@ -972,7 +971,7 @@ export class RawTreeClient {
     if (isRecord(connector) && connector.type === 's3') {
       if (hasDestinationTable(connector, destination)) return connector;
       throw new Error(
-        'S3 connectors import into exactly one destination table, set when the connector is created. Create another S3 connector to import into a different table.',
+        'S3 connectors import into exactly one destination table, set when the connector is created.',
       );
     }
     const destinations = connectorDestinations(connector);

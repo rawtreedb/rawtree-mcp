@@ -50,6 +50,7 @@ const s3Connector = {
   type: 's3',
   destinations: [{ id: 'destination-1', database: 'default', table: 'events' }],
   settings: {
+    ingestion_mode: 'events',
     bucket_uri: 's3://acme-events/logs/**/*.parquet',
     format: 'parquet',
     region: 'eu-west-1',
@@ -59,7 +60,7 @@ const s3Connector = {
       external_id: 'rawtree-external-id',
     },
   },
-  status: 'active',
+  status: 'paused',
 };
 
 describe('RawTreeClient connector routes', () => {

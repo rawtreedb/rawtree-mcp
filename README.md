@@ -665,8 +665,8 @@ App tools require a user credential. Organization members can list apps; install
 
 - `list-connectors` — List the managed connectors and destinations in a cluster.
 - `get-connector` — Get one connector's status and sanitized configuration.
-- `create-connector` — Create an active Kafka connector with one or more destinations, or an S3 connector with one destination.
-- `get-connector-aws-iam-policies` — Get the IAM access policy and, for IAM role auth, the trust policy an S3 connector needs.
+- `create-connector` — Create an active Kafka connector with one or more destinations, or a paused S3 connector with one destination.
+- `get-connector-aws-iam-policies` — Get the IAM access and trust policies an S3 connector's role needs.
 - `get-connector-metrics` — Read connector and per-destination health, lag, buffers, delivery counters, errors, source lag, and HTTP latency counters.
 - `add-connector-destination` — Preserve the existing routes and add another Kafka topic-to-table destination.
 - `set-connector-status` — Pause or resume all destinations in a connector.
@@ -702,11 +702,16 @@ Kafka connector request looks like:
 }
 ```
 
-An S3 connector imports new objects matching `bucket_uri` into exactly one
-table; existing objects are not backfilled. `format` is inferred from a
-`.ndjson`, `.jsonl`, `.csv`, or `.parquet` extension. Create it, then call
-`get-connector-aws-iam-policies` and attach the returned policies in AWS. With
-`iam_role` auth, RawTree generates the external ID for the role trust policy:
+An S3 connector imports objects matching `bucket_uri` into exactly one table.
+`ingestion_mode` is `events` (the default: only objects created after
+activation), `backfill_and_events`, or `backfill` (existing objects, once);
+the backfill runs when the connector is first activated. `format` is inferred
+from a `.ndjson`, `.jsonl`, `.csv`, or `.parquet` extension. The bucket,
+region, and ingestion mode cannot change after creation, and an organization
+can have one S3 connector per bucket. Authentication is an IAM role only:
+RawTree generates the external ID for the role trust policy. S3 connectors are
+created paused. Call `get-connector-aws-iam-policies`, attach the returned
+policies to the role in AWS, then call `set-connector-status` with `active`:
 
 ```json
 {
@@ -716,6 +721,7 @@ table; existing objects are not backfilled. `format` is inferred from a
   "type": "s3",
   "destinations": [{ "database": "default", "table": "events" }],
   "settings": {
+    "ingestion_mode": "backfill_and_events",
     "bucket_uri": "s3://acme-events/logs/**/*.parquet",
     "region": "us-east-1",
     "auth": {

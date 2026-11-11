@@ -50,6 +50,7 @@ describe('connector MCP tools', () => {
     const { client, fetchFn } = await connect([json({ id: 'c1' }, 201)]);
     const settings = {
       ...s3Settings,
+      ingestion_mode: 'backfill_and_events',
       format: 'ndjson',
       from_time: '2026-01-02T03:04:05Z',
     };
@@ -77,28 +78,6 @@ describe('connector MCP tools', () => {
     });
   });
 
-  it('sends access key credentials only in the create request', async () => {
-    const { client, fetchFn } = await connect([json({ id: 'c1' }, 201)]);
-    const auth = {
-      type: 'access_key',
-      access_key_id: 'AKIAIOSFODNN7EXAMPLE',
-      secret_access_key: 'secret',
-    };
-
-    await client.callTool({
-      name: 'create-connector',
-      arguments: {
-        ...scope,
-        name: 'events',
-        type: 's3',
-        destinations: [s3Destination],
-        settings: { ...s3Settings, auth },
-      },
-    });
-
-    expect(sentBody(fetchFn).settings.auth).toEqual(auth);
-  });
-
   it.each([
     [
       'Kafka fields on an S3 destination',
@@ -123,6 +102,26 @@ describe('connector MCP tools', () => {
       'a Kafka destination without topics',
       { type: 'kafka', settings: { bootstrap_servers: 'kafka:9092' } },
       'require topics',
+    ],
+    [
+      'access key auth',
+      {
+        type: 's3',
+        settings: {
+          ...s3Settings,
+          auth: {
+            type: 'access_key',
+            access_key_id: 'AKIAIOSFODNN7EXAMPLE',
+            secret_access_key: 'secret',
+          },
+        },
+      },
+      'Invalid arguments',
+    ],
+    [
+      'an unknown ingestion mode',
+      { type: 's3', settings: { ...s3Settings, ingestion_mode: 'once' } },
+      'Invalid arguments',
     ],
     [
       'a client-chosen external ID',

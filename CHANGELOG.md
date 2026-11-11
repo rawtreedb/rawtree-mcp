@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- Add S3 connectors to `create-connector`: `type: "s3"` with `settings: { bucket_uri, format?, region, auth, from_time? }`, where `auth` is `{ "type": "iam_role", "role_arn" }` or `{ "type": "access_key", "access_key_id", "secret_access_key" }`, and exactly one `{ database, table }` destination. New objects are imported; existing objects are not backfilled. Requires the Platform S3 connector API; when S3 connectors are disabled, the tool returns the API error.
-- Add `get-connector-aws-iam-policies` to return an S3 connector's read-only access policy and, for IAM role auth, the role trust policy with the generated external ID.
+- Add S3 connectors to `create-connector`: `type: "s3"` with `settings: { ingestion_mode?, bucket_uri, format?, region, auth, from_time? }`, where `auth` is `{ "type": "iam_role", "role_arn" }`, and exactly one `{ database, table }` destination. `ingestion_mode` is `events` (default; new objects only), `backfill_and_events`, or `backfill` (existing objects once); it, the bucket, and the region cannot change after creation. S3 connectors are created paused: attach the policies from `get-connector-aws-iam-policies`, then activate with `set-connector-status`. An organization can have one S3 connector per bucket. Requires the Platform S3 connector API; when S3 connectors are disabled, the tool returns the API error.
+- Add `get-connector-aws-iam-policies` to return an S3 connector's access policy and the role trust policy with the generated external ID.
 - `add-connector-destination` returns S3 connectors' existing destination unchanged and rejects a second one; S3 connectors import into exactly one table.
 
 ## 0.4.3

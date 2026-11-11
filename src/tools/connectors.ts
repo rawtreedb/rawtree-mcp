@@ -95,12 +95,18 @@ const createDestinationInput = destinationInput.extend({
 
 const s3SettingsInput = z
   .object({
+    ingestion_mode: z
+      .enum(['events', 'backfill_and_events', 'backfill'])
+      .optional()
+      .describe(
+        'events (default) imports only objects created after the connector is activated. backfill_and_events also imports existing objects once. backfill imports existing objects once and ignores new ones. Cannot change after creation.',
+      ),
     bucket_uri: z
       .string()
       .trim()
       .min(1)
       .describe(
-        's3://bucket/key-pattern, such as s3://acme-events/logs/**/*.parquet. * and ? match within one path segment, ** crosses segments, and **/ matches zero or more directories. The bucket cannot change after creation.',
+        's3://bucket/key-pattern, such as s3://acme-events/logs/**/*.parquet. * and ? match within one path segment, ** crosses segments, and **/ matches zero or more directories. The bucket cannot change after creation, and an organization can have only one S3 connector per bucket.',
       ),
     format: z
       .enum(['ndjson', 'csv', 'parquet'])
@@ -112,31 +118,23 @@ const s3SettingsInput = z
       .string()
       .trim()
       .min(1)
-      .describe('AWS region of the bucket, such as us-east-1.'),
-    auth: z
-      .discriminatedUnion('type', [
-        z
-          .object({
-            type: z.literal('iam_role'),
-            role_arn: z
-              .string()
-              .trim()
-              .min(1)
-              .describe(
-                'IAM role RawTree assumes, such as arn:aws:iam::123456789012:role/rawtree-s3.',
-              ),
-          })
-          .strict(),
-        z
-          .object({
-            type: z.literal('access_key'),
-            access_key_id: z.string().trim().min(1),
-            secret_access_key: z.string().min(1),
-          })
-          .strict(),
-      ])
       .describe(
-        'iam_role is preferred: RawTree generates the external ID for the role trust policy. access_key uses long-lived IAM user keys; the secret is encrypted and never returned.',
+        'AWS region of the bucket, such as us-east-1. Cannot change after creation.',
+      ),
+    auth: z
+      .object({
+        type: z.literal('iam_role'),
+        role_arn: z
+          .string()
+          .trim()
+          .min(1)
+          .describe(
+            'IAM role RawTree assumes, such as arn:aws:iam::123456789012:role/rawtree-s3. It must be in the AWS partition of region.',
+          ),
+      })
+      .strict()
+      .describe(
+        'IAM role auth, the only method. RawTree generates the external ID for the role trust policy and returns it in settings; it cannot be set.',
       ),
     from_time: z.iso
       .datetime({ offset: true })
@@ -194,7 +192,7 @@ export function addConnectorTools(
       title: 'Get Connector',
       description: `**Purpose:** Get one managed connector and its complete public configuration.
 
-**Returns:** The connector status, sanitized connection settings, destinations with topics and consumer groups, revision, and timestamps. Stored credentials are never returned.
+**Returns:** The connector status, sanitized connection settings, destinations with topics and consumer groups, revision, and timestamps. S3 connectors that import existing objects also return backfill with its status (pending, running, completed, or failed) and objects_imported. Stored credentials are never returned.
 
 **When to use:** Inspect the latest connector before adding a destination or changing its status.`,
       annotations: {
@@ -213,17 +211,17 @@ export function addConnectorTools(
     'create-connector',
     {
       title: 'Create Connector',
-      description: `**Purpose:** Create an active Kafka or S3 connector that streams events into RawTree tables.
+      description: `**Purpose:** Create a Kafka or S3 connector that imports data into RawTree tables.
 
-**Kafka:** One or more independent topic-to-table destinations. Each destination uses its own consumer group; omit group_id to let RawTree generate one.
+**Kafka:** Created active. One or more independent topic-to-table destinations. Each destination uses its own consumer group; omit group_id to let RawTree generate one.
 
-**S3:** Imports new objects matching settings.bucket_uri into exactly one table. Existing objects are not backfilled. Pass one destination with only database and table. After creating it, call get-connector-aws-iam-policies and have the user attach the returned policies in AWS: the access policy to the role or IAM user, and for iam_role auth, the trust policy with the generated external ID. S3 connectors may not be enabled in every environment; the API error says so.
+**S3:** Created paused, because the IAM role cannot trust the connector's generated external ID until the connector exists. Imports objects matching settings.bucket_uri into exactly one table; settings.ingestion_mode chooses new objects (events, the default), existing objects once, or both. Pass one destination with only database and table. An organization can have only one S3 connector per bucket. Then: call get-connector-aws-iam-policies, have the user attach the returned policies to the role in AWS, and call set-connector-status with active. S3 connectors may not be enabled in every environment; the API error says so.
 
 **Behavior:** Destination tables can be created automatically when their first events arrive.
 
 **Auth:** Requires organization-admin access.
 
-**Safety:** Confirm the exact organization, cluster, connector name, type, source settings, and destination tables before calling. Treat SASL passwords and S3 secret access keys as secrets and never repeat them in confirmation text or logs.
+**Safety:** Confirm the exact organization, cluster, connector name, type, source settings, and destination tables before calling. Treat SASL passwords as secrets and never repeat them in confirmation text or logs.
 
 **Reliability:** Creation is not idempotent. If the response is ambiguous, call list-connectors and reconcile by name before retrying.`,
       annotations: {
@@ -259,9 +257,9 @@ export function addConnectorTools(
       title: 'Get Connector AWS IAM Policies',
       description: `**Purpose:** Get the AWS IAM policies an S3 connector needs to read its bucket.
 
-**Returns:** access_policy, a read-only policy for the bucket and key prefix to attach to the connector's IAM role or IAM user. For iam_role auth, role_trust also contains RawTree's principal_arn, the connector's generated external_id, and a trust_policy to set on the role.
+**Returns:** access_policy, the permissions to attach to the connector's IAM role, and role_trust with RawTree's principal_arn, the connector's generated external_id, and the trust_policy to set on the role.
 
-**When to use:** Right after create-connector for an S3 connector, and whenever bucket access fails. Show the user both documents; they attach them in AWS.`,
+**When to use:** Right after create-connector for an S3 connector, before activating it, and whenever bucket access fails. Show the user both documents; they attach them in AWS.`,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -340,6 +338,8 @@ export function addConnectorTools(
       description: `**Purpose:** Pause or resume every destination in one connector.
 
 **Behavior:** paused removes the connector from the active runtime. active restores it with the same destination consumer groups, so Kafka resumes from their committed offsets subject to Kafka retention and at-least-once delivery.
+
+**S3:** S3 connectors are created paused; set active once the user has attached the policies from get-connector-aws-iam-policies. Activating installs the bucket notification for events modes and, the first time, starts the one-time backfill of existing objects for backfill modes. Pausing also pauses an unfinished backfill.
 
 **Auth:** Requires organization-admin access.
 
