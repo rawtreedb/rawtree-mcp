@@ -32,7 +32,7 @@ export function addApiKeyTools(
 
 **Returns:** API key names, IDs, API key hints, permissions or database roles, default database, creation dates, and expires_at (UTC timestamp or null for never).
 
-**Auth:** Uses GET /v1/keys and requires an admin database API key.
+**Auth:** Uses GET /v1/api-keys and requires an admin database API key.
 
 **When to use:**
 - User asks what API keys exist
@@ -56,7 +56,7 @@ export function addApiKeyTools(
 
 **Returns:** The new API key value and expires_at (UTC timestamp or null for never). The API key is only shown once, so you MUST display it to the user.
 
-**Auth:** Uses POST /v1/keys and requires admin permission for database API key auth.
+**Auth:** Uses POST /v1/api-keys and requires admin permission for database API key auth.
 
 **When to use:**
 - User needs a key for CI, an agent, a connector, or a script
