@@ -1002,7 +1002,7 @@ export class RawTreeClient {
   async listApiKeys(scope: RawTreeScope = {}): Promise<unknown> {
     return this.requestJson(
       'GET',
-      this.apiPath('/keys'),
+      this.apiPath('/api-keys'),
       this.scoped({}, scope),
     );
   }
@@ -1021,7 +1021,7 @@ export class RawTreeClient {
   ): Promise<unknown> {
     return this.requestJson(
       'POST',
-      this.apiPath('/keys'),
+      this.apiPath('/api-keys'),
       this.scoped(
         {
           body: { name, permission, expires_at },
@@ -1037,7 +1037,7 @@ export class RawTreeClient {
   ): Promise<unknown> {
     return this.requestJson(
       'DELETE',
-      `${this.apiPath('/keys')}/${encodePathPart(idOrApiKey)}`,
+      `${this.apiPath('/api-keys')}/${encodePathPart(idOrApiKey)}`,
       this.scoped({}, scope),
     );
   }

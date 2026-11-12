@@ -47,6 +47,15 @@ describe('API-key expiration', () => {
     expect(tools.some((tool) => tool.name === 'update-api-key')).toBe(false);
   });
 
+  it('advertises the canonical API key route', async () => {
+    const { client } = await connect({});
+    const { tools } = await client.listTools();
+    for (const name of ['list-api-keys', 'create-api-key']) {
+      const tool = tools.find((tool) => tool.name === name);
+      expect(tool?.description).toContain('/v1/api-keys');
+    }
+  });
+
   it.each([
     undefined,
     null,
@@ -70,7 +79,7 @@ describe('API-key expiration', () => {
     expect(result.isError).not.toBe(true);
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(fetchFn.mock.calls[0][0].toString()).toBe(
-      'https://api.rawtree.com/v1/keys?database=analytics&organization=acme+team&cluster=production%2Feu',
+      'https://api.rawtree.com/v1/api-keys?database=analytics&organization=acme+team&cluster=production%2Feu',
     );
     expect(fetchFn.mock.calls[0][1]).toMatchObject({
       method: 'POST',
@@ -104,8 +113,24 @@ describe('API-key expiration', () => {
     ).toMatchObject({
       content: [{ type: 'text', text: JSON.stringify(response, null, 2) }],
     });
+    expect(new URL(fetchFn.mock.calls[0][0].toString()).pathname).toBe(
+      '/v1/api-keys',
+    );
     expect(fetchFn.mock.calls[0][1]?.method).toBe('GET');
     expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('deletes the identified API key at the canonical route', async () => {
+    const { client, fetchFn } = await connect({ deleted: true });
+    const result = await client.callTool({
+      name: 'delete-api-key',
+      arguments: { ...scope, idOrApiKey: key.id },
+    });
+    expect(result.isError).not.toBe(true);
+    expect(new URL(fetchFn.mock.calls[0][0].toString()).pathname).toBe(
+      '/v1/api-keys/key-1',
+    );
+    expect(fetchFn.mock.calls[0][1]?.method).toBe('DELETE');
   });
 
   it('surfaces server expiration validation errors', async () => {
