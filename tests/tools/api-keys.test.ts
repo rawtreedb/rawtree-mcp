@@ -5,7 +5,7 @@ import { createMcpServer } from '../../src/server.js';
 
 const scope = { organization: 'acme team', cluster: 'production/eu' };
 const key = {
-  id: 'key-1',
+  id: '11111111-1111-4111-8111-111111111111',
   token: 'rt_test',
   name: 'ci',
   permission: 'read_only',
@@ -124,13 +124,28 @@ describe('API-key expiration', () => {
     const { client, fetchFn } = await connect({ deleted: true });
     const result = await client.callTool({
       name: 'delete-api-key',
-      arguments: { ...scope, idOrApiKey: key.id },
+      arguments: { ...scope, id: key.id },
     });
     expect(result.isError).not.toBe(true);
     expect(new URL(fetchFn.mock.calls[0][0].toString()).pathname).toBe(
-      '/v1/api-keys/key-1',
+      `/v1/api-keys/${key.id}`,
     );
     expect(fetchFn.mock.calls[0][1]?.method).toBe('DELETE');
+  });
+
+  it.each([
+    { id: key.token },
+    { id: 'not-a-uuid' },
+    { idOrApiKey: key.id },
+    { idOrApiKey: key.token },
+  ])('rejects unsupported deletion arguments %j', async (args) => {
+    const { client, fetchFn } = await connect({ deleted: true });
+    const result = await client.callTool({
+      name: 'delete-api-key',
+      arguments: { ...scope, ...args },
+    });
+    expect(result.isError).toBe(true);
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 
   it('surfaces server expiration validation errors', async () => {

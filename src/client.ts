@@ -1031,13 +1031,10 @@ export class RawTreeClient {
     );
   }
 
-  async deleteApiKey(
-    idOrApiKey: string,
-    scope: RawTreeScope = {},
-  ): Promise<unknown> {
+  async deleteApiKey(id: string, scope: RawTreeScope = {}): Promise<unknown> {
     return this.requestJson(
       'DELETE',
-      `${this.apiPath('/api-keys')}/${encodePathPart(idOrApiKey)}`,
+      `${this.apiPath('/api-keys')}/${encodePathPart(id)}`,
       this.scoped({}, scope),
     );
   }

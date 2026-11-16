@@ -114,7 +114,7 @@ export function addApiKeyTools(
     'delete-api-key',
     {
       title: 'Delete API Key',
-      description: `**Purpose:** Permanently revoke and delete a RawTree API key by UUID or full API key value.
+      description: `**Purpose:** Permanently revoke and delete a RawTree API key by UUID.
 
 **NOT for:** Deleting a table, database, or user session.
 
@@ -127,19 +127,13 @@ export function addApiKeyTools(
       },
       inputSchema: {
         ...clusterScopeInput(scopeOptions),
-        idOrApiKey: z
-          .string()
-          .min(1)
-          .describe('API key UUID or full rt_ API key value to delete.'),
+        id: z.uuid().describe('API key UUID to delete.'),
       },
     },
-    async ({ organization, cluster, idOrApiKey }) => {
+    async ({ organization, cluster, id }) => {
       return namedJsonResult(
         'Delete API key result',
-        await rawtree.deleteApiKey(
-          idOrApiKey,
-          requestScope({ organization, cluster }),
-        ),
+        await rawtree.deleteApiKey(id, requestScope({ organization, cluster })),
       );
     },
   );
