@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Document HTTP handler DDL in `run-query`, including admin permissions, supported syntax, cluster scope, and empty results.
+- Document `run-query` support for TRUNCATE, CACHE INTO, S3 exports, table TTL, and table settings, including the write-only TRUNCATE permission exception.
 
 ## 0.4.4
 
