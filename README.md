@@ -708,9 +708,9 @@ App tools require a user credential. Organization members can list apps; install
 
 - `list-connectors` — List the managed connectors and destinations in a cluster.
 - `get-connector` — Get one connector's status and sanitized configuration.
-- `create-connector` — Create an active Kafka connector with one or more destinations.
-- `get-connector-metrics` — Read connector and per-destination health, lag, buffers, delivery counters, errors, source lag, and HTTP latency counters.
-- `add-connector-destination` — Preserve the existing routes and add another topic-to-table destination.
+- `create-connector` — Create an active Kafka or NATS JetStream connector with one or more destinations.
+- `get-connector-metrics` — Read raw stored metric observations for a connector (last 300 seconds by default).
+- `add-connector-destination` — Preserve the existing destinations and add a Kafka topic-to-table or NATS consumer-to-table destination.
 - `set-connector-status` — Pause or resume all destinations in a connector.
 
 Connector tools use the same nested field names as the RawTree API. A minimal
@@ -744,11 +744,65 @@ Kafka connector request looks like:
 }
 ```
 
-Creating connectors, adding destinations, and changing status require
-organization-admin access. Credentials are encrypted by RawTree and omitted
-from connector responses. `get-connector-metrics` returns cumulative counters;
-take two samples and divide counter differences by elapsed time to calculate
-event rates.
+For NATS JetStream, use `type: "nats"`, `settings.servers`, and destinations
+with `nats_stream` and `nats_consumer`:
+
+```json
+{
+  "organization": "acme",
+  "cluster": "production",
+  "name": "nats_events",
+  "type": "nats",
+  "settings": {
+    "servers": "tls://nats.example.com:4222",
+    "tls": { "enabled": true },
+    "auth": {
+      "strategy": "user_password",
+      "user": "rawtree",
+      "password": "<broker-password>"
+    }
+  },
+  "destinations": [
+    {
+      "nats_stream": "EVENTS",
+      "nats_consumer": "rawtree_events",
+      "database": "default",
+      "table": "events"
+    }
+  ]
+}
+```
+
+Create the JetStream stream and durable pull consumer with explicit
+acknowledgements on the broker before calling `create-connector`. RawTree
+consumes from them; it does not provision them. Use a separate durable consumer
+for each destination. Server URLs may be comma-separated. NATS also accepts
+`auth: { "strategy": "token", "token": "<broker-token>" }` or
+`auth: { "strategy": "nkey", "nkey": "<public-user-NKey>", "seed": "<private-seed>" }`.
+Omit `auth` for an unauthenticated broker. TLS uses standard certificate and
+hostname verification; custom CAs and verification overrides are not supported.
+NATS accepts the same optional `batch` settings as Kafka.
+
+To add another NATS destination, call `add-connector-destination` with
+`organization`, `cluster`, `connectorId`, and a `destination` object containing
+`nats_stream`, `nats_consumer`, `database`, and `table`. An identical destination
+for the same database/table is an idempotent success; conflicting source fields
+are rejected. Existing destination IDs are preserved. Pause or resume using
+`set-connector-status` with `status: "paused"` or `status: "active"`; the same
+durable consumers are retained, subject to broker retention.
+
+Creating connectors, adding destinations, and changing status require a user
+credential with organization-admin access. Credentials are encrypted by RawTree
+and omitted from connector responses. Do not repeat passwords, tokens, or NKey
+seeds in confirmations or logs.
+
+`get-connector-metrics` reads `GET /v1/metrics` with the connector ID filter and
+an optional `window_seconds` (1–3600, default 300). It returns the raw JSON array
+without rounding large numeric timestamps or counters. Rows may include multiple
+destinations, revisions, and collectors. Compare cumulative counters only within
+the same series and revision, accounting for resets; gauges and histograms are
+not cumulative event counters. An empty array means no stored observations in
+that window, not zero activity. This tool does not synthesize runtime status.
 
 Programmatic hosted deployments can require explicit resource selection on
 every applicable tool. Organization and cluster identify the resource boundary;

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Support NATS JetStream in `create-connector` and `add-connector-destination`, with native stream/consumer fields, password/token/NKey authentication, standard TLS, and optional batching. Existing Kafka payloads remain supported.
+- Fix `get-connector-metrics` to query `/v1/metrics` with a connector ID filter and bounded time window, returning raw stored observations without integer precision loss.
+
 ## 0.4.4
 
 - Use the organization-scoped catalog at `GET /v1/regions` for `list-regions`, cluster discovery, and explicit region selection.
