@@ -5,6 +5,9 @@
 - Document HTTP handler DDL in `run-query`, including admin permissions, supported syntax, cluster scope, and empty results.
 - Document `run-query` support for TRUNCATE, CACHE INTO, S3 exports, table TTL, and table settings, including the write-only TRUNCATE permission exception.
 
+- Support NATS JetStream in `create-connector` and `add-connector-destination`, with native stream/consumer fields, password/token/NKey authentication, standard TLS, and optional batching. Existing Kafka payloads remain supported.
+- Fix `get-connector-metrics` to query `/v1/metrics` with a connector ID filter and bounded time window, returning raw stored observations without integer precision loss.
+
 ## 0.4.4
 
 - Use the organization-scoped catalog at `GET /v1/regions` for `list-regions`, cluster discovery, and explicit region selection.

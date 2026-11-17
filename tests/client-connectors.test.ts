@@ -53,7 +53,7 @@ describe('RawTreeClient connector routes', () => {
         [
           jsonResponse({ connectors: [] }),
           jsonResponse(connector),
-          jsonResponse({ status: 'running', destinations: [] }),
+          jsonResponse([]),
         ],
         calls,
       ),
@@ -66,7 +66,7 @@ describe('RawTreeClient connector routes', () => {
     expect(calls.map((call) => call.url)).toEqual([
       'https://api.rawtree.com/v1/connectors?organization=acme+team&cluster=production%2Feu',
       'https://api.rawtree.com/v1/connectors/connector%2Fid?organization=acme+team&cluster=production%2Feu',
-      'https://api.rawtree.com/v1/connectors/connector%2Fid/metrics?organization=acme+team&cluster=production%2Feu',
+      'https://api.rawtree.com/v1/metrics?filters=%7B%22rawtree.connector.id%22%3A%22connector%2Fid%22%7D&window_seconds=300&organization=acme+team&cluster=production%2Feu',
     ]);
     expect(calls.every((call) => call.init.method === 'GET')).toBe(true);
   });
@@ -200,7 +200,7 @@ describe('RawTreeClient connector routes', () => {
         },
         scope,
       ),
-    ).rejects.toThrow('with different topics or group_id');
+    ).rejects.toThrow('with different source settings');
     expect(calls).toHaveLength(1);
   });
 
