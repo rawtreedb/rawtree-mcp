@@ -2,87 +2,23 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { RawTreeClient } from '../client.js';
 import {
+  createConnectorInput,
+  destinationInput,
+  kafkaSettingsInput,
+  natsSettingsInput,
+} from '../connectors.js';
+import {
   clusterScopeInput,
   jsonResult,
   namedJsonResult,
   type ToolScopeOptions,
+  textResult,
 } from './common.js';
-
-const identifier = z
-  .string()
-  .regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/)
-  .describe('RawTree database or table identifier.');
 
 const connectorId = z
   .string()
   .min(1)
   .describe('Connector ID returned by list-connectors or create-connector.');
-
-const destinationInput = z
-  .object({
-    topics: z
-      .array(z.string().trim().min(1))
-      .min(1)
-      .max(100)
-      .describe('Kafka topics consumed by this destination.'),
-    group_id: z
-      .string()
-      .trim()
-      .min(1)
-      .max(255)
-      .optional()
-      .describe(
-        'Kafka consumer group. Omit to let RawTree generate an independent group for this destination.',
-      ),
-    database: identifier.describe('Destination RawTree database.'),
-    table: identifier.describe('Destination RawTree table.'),
-  })
-  .strict();
-
-const kafkaSettingsInput = z
-  .object({
-    bootstrap_servers: z
-      .string()
-      .trim()
-      .min(1)
-      .describe('Kafka bootstrap server addresses.'),
-    auto_offset_reset: z
-      .enum(['largest', 'smallest'])
-      .optional()
-      .describe(
-        'Offset policy when the consumer group has no committed offset. Defaults to largest.',
-      ),
-    tls: z
-      .object({
-        enabled: z.literal(true),
-        verify_certificate: z.boolean().optional(),
-        verify_hostname: z.boolean().optional(),
-      })
-      .strict()
-      .optional()
-      .describe('TLS settings. Omit tls to disable it.'),
-    sasl: z
-      .object({
-        enabled: z.literal(true),
-        mechanism: z.enum(['PLAIN', 'SCRAM-SHA-256', 'SCRAM-SHA-512']),
-        username: z.string().trim().min(1),
-        password: z.string().min(1),
-      })
-      .strict()
-      .optional()
-      .describe(
-        'SASL credentials. Omit sasl for an unauthenticated Kafka connection.',
-      ),
-    batch: z
-      .object({
-        max_events: z.number().int().min(1).max(100_000).optional(),
-        timeout_secs: z.number().gt(0).max(60).optional(),
-      })
-      .strict()
-      .optional()
-      .describe('Optional HTTP delivery batch settings.'),
-  })
-  .strict();
 
 export function addConnectorTools(
   server: McpServer,
@@ -116,7 +52,7 @@ export function addConnectorTools(
       title: 'Get Connector',
       description: `**Purpose:** Get one managed connector and its complete public configuration.
 
-**Returns:** The connector status, sanitized connection settings, destinations with topics and consumer groups, revision, and timestamps. Stored credentials are never returned.
+**Returns:** The connector status, sanitized connection settings, destinations with their source configuration, revision, and timestamps. Stored credentials are never returned.
 
 **When to use:** Inspect the latest connector before adding a destination or changing its status.`,
       annotations: {
@@ -135,13 +71,13 @@ export function addConnectorTools(
     'create-connector',
     {
       title: 'Create Connector',
-      description: `**Purpose:** Create an active Kafka connector with one or more independent topic-to-table destinations.
+      description: `**Purpose:** Create an active Kafka or NATS JetStream connector with one or more destinations. Settings and all destination fields must match the selected type.
 
-**Behavior:** Consumption starts after the runtime applies the connector. Each destination uses its own consumer group; omit group_id to let RawTree generate one. Destination tables can be created automatically when their first events arrive.
+**Behavior:** Consumption starts after the runtime applies the connector. Kafka destinations use independent consumer groups; omit group_id to generate one. NATS destinations require nats_stream and nats_consumer naming an existing durable pull consumer with explicit acknowledgements. RawTree does not create streams or consumers. Destination tables can be created automatically when their first events arrive.
 
 **Auth:** Requires organization-admin access.
 
-**Safety:** Confirm the exact organization, cluster, connector name, bootstrap servers, offset policy, topics, consumer groups, and destination tables before calling. Treat SASL values as secrets and never repeat them in confirmation text or logs.
+**Safety:** Confirm the exact organization, cluster, connector name, broker addresses, source topics or streams, consumer groups or durable consumers, and destination tables before calling. Treat SASL credentials, NATS passwords, tokens, and NKey seeds as secrets and never repeat them in confirmation text or logs.
 
 **Reliability:** Creation is not idempotent. If the response is ambiguous, call list-connectors and reconcile by name before retrying.`,
       annotations: {
@@ -152,16 +88,20 @@ export function addConnectorTools(
       inputSchema: {
         ...scopeInput,
         name: z.string().trim().min(1).max(128),
-        type: z.literal('kafka'),
+        type: z.enum(['kafka', 'nats']),
         destinations: z.array(destinationInput).min(1).max(32),
-        settings: kafkaSettingsInput,
+        settings: z
+          .union([kafkaSettingsInput, natsSettingsInput])
+          .describe(
+            'Settings must match type: bootstrap_servers for kafka; servers and optional auth for nats.',
+          ),
       },
     },
     async ({ organization, cluster, name, type, destinations, settings }) =>
       namedJsonResult(
         'Create connector result',
         await rawtree.createConnector(
-          { name, type, destinations, settings },
+          createConnectorInput.parse({ name, type, destinations, settings }),
           { organization, cluster },
         ),
       ),
@@ -171,23 +111,31 @@ export function addConnectorTools(
     'get-connector-metrics',
     {
       title: 'Get Connector Metrics',
-      description: `**Purpose:** Read current health and runtime counters for one connector and each destination.
+      description: `**Purpose:** Read stored metric observations for one connector over the last window_seconds (default 300, maximum 3600).
 
-**Returns:** Runtime status, observation time, Kafka consumer lag, buffered events, consumed and delivered event totals, errors, discarded events, source lag, and HTTP latency counters.
+**Returns:** A raw JSON array from /v1/metrics, filtered by connector ID. Rows retain metric names, timestamps, destination, revision, and collector identities. Metric availability depends on the connector and runtime. An empty array means no observations in this window, not zero activity.
 
-**Interpretation:** Event values are cumulative counters. Take two samples and divide their difference by elapsed time to calculate rates. A status of applying or unavailable includes an explanatory message.`,
+**Interpretation:** Counters are cumulative; compare observations for the same series and revision, accounting for resets. Histograms and gauges are not counters. No runtime status or synthesized zero values are added.`,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
-      inputSchema: { ...scopeInput, connectorId },
+      inputSchema: {
+        ...scopeInput,
+        connectorId,
+        window_seconds: z.number().int().min(1).max(3600).optional(),
+      },
     },
-    async ({ organization, cluster, connectorId }) =>
-      jsonResult(
-        await rawtree.getConnectorMetrics(connectorId, {
-          organization,
-          cluster,
-        }),
+    async ({ organization, cluster, connectorId, window_seconds }) =>
+      textResult(
+        await rawtree.getConnectorMetrics(
+          connectorId,
+          {
+            organization,
+            cluster,
+          },
+          window_seconds,
+        ),
       ),
   );
 
@@ -195,13 +143,13 @@ export function addConnectorTools(
     'add-connector-destination',
     {
       title: 'Add Connector Destination',
-      description: `**Purpose:** Add one Kafka topic-to-table destination to an existing connector without changing its current destinations.
+      description: `**Purpose:** Add one Kafka topic-to-table or NATS JetStream consumer-to-table destination to an existing connector without changing its current destinations.
 
-**Behavior:** The tool reads the latest connector, preserves every existing destination, and appends the new destination. Omit group_id to let RawTree generate an independent consumer group. An exact existing database/table destination is treated as an idempotent success; conflicting settings are rejected.
+**Behavior:** The tool reads the latest connector, preserves every existing destination, and appends the new destination. For Kafka, omit group_id to generate an independent consumer group. For NATS, supply nats_stream and nats_consumer for an existing durable pull consumer with explicit acknowledgements. An exact existing database/table destination is treated as an idempotent success; conflicting settings are rejected.
 
 **Auth:** Requires organization-admin access.
 
-**Safety:** Confirm the exact organization, cluster, connector ID, topics, optional consumer group, database, and table before calling.`,
+**Safety:** Confirm the exact organization, cluster, connector ID, source topics or stream, consumer group or durable consumer, database, and table before calling.`,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -229,7 +177,7 @@ export function addConnectorTools(
       title: 'Set Connector Status',
       description: `**Purpose:** Pause or resume every destination in one connector.
 
-**Behavior:** paused removes the connector from the active runtime. active restores it with the same destination consumer groups, so Kafka resumes from their committed offsets subject to Kafka retention and at-least-once delivery.
+**Behavior:** paused removes the connector from the active runtime. active restores it with the same Kafka consumer groups or NATS durable consumers. Resumption depends on broker retention and saved consumer progress; delivery is at least once.
 
 **Auth:** Requires organization-admin access.
 
