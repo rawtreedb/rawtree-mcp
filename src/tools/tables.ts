@@ -17,6 +17,23 @@ const sortingKeyInput = z
     'Comma-separated SQL sorting expressions in key order, for example "region, ifNull(cityHash64(host, instanceId), 0)". A bare name such as "user.id" is read as a path into the ingested JSON.',
   );
 
+const ttlInput = z
+  .string()
+  .trim()
+  .min(1)
+  .describe(
+    'Row-deletion TTL SQL expression, optionally followed by DELETE WHERE <condition>. Subqueries and other TTL actions are unsupported. Omit to leave unchanged on update; null and empty strings cannot remove TTL.',
+  );
+
+const settingsInput = z
+  .record(
+    z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/),
+    z.union([z.string(), z.number(), z.boolean()]),
+  )
+  .describe(
+    'Engine settings as JSON scalar values. Strings are literal values, not SQL expressions. Updates change supplied settings only; omitted settings are preserved. This route cannot reset settings.',
+  );
+
 export function addTableTools(
   server: McpServer,
   rawtree: RawTreeClient,
@@ -52,11 +69,13 @@ export function addTableTools(
       title: 'Create Table',
       description: `**Purpose:** Create an empty RawTree table in a database.
 
-**Returns:** The database and table names, the resolved storage destination, and the table's sorting key.
+**Returns:** The database and table names, resolved storage destination, sorting_key, ttl (stored expression or null), and settings (explicit {name, value} entries with SQL values and secrets masked by the engine).
 
 **Behavior:** The table uses the database's storage when the database configures one, and the cluster's default storage otherwise. Storage is configured on the cluster or the database, never per table.
 
 **Sorting key:** sortingKey is an optional string of comma-separated SQL expressions. Omit it and the table picks a sorting key per part from the ingested data, which suits exploratory tables. Set it when the query pattern is known, listing expressions in key order, lowest cardinality first. Use update-table to change it later.
+
+**Configuration:** Optional ttl sets row-deletion retention; settings supplies engine settings as string, number, or boolean literals.
 
 **Auth:** Requires organization admin access. Authorization is enforced by the RawTree API.
 
@@ -74,13 +93,23 @@ export function addTableTools(
           .describe(
             'Optional comma-separated SQL sorting expressions in key order. Omit it to let the table pick a key per part from the ingested data.',
           ),
+        ttl: ttlInput.optional(),
+        settings: settingsInput.optional(),
       },
     },
-    async ({ organization, cluster, database, name, sortingKey }) =>
+    async ({
+      organization,
+      cluster,
+      database,
+      name,
+      sortingKey,
+      ttl,
+      settings,
+    }) =>
       namedJsonResult(
         'Create table result',
         await rawtree.createTable(
-          { name, sortingKey },
+          { name, sortingKey, ttl, settings },
           requestScope({ organization, cluster, database }),
         ),
       ),
@@ -94,7 +123,7 @@ export function addTableTools(
 
 **NOT for:** Sampling actual row values. Use run-query for SELECT queries.
 
-**Returns:** Table metadata and columns. sorting_key is a comma-separated SQL expression string, empty when the table picks a key per part from the ingested data.
+**Returns:** Table metadata and columns under table. sorting_key is a comma-separated SQL expression string, empty when the table picks a key per part from the ingested data. ttl is the stored row-deletion expression or null. settings lists explicit {name, value} entries with SQL values and secrets masked by the engine.
 
 **When to use:**
 - You need to know available fields before writing SQL
@@ -119,36 +148,48 @@ export function addTableTools(
     'update-table',
     {
       title: 'Update Table',
-      description: `**Purpose:** Change the sorting key of an existing RawTree table.
+      description: `**Purpose:** Change the sorting key, row-deletion TTL, or engine settings of an existing RawTree table.
 
-**NOT for:** Renaming a table, adding columns, or changing storage. Only the sorting key can be updated.
+**NOT for:** Renaming a table, adding columns, or changing storage.
 
-**Returns:** The database and table names plus the new sorting key.
+**Returns:** The database and table names plus current sorting_key, ttl (stored expression or null), and settings (explicit {name, value} entries with SQL values and secrets masked by the engine).
 
 **Behavior:** Provide a comma-separated SQL expression string in key order, lowest cardinality first. A bare name such as user.id is read as a path into the ingested JSON. The new key applies to newly inserted parts and wins later merges, so existing parts are re-sorted in the background instead of being rewritten by this call. Call describe-table first to see the current key.
 
 **Limits:** The key must contain at least one expression; a table's sorting key cannot be removed once set. RawTree validates the SQL expressions and the engine may reject an unusable key.
 
+**Configuration:** Provide exactly one of sortingKey, ttl, or nonempty settings per call. Omitted fields and setting names remain unchanged. ttl sets or replaces row-deletion retention; null and empty strings cannot remove it. settings changes supplied engine settings using literal scalar values; this route cannot reset settings.
+
 **Auth:** Requires organization admin access. Authorization is enforced by the RawTree API.
 
-**Safety:** You MUST confirm the exact table name and sorting expression order with the user before calling this tool.`,
+**Safety:** You MUST confirm the exact table name and configuration changes with the user before calling this tool. TTL can delete data.`,
       annotations: {
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
         idempotentHint: true,
       },
       inputSchema: {
         ...databaseScopeInput(scopeOptions),
         table: z.string().min(1).describe('Table name to update.'),
-        sortingKey: sortingKeyInput,
+        sortingKey: sortingKeyInput.optional(),
+        ttl: ttlInput.optional(),
+        settings: settingsInput.optional(),
       },
     },
-    async ({ organization, cluster, database, table, sortingKey }) =>
+    async ({
+      organization,
+      cluster,
+      database,
+      table,
+      sortingKey,
+      ttl,
+      settings,
+    }) =>
       namedJsonResult(
         'Update table result',
         await rawtree.updateTable(
           table,
-          { sortingKey },
+          { sortingKey, ttl, settings },
           requestScope({ organization, cluster, database }),
         ),
       ),

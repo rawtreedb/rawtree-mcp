@@ -8,7 +8,7 @@ An MCP server for [RawTree](https://rawtree.com/), an analytics database for uns
 - **Workflows** — Create, inspect, update, pause, resume, and delete scheduled SQL workflows with HTTP or table sinks.
 - **Saved queries** — List, create, update, and delete saved SQL definitions. Run a saved query by passing its SQL and database to `run-query`.
 - **Ingest** — Insert a single JSON object, arrays of JSON objects, or public URL data.
-- **Tables** — List tables, describe table columns, sizes, and sorting keys, set and change a table's sorting key, and delete tables after explicit confirmation.
+- **Tables** — List tables, inspect columns, sizes, sorting keys, TTL, and engine settings, create and update table configuration, and delete tables after explicit confirmation.
 - **Logs** — Inspect RawTree query and insert history with structured filters for type, status, origin, table, hints, time window, and pagination.
 - **API Keys** — List, create, and revoke RawTree API keys for a cluster. Creation responses include the one-time API key value and expiration.
 - **Organizations** — List organizations and manage their members and roles with an OAuth-authenticated user.
@@ -512,12 +512,16 @@ The tool calls `POST /v1/query-format`; it does not execute SQL or fall back to 
 ### Tables
 
 - `list-tables` — List tables in the configured database.
-- `create-table` — Create an empty table with an optional sorting key, using the storage configured on its database or cluster.
-- `describe-table` — Inspect columns, row count, byte count, sorting key, database, and organization.
-- `update-table` — Change a table's sorting key. Requires admin permission.
+- `create-table` — Create an empty table with optional `sortingKey`, `ttl`, and `settings`, using the storage configured on its database or cluster.
+- `describe-table` — Inspect columns, row count, byte count, sorting key, TTL, engine settings, database, and organization.
+- `update-table` — Change exactly one of `sortingKey`, `ttl`, or nonempty `settings` per call. Requires admin permission; confirm the table and changes first. TTL can delete data.
 - `delete-table` — Delete a table after explicit confirmation. Requires admin permission.
 
 `sortingKey` is an optional string on `create-table`. Omit it and the table picks a sorting key per part from the ingested data; set it to comma-separated SQL expressions in key order, such as `region, ifNull(cityHash64(host, instanceId), 0)`. A bare name such as `user.id` is read as a path into the ingested JSON. `describe-table` reports the current key as a string, and `update-table` changes it: the new key applies to newly inserted parts and wins later merges, so existing parts are re-sorted in the background rather than rewritten by the call. A key must contain at least one expression; a table's sorting key cannot be removed once set.
+
+`ttl` sets or replaces a row-deletion SQL expression, optionally followed by `DELETE WHERE <condition>`. Subqueries and other TTL actions are unsupported. `settings` is an object of string, number, or boolean literals; strings are values, not SQL expressions. Updates preserve omitted fields and setting names. TTL cannot be removed with null or an empty string, and this route cannot reset settings.
+
+Create, describe, and update responses include `sorting_key`, `ttl` (stored expression or null), and `settings` (explicit `{name, value}` entries with SQL values and secrets masked by the engine). Describe returns these fields under `table`.
 
 Tables have no storage configuration of their own: a table uses its database's storage when the database configures one, and the cluster's default storage otherwise. Customer-owned S3 is configured with `create-cluster.s3Storage` or `create-database.s3Storage`.
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Expose table TTL and engine settings in `create-table` and `update-table`, and document configuration in table responses. Updates change one configuration field per call; TTL removal and settings resets are not supported by this route.
+
 ## 0.4.7
 
 - Support NATS JetStream in `create-connector` and `add-connector-destination`, with native stream/consumer fields, password/token/NKey authentication, standard TLS, and optional batching. Existing Kafka payloads remain supported.
