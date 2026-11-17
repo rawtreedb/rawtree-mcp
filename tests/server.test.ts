@@ -392,8 +392,10 @@ describe('createMcpServer', () => {
       'settings',
     ]);
     expect(createConnector?.inputSchema.properties.settings).toMatchObject({
-      type: 'object',
-      required: ['bootstrap_servers'],
+      anyOf: [
+        expect.objectContaining({ required: ['bootstrap_servers'] }),
+        expect.objectContaining({ required: ['servers'] }),
+      ],
     });
     expect(createConnector?.inputSchema.properties.destinations).toMatchObject({
       type: 'array',
@@ -423,8 +425,12 @@ describe('createMcpServer', () => {
       'destination',
     ]);
     expect(addDestination?.inputSchema.properties.destination).toMatchObject({
-      type: 'object',
-      required: ['topics', 'database', 'table'],
+      anyOf: [
+        expect.objectContaining({ required: ['topics', 'database', 'table'] }),
+        expect.objectContaining({
+          required: ['nats_stream', 'nats_consumer', 'database', 'table'],
+        }),
+      ],
     });
     expect(addDestination?.annotations).toMatchObject({
       readOnlyHint: false,

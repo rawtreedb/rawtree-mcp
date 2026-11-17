@@ -1,4 +1,19 @@
 import {
+  type CreateConnectorInput,
+  connectorDestinations,
+  type NewConnectorDestinationInput,
+  sameDestination,
+} from './connectors.js';
+
+export type {
+  ConnectorDestinationInput,
+  CreateConnectorInput,
+  KafkaConnectorSettingsInput,
+  NatsConnectorSettingsInput,
+  NewConnectorDestinationInput,
+} from './connectors.js';
+
+import {
   type S3StorageAccessInput,
   type S3StorageInput,
   s3StorageAccessRequestBody,
@@ -74,46 +89,6 @@ export interface CreateServiceAccountInput {
   role?: 'member' | 'admin';
 }
 
-export interface ConnectorDestinationInput {
-  id?: string;
-  topics: string[];
-  group_id?: string;
-  database: string;
-  table: string;
-}
-
-export type NewConnectorDestinationInput = Omit<
-  ConnectorDestinationInput,
-  'id'
->;
-
-export interface KafkaConnectorSettingsInput {
-  bootstrap_servers: string;
-  auto_offset_reset?: 'largest' | 'smallest';
-  tls?: {
-    enabled: true;
-    verify_certificate?: boolean;
-    verify_hostname?: boolean;
-  };
-  sasl?: {
-    enabled: true;
-    mechanism: 'PLAIN' | 'SCRAM-SHA-256' | 'SCRAM-SHA-512';
-    username: string;
-    password: string;
-  };
-  batch?: {
-    max_events?: number;
-    timeout_secs?: number;
-  };
-}
-
-export interface CreateConnectorInput {
-  name: string;
-  type: 'kafka';
-  destinations: NewConnectorDestinationInput[];
-  settings: KafkaConnectorSettingsInput;
-}
-
 export type ConnectorStatus = 'active' | 'paused';
 
 function encodePathPart(part: string): string {
@@ -122,47 +97,6 @@ function encodePathPart(part: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function connectorDestinations(value: unknown): ConnectorDestinationInput[] {
-  if (!isRecord(value) || !Array.isArray(value.destinations)) {
-    throw new Error('RawTree returned an invalid connector response.');
-  }
-
-  return value.destinations.map((candidate) => {
-    if (
-      !isRecord(candidate) ||
-      typeof candidate.id !== 'string' ||
-      !Array.isArray(candidate.topics) ||
-      !candidate.topics.every((topic) => typeof topic === 'string') ||
-      typeof candidate.group_id !== 'string' ||
-      typeof candidate.database !== 'string' ||
-      typeof candidate.table !== 'string'
-    ) {
-      throw new Error('RawTree returned an invalid connector destination.');
-    }
-    return {
-      id: candidate.id,
-      topics: candidate.topics,
-      group_id: candidate.group_id,
-      database: candidate.database,
-      table: candidate.table,
-    };
-  });
-}
-
-function sameDestination(
-  existing: ConnectorDestinationInput,
-  requested: NewConnectorDestinationInput,
-): boolean {
-  return (
-    existing.topics.length === requested.topics.length &&
-    existing.topics.every(
-      (topic, index) => topic === requested.topics[index],
-    ) &&
-    (requested.group_id === undefined ||
-      existing.group_id === requested.group_id)
-  );
 }
 
 export class RawTreeClient {
@@ -957,11 +891,21 @@ export class RawTreeClient {
   async getConnectorMetrics(
     connectorId: string,
     scope: Omit<RawTreeScope, 'database'> = {},
-  ): Promise<unknown> {
-    return this.requestJson(
+    windowSeconds = 300,
+  ): Promise<string> {
+    // Keep the raw JSON: OTLP timestamps and counters can exceed JS integer precision.
+    return this.requestText(
       'GET',
-      `${this.apiPath('/connectors')}/${encodePathPart(connectorId)}/metrics`,
-      this.clusterScoped({}, scope),
+      this.apiPath('/metrics'),
+      this.clusterScoped(
+        {
+          query: {
+            filters: JSON.stringify({ 'rawtree.connector.id': connectorId }),
+            window_seconds: windowSeconds,
+          },
+        },
+        scope,
+      ),
     );
   }
 
@@ -971,7 +915,7 @@ export class RawTreeClient {
     scope: Omit<RawTreeScope, 'database'> = {},
   ): Promise<unknown> {
     const connector = await this.getConnector(connectorId, scope);
-    const destinations = connectorDestinations(connector);
+    const destinations = connectorDestinations(connector, destination);
     const existing = destinations.find(
       (candidate) =>
         candidate.database === destination.database &&
@@ -980,7 +924,7 @@ export class RawTreeClient {
     if (existing) {
       if (sameDestination(existing, destination)) return connector;
       throw new Error(
-        `Connector already has a destination for ${destination.database}.${destination.table} with different topics or group_id.`,
+        `Connector already has a destination for ${destination.database}.${destination.table} with different source settings.`,
       );
     }
 
