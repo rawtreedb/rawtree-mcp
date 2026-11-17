@@ -51,39 +51,6 @@ export interface UpdateTableInput {
   settings?: TableSettingsInput;
 }
 
-export interface TableConfiguration {
-  sorting_key: string;
-  /** Stored row-deletion expression, or null when no TTL is configured. */
-  ttl: string | null;
-  /** Explicit settings as SQL values, with secrets masked by the engine. */
-  settings: Array<{ name: string; value: string }>;
-}
-
-export interface UpdateTableResponse extends TableConfiguration {
-  database: string;
-  table: string;
-}
-
-export interface CreateTableResponse extends UpdateTableResponse {
-  storage:
-    | { type: 'default' }
-    | {
-        type: 's3';
-        data: { bucket: string; path: string };
-        backups: { bucket: string; path: string };
-      };
-}
-
-export interface DescribeTableResponse {
-  table: TableConfiguration & {
-    name: string;
-    created_at: string;
-    total_rows: number;
-    total_bytes: number;
-    columns: Array<{ name: string; type: string }>;
-  };
-}
-
 export interface CreateSavedQueryInput {
   name: string;
   sql: string;

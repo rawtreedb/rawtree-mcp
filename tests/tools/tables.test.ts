@@ -203,8 +203,21 @@ describe('table configuration tools', () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects malformed configuration responses', async () => {
-    const { rawtree } = await connect({ ...tableResult, settings: { x: 1 } });
-    await expect(rawtree.updateTable('events', { ttl })).rejects.toThrow();
+  it.each([
+    { table: 'events' },
+    {
+      ...tableResult,
+      storage: { type: 'future', extra: { enabled: true } },
+      settings: [{ name: 'x', value: '1', extra: true }],
+    },
+  ])('preserves API responses unchanged for all table methods: %j', async (response) => {
+    const { rawtree } = await connect(response);
+    await expect(rawtree.createTable({ name: 'events' })).resolves.toEqual(
+      response,
+    );
+    await expect(rawtree.describeTable('events')).resolves.toEqual(response);
+    await expect(rawtree.updateTable('events', { ttl })).resolves.toEqual(
+      response,
+    );
   });
 });
