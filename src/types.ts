@@ -36,6 +36,21 @@ export type PermissionLevel =
   | 'write_only'
   | 'read_only';
 
+export type TableSettingsInput = Record<string, string | number | boolean>;
+
+export interface CreateTableInput {
+  name: string;
+  sortingKey?: string;
+  ttl?: string;
+  settings?: TableSettingsInput;
+}
+
+export interface UpdateTableInput {
+  sortingKey?: string;
+  ttl?: string;
+  settings?: TableSettingsInput;
+}
+
 export interface CreateSavedQueryInput {
   name: string;
   sql: string;

@@ -1,5 +1,6 @@
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import packageJson from '../../package.json' with { type: 'json' };
 import {
   type RawTreeApiError,
   RawTreeClient,
@@ -97,7 +98,7 @@ describe('query-format', () => {
       headers: {
         Authorization: 'Bearer rt_test',
         'Content-Type': 'application/json',
-        'User-Agent': 'rawtree-mcp/0.4.6',
+        'User-Agent': `rawtree-mcp/${packageJson.version}`,
       },
     });
     expect(init?.signal).toBeInstanceOf(AbortSignal);

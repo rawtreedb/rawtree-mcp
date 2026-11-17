@@ -51,10 +51,12 @@ import { ClusterRouting, deploymentApiUrl } from './client/routing.js';
 
 import type {
   CreateSavedQueryInput,
+  CreateTableInput,
   CreateWorkflowInput,
   JsonValue,
   SubmitFeedbackInput,
   UpdateSavedQueryInput,
+  UpdateTableInput,
   UpdateWorkflowInput,
   WorkflowScope,
 } from './types.js';
@@ -386,7 +388,7 @@ export class RawTreeClient {
   }
 
   async createTable(
-    { name, sortingKey }: { name: string; sortingKey?: string },
+    { name, sortingKey, ttl, settings }: CreateTableInput,
     scope: RawTreeScope = {},
   ): Promise<unknown> {
     return this.requestJson(
@@ -397,6 +399,8 @@ export class RawTreeClient {
           body: {
             name,
             ...(sortingKey === undefined ? {} : { sorting_key: sortingKey }),
+            ...(ttl === undefined ? {} : { ttl }),
+            ...(settings === undefined ? {} : { settings }),
           },
         },
         scope,
@@ -417,13 +421,34 @@ export class RawTreeClient {
 
   async updateTable(
     table: string,
-    { sortingKey }: { sortingKey: string },
+    { sortingKey, ttl, settings }: UpdateTableInput,
     scope: RawTreeScope = {},
   ): Promise<unknown> {
+    const fields =
+      Number(sortingKey !== undefined) +
+      Number(ttl !== undefined) +
+      Number(settings !== undefined && Object.keys(settings).length > 0);
+    if (fields === 0) {
+      throw new Error('Provide sorting_key, ttl, or nonempty settings.');
+    }
+    if (fields > 1) {
+      throw new Error(
+        'Update sorting_key, ttl, and settings in separate requests.',
+      );
+    }
     return this.requestJson(
       'PATCH',
       `${this.apiPath('/tables')}/${encodePathPart(table)}`,
-      this.scoped({ body: { sorting_key: sortingKey } }, scope),
+      this.scoped(
+        {
+          body: {
+            ...(sortingKey === undefined ? {} : { sorting_key: sortingKey }),
+            ...(ttl === undefined ? {} : { ttl }),
+            ...(settings === undefined ? {} : { settings }),
+          },
+        },
+        scope,
+      ),
     );
   }
 
@@ -1002,7 +1027,7 @@ export class RawTreeClient {
   async listApiKeys(scope: RawTreeScope = {}): Promise<unknown> {
     return this.requestJson(
       'GET',
-      this.apiPath('/keys'),
+      this.apiPath('/api-keys'),
       this.scoped({}, scope),
     );
   }
@@ -1021,7 +1046,7 @@ export class RawTreeClient {
   ): Promise<unknown> {
     return this.requestJson(
       'POST',
-      this.apiPath('/keys'),
+      this.apiPath('/api-keys'),
       this.scoped(
         {
           body: { name, permission, expires_at },
@@ -1031,13 +1056,10 @@ export class RawTreeClient {
     );
   }
 
-  async deleteApiKey(
-    idOrApiKey: string,
-    scope: RawTreeScope = {},
-  ): Promise<unknown> {
+  async deleteApiKey(id: string, scope: RawTreeScope = {}): Promise<unknown> {
     return this.requestJson(
       'DELETE',
-      `${this.apiPath('/keys')}/${encodePathPart(idOrApiKey)}`,
+      `${this.apiPath('/api-keys')}/${encodePathPart(id)}`,
       this.scoped({}, scope),
     );
   }

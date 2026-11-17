@@ -5,6 +5,10 @@
 - Document HTTP handler DDL in `run-query`, including admin permissions, supported syntax, cluster scope, and empty results.
 - Document `run-query` support for TRUNCATE, CACHE INTO, S3 exports, table TTL, and table settings, including the write-only TRUNCATE permission exception.
 
+- Expose table TTL and engine settings in `create-table` and `update-table`, and document configuration in table responses. Updates change one configuration field per call; TTL removal and settings resets are not supported by this route.
+
+## 0.4.7
+
 - Support NATS JetStream in `create-connector` and `add-connector-destination`, with native stream/consumer fields, password/token/NKey authentication, standard TLS, and optional batching. Existing Kafka payloads remain supported.
 - Fix `get-connector-metrics` to query `/v1/metrics` with a connector ID filter and bounded time window, returning raw stored observations without integer precision loss.
 

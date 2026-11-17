@@ -32,7 +32,7 @@ export function addApiKeyTools(
 
 **Returns:** API key names, IDs, API key hints, permissions or database roles, default database, creation dates, and expires_at (UTC timestamp or null for never).
 
-**Auth:** Uses GET /v1/keys and requires an admin database API key.
+**Auth:** Uses GET /v1/api-keys and requires an admin database API key.
 
 **When to use:**
 - User asks what API keys exist
@@ -56,7 +56,7 @@ export function addApiKeyTools(
 
 **Returns:** The new API key value and expires_at (UTC timestamp or null for never). The API key is only shown once, so you MUST display it to the user.
 
-**Auth:** Uses POST /v1/keys and requires admin permission for database API key auth.
+**Auth:** Uses POST /v1/api-keys and requires admin permission for database API key auth.
 
 **When to use:**
 - User needs a key for CI, an agent, a connector, or a script
@@ -114,7 +114,7 @@ export function addApiKeyTools(
     'delete-api-key',
     {
       title: 'Delete API Key',
-      description: `**Purpose:** Permanently revoke and delete a RawTree API key by UUID or full API key value.
+      description: `**Purpose:** Permanently revoke and delete a RawTree API key by UUID.
 
 **NOT for:** Deleting a table, database, or user session.
 
@@ -127,19 +127,13 @@ export function addApiKeyTools(
       },
       inputSchema: {
         ...clusterScopeInput(scopeOptions),
-        idOrApiKey: z
-          .string()
-          .min(1)
-          .describe('API key UUID or full rt_ API key value to delete.'),
+        id: z.uuid().describe('API key UUID to delete.'),
       },
     },
-    async ({ organization, cluster, idOrApiKey }) => {
+    async ({ organization, cluster, id }) => {
       return namedJsonResult(
         'Delete API key result',
-        await rawtree.deleteApiKey(
-          idOrApiKey,
-          requestScope({ organization, cluster }),
-        ),
+        await rawtree.deleteApiKey(id, requestScope({ organization, cluster })),
       );
     },
   );
