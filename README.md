@@ -195,22 +195,26 @@ separate SQL allowlist.
 |---|---|---|
 | Reads | `read_only`, `read_write`, `admin`, or signed-in session; database-role keys use their grants | `SELECT`, `WITH`, `EXPLAIN`, `DESCRIBE`. Use bounded, ordered reads for exploration. |
 | Insert from query | `read_write`, `admin`, or signed-in session | `INSERT INTO <table> [(columns)] SELECT ...`, including a `WITH` source. Existing target in the selected user database; no `VALUES`, `FORMAT`, `url()`, or `urlCluster()`. SQL `SETTINGS` are validated by the engine; default execution time is 30 seconds. |
-| Create table | `admin` or signed-in session | `CREATE TABLE [IF NOT EXISTS] <table> ENGINE = ReplicatedRawMergeTree [ORDER BY <expressions>]`. Selected user database only. Optional `ON CLUSTER 'default'` is accepted. No columns, engine arguments, other engines, `AS SELECT`, or other table clauses. |
-| Table configuration | `admin` or signed-in session | `ALTER TABLE <table> MODIFY ORDER BY ...`, or `ADD/MATERIALIZE/CLEAR/DROP PROJECTION` or `INDEX`, including text indexes. One operation, in the selected user database; no `ON CLUSTER` or `IN PARTITION`. `ADD` accepts `IF NOT EXISTS`; the other operations accept `IF EXISTS`. Index creation requires an expression and `TYPE`, with optional positive integer `GRANULARITY`; no `AFTER`. |
+| S3 export | `read_write`, `admin`, or signed-in session | `INSERT INTO FUNCTION s3(...) SELECT ...`, including a `WITH` source. Selected user database; only unqualified `s3` as a function destination. No `VALUES`, `FORMAT`, or `url()`/`urlCluster()` sources, including nested function arguments. |
+| Truncate table | `write_only`, `read_write`, `admin`, or signed-in session with write permission | `TRUNCATE TABLE [IF EXISTS] [database.]<table> [SYNC]`. One table in the selected user database; removes all rows but preserves configuration. Always waits for replicas; no `ON CLUSTER` or partition clauses. |
+| Cache query | `admin` or signed-in session (table-create permission) | `SELECT ... CACHE INTO [database.]view [EVERY\|AFTER interval] [TTL interval [FROM LAST READ]]`. Destinations must be in the selected user database; intervals use numeric literal/unit pairs. No `url()`/`urlCluster()` sources. |
+| Create table | `admin` or signed-in session | `CREATE TABLE [IF NOT EXISTS] <table> ENGINE = ReplicatedRawMergeTree [ORDER BY <expressions>] [TTL <expr> [DELETE [WHERE <condition>]]] [SETTINGS name = value, ...]`. Selected user database only. Optional `ON CLUSTER 'default'`; no columns, engine arguments, other engines, or `AS SELECT`. TTL supports row deletion only; TTL and settings reject subqueries. |
+| Table configuration | `admin` or signed-in session | `ALTER TABLE <table> MODIFY ORDER BY ...`, `MODIFY TTL <expr> [DELETE [WHERE <condition>]]`, `MODIFY SETTING name = value, ...`, `RESET SETTING name, ...`, or `ADD/MATERIALIZE/CLEAR/DROP PROJECTION` or `INDEX`, including text indexes. One operation, in the selected user database; no `ON CLUSTER` or `IN PARTITION`. TTL supports row deletion only; TTL and settings reject subqueries. Settings use engine-supported names. `ADD` accepts `IF NOT EXISTS`; `MATERIALIZE/CLEAR/DROP` accept `IF EXISTS`. Index creation requires an expression and `TYPE`, with optional positive integer `GRANULARITY`; no `AFTER`. |
 | Cancel mutations | `admin` or signed-in session | `KILL MUTATION WHERE table = '<table>' [AND mutation_id = '<id>']`. The backend adds the selected user database filter. Only these equality conditions are accepted, in either order; doubled quotes are supported, backslash escapes are not. |
 | Roles and grants | `admin` or organization administrator session | `CREATE ROLE <name>`, `DROP ROLE [IF EXISTS] <name>`, `GRANT SELECT/INSERT [(columns)] ON <database>.<table> TO <role>`. Grants may combine both privileges and use `database.*` or `*.*`. The grant target must be an existing role. No user grants, inheritance, delegation, `REVOKE`, or role replacement. |
 | Workloads and resources | `admin` or organization administrator session | `CREATE [OR REPLACE] WORKLOAD/RESOURCE`, `CREATE WORKLOAD/RESOURCE IF NOT EXISTS`, `DROP WORKLOAD/RESOURCE [IF EXISTS]`. Workloads accept `IN <parent>` and numeric/string `SETTINGS`, optionally `FOR <resource>`. Resources accept `MASTER THREAD`, `WORKER THREAD`, `READ/WRITE DISK <name>`, and `READ/WRITE ANY DISK`; no memory or query-slot resources. |
 | Settings profiles | `admin` or organization administrator session | `CREATE SETTINGS PROFILE [OR REPLACE \| IF NOT EXISTS]` and `DROP SETTINGS PROFILE [IF EXISTS]`. Only `workload = '<name>'` and `use_concurrency_control = 0/1`, optionally `READONLY`/`CONST`, assigned `TO` 1–32 distinct existing roles. No user targets, inheritance, other settings, or `ALTER`. |
 | Row policies | `admin` or organization administrator session | `CREATE ROW POLICY [OR REPLACE \| IF NOT EXISTS]` and `DROP ROW POLICY [IF EXISTS]`, on one table in the selected user database. A scalar `SELECT USING` filter, optional `AS PERMISSIVE/RESTRICTIVE`, and 1–32 distinct existing roles. No subqueries, wildcard/user targets, access-storage selectors, or `ALTER`. |
 | Named collections | `admin` or organization administrator session | `CREATE NAMED COLLECTION [IF NOT EXISTS] <name> AS key = literal, ...`. Unique keys with string, numeric, or boolean literals and optional `OVERRIDABLE`/`NOT OVERRIDABLE`. No expressions, replacement, `ALTER`, or `DROP`. |
+| HTTP handlers | `admin` or organization administrator session | `CREATE HANDLER [IF NOT EXISTS] <name> URL '/path' [METHODS (GET)] AS SELECT ...`, `ALTER HANDLER <name> URL '/path' [METHODS (GET)] AS SELECT ...`, `DROP HANDLER [IF EXISTS] <name>`. Selected cluster and database; exact paths and read-only SELECT only. No `URL REGEXP`, other methods, or `url()`/`urlCluster()` sources. Optional `ON CLUSTER 'default'` follows the name; SQL executes as submitted, without adding it automatically. Parameters cannot use Platform database or execution setting names. |
 
-`write_only` keys cannot use the Query API. Database-role keys support reads here,
+`write_only` keys can only `TRUNCATE` through the Query API. Database-role keys support reads here,
 even if their roles have insert grants; their inserts use the JSON insert API.
 Grant, profile, and policy targets must be existing roles without same-named
 database users. Profiles and policies reject selectors such as `ALL`, `NONE`,
 and `CURRENT_USER`. All write families reject RawTree's internal organization.
-Table writes and row policies reject system databases. Other mutations, including
-`UPDATE`, `DELETE`, `DROP TABLE`, and arbitrary `ALTER`, are unsupported; use
+Table writes and row policies reject system databases. Mutations outside the listed forms, including
+`UPDATE`, standalone `DELETE`, `DROP TABLE`, and other `ALTER` operations, are unsupported; use
 `delete-table` for table deletion.
 
 Role, workload/resource, profile, policy, and named-collection management accept
@@ -218,8 +222,9 @@ optional `ON CLUSTER 'default'`, preserving engine replication semantics. No
 other cluster name is accepted. Row policies with that clause require an explicit
 `database.table` matching the selected database. Management can affect the cluster
 beyond the selected database: grant scopes are explicit, while roles, workloads,
-resources, profiles, and collections are not database-local. Consult the
+resources, profiles, collections, and handlers are not database-local. Consult the
 [API reference](https://rawtree.com/docs/reference/api) and
+[handler SQL reference](https://rawtree.com/docs/reference/api/query#sql-defined-http-endpoints), plus the
 [role reference](https://rawtree.com/docs/reference/authentication#existing-database-roles)
 for syntax, local versus replicated storage, and distributed DDL limitations.
 Named-collection credentials in `ON CLUSTER` statements are visible to readers of
