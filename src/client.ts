@@ -36,10 +36,15 @@ import { ClusterRouting, deploymentApiUrl } from './client/routing.js';
 
 import type {
   CreateSavedQueryInput,
+  CreateTableInput,
+  CreateTableResponse,
   CreateWorkflowInput,
+  DescribeTableResponse,
   JsonValue,
   SubmitFeedbackInput,
   UpdateSavedQueryInput,
+  UpdateTableInput,
+  UpdateTableResponse,
   UpdateWorkflowInput,
   WorkflowScope,
 } from './types.js';
@@ -47,6 +52,39 @@ import type {
 export { RawTreeApiError } from './client/http.js';
 
 const DEFAULT_USER_AGENT = `rawtree-mcp/${packageJson.version}`;
+
+const tableConfigurationSchema = z.looseObject({
+  sorting_key: z.string(),
+  ttl: z.string().nullable(),
+  settings: z.array(z.object({ name: z.string(), value: z.string() })),
+});
+const updateTableResponseSchema = tableConfigurationSchema.extend({
+  database: z.string(),
+  table: z.string(),
+});
+const tableStorageDestinationSchema = z.object({
+  bucket: z.string(),
+  path: z.string(),
+});
+const createTableResponseSchema = updateTableResponseSchema.extend({
+  storage: z.discriminatedUnion('type', [
+    z.object({ type: z.literal('default') }),
+    z.object({
+      type: z.literal('s3'),
+      data: tableStorageDestinationSchema,
+      backups: tableStorageDestinationSchema,
+    }),
+  ]),
+});
+const describeTableResponseSchema = z.looseObject({
+  table: tableConfigurationSchema.extend({
+    name: z.string(),
+    created_at: z.string(),
+    total_rows: z.number(),
+    total_bytes: z.number(),
+    columns: z.array(z.object({ name: z.string(), type: z.string() })),
+  }),
+});
 
 export interface RawTreeClientOptions {
   fetchFn?: typeof fetch;
@@ -452,20 +490,24 @@ export class RawTreeClient {
   }
 
   async createTable(
-    { name, sortingKey }: { name: string; sortingKey?: string },
+    { name, sortingKey, ttl, settings }: CreateTableInput,
     scope: RawTreeScope = {},
-  ): Promise<unknown> {
-    return this.requestJson(
-      'POST',
-      this.apiPath('/tables'),
-      this.scoped(
-        {
-          body: {
-            name,
-            ...(sortingKey === undefined ? {} : { sorting_key: sortingKey }),
+  ): Promise<CreateTableResponse> {
+    return createTableResponseSchema.parse(
+      await this.requestJson(
+        'POST',
+        this.apiPath('/tables'),
+        this.scoped(
+          {
+            body: {
+              name,
+              ...(sortingKey === undefined ? {} : { sorting_key: sortingKey }),
+              ...(ttl === undefined ? {} : { ttl }),
+              ...(settings === undefined ? {} : { settings }),
+            },
           },
-        },
-        scope,
+          scope,
+        ),
       ),
     );
   }
@@ -473,23 +515,48 @@ export class RawTreeClient {
   async describeTable(
     table: string,
     scope: RawTreeScope = {},
-  ): Promise<unknown> {
-    return this.requestJson(
-      'GET',
-      `${this.apiPath('/tables')}/${encodePathPart(table)}`,
-      this.scoped({}, scope),
+  ): Promise<DescribeTableResponse> {
+    return describeTableResponseSchema.parse(
+      await this.requestJson(
+        'GET',
+        `${this.apiPath('/tables')}/${encodePathPart(table)}`,
+        this.scoped({}, scope),
+      ),
     );
   }
 
   async updateTable(
     table: string,
-    { sortingKey }: { sortingKey: string },
+    { sortingKey, ttl, settings }: UpdateTableInput,
     scope: RawTreeScope = {},
-  ): Promise<unknown> {
-    return this.requestJson(
-      'PATCH',
-      `${this.apiPath('/tables')}/${encodePathPart(table)}`,
-      this.scoped({ body: { sorting_key: sortingKey } }, scope),
+  ): Promise<UpdateTableResponse> {
+    const fields =
+      Number(sortingKey !== undefined) +
+      Number(ttl !== undefined) +
+      Number(settings !== undefined && Object.keys(settings).length > 0);
+    if (fields === 0) {
+      throw new Error('Provide sorting_key, ttl, or nonempty settings.');
+    }
+    if (fields > 1) {
+      throw new Error(
+        'Update sorting_key, ttl, and settings in separate requests.',
+      );
+    }
+    return updateTableResponseSchema.parse(
+      await this.requestJson(
+        'PATCH',
+        `${this.apiPath('/tables')}/${encodePathPart(table)}`,
+        this.scoped(
+          {
+            body: {
+              ...(sortingKey === undefined ? {} : { sorting_key: sortingKey }),
+              ...(ttl === undefined ? {} : { ttl }),
+              ...(settings === undefined ? {} : { settings }),
+            },
+          },
+          scope,
+        ),
+      ),
     );
   }
 

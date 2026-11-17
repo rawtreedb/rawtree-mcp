@@ -293,14 +293,14 @@ describe('createMcpServer', () => {
     });
 
     const updateTable = tools.find((tool) => tool.name === 'update-table');
-    expect(updateTable?.inputSchema.required).toEqual(['table', 'sortingKey']);
+    expect(updateTable?.inputSchema.required).toEqual(['table']);
     expect(updateTable?.inputSchema.properties.sortingKey).toMatchObject({
       type: 'string',
       minLength: 1,
     });
     expect(updateTable?.annotations).toMatchObject({
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
     });
 
@@ -508,7 +508,6 @@ describe('createMcpServer', () => {
       'organization',
       'cluster',
       'table',
-      'sortingKey',
     ]);
     const connectorMetrics = tools.find(
       (tool) => tool.name === 'get-connector-metrics',

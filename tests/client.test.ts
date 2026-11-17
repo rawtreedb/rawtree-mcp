@@ -126,6 +126,9 @@ describe('RawTreeClient', () => {
       database: 'analytics',
       table: 'events',
       storage: { type: 'default' },
+      sorting_key: '',
+      ttl: null,
+      settings: [],
     };
     const client = new RawTreeClient({
       apiKey: 'jwt_test',
@@ -157,6 +160,8 @@ describe('RawTreeClient', () => {
       table: 'events',
       storage: { type: 'default' },
       sorting_key: 'region, ifNull(cityHash64(host, instanceId), 0)',
+      ttl: null,
+      settings: [],
     };
     const client = new RawTreeClient({
       apiKey: 'jwt_test',
@@ -188,6 +193,8 @@ describe('RawTreeClient', () => {
       database: 'analytics',
       table: 'events',
       sorting_key: 'toStartOfHour(timestamp), region',
+      ttl: null,
+      settings: [],
     };
     const client = new RawTreeClient({
       apiKey: 'jwt_test',

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Expose table TTL and engine settings in `create-table` and `update-table`, and document configuration in table responses. Updates change one configuration field per call; TTL removal and settings resets are not supported by this route.
+
 ## 0.4.4
 
 - Use the organization-scoped catalog at `GET /v1/regions` for `list-regions`, cluster discovery, and explicit region selection.
