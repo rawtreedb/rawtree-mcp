@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.4.8
 
+- Use the canonical `/v1/api-keys` endpoints for API key management. `delete-api-key` now requires the key UUID in `id`; the `idOrApiKey` input and token-based deletion are no longer supported.
 - Expose table TTL and engine settings in `create-table` and `update-table`, and document configuration in table responses. Updates change one configuration field per call; TTL removal and settings resets are not supported by this route.
 
 ## 0.4.7
