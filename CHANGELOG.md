@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Document HTTP handler DDL in `run-query`, including admin permissions, supported syntax, cluster scope, and empty results.
+
 ## 0.4.4
 
 - Use the organization-scoped catalog at `GET /v1/regions` for `list-regions`, cluster discovery, and explicit region selection.

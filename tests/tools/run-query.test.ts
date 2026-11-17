@@ -58,6 +58,9 @@ describe('run-query contract', () => {
       'CREATE SETTINGS PROFILE',
       'CREATE ROW POLICY',
       'CREATE NAMED COLLECTION',
+      'CREATE HANDLER [IF NOT EXISTS]',
+      'ALTER HANDLER',
+      'DROP HANDLER [IF EXISTS]',
     ]) {
       expect(tool?.description).toContain(family);
     }
@@ -68,6 +71,17 @@ describe('run-query contract', () => {
       'supported writes do not require a browser login',
     );
     expect(tool?.description).not.toContain('validates queries as read-only');
+    for (const detail of [
+      "URL '/path' [METHODS (GET)] AS SELECT",
+      'admin API key or organization administrator session, with a selected cluster and database',
+      'Exact paths and read-only SELECT queries only',
+      "optional ON CLUSTER 'default' follows the name and is never added automatically",
+      "All write families, including handler DDL, are unavailable in RawTree's internal organization",
+      'handler DDL returns empty meta/data and rows: 0, with statistics',
+      'https://rawtree.com/docs/reference/api/query#sql-defined-http-endpoints',
+    ]) {
+      expect(tool?.description).toContain(detail);
+    }
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
@@ -76,6 +90,9 @@ describe('run-query contract', () => {
     'INSERT INTO daily SELECT count() AS n FROM events',
     'ALTER TABLE events MATERIALIZE INDEX idx_text',
     'CREATE ROLE analytics_reader',
+    "CREATE HANDLER demo URL '/demo' AS SELECT 1",
+    "ALTER HANDLER demo URL '/demo' METHODS (GET) AS SELECT 2",
+    'DROP HANDLER IF EXISTS demo',
   ])('forwards SQL unchanged with API-key authentication: %s', async (sql) => {
     const response = {
       meta: [],
