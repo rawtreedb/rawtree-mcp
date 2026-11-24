@@ -950,9 +950,10 @@ The workflow verifies that the release tag matches `package.json`, runs lint, te
 npm publish --provenance --access public
 ```
 
-After successful npm publication of a stable release, the workflow opens a PR
-against `rawtreedb/rawtree-platform` to bump the exact hosted MCP dependency and
-lockfile. Platform CI verifies the Worker on the PR and deploys it after merge.
+After npm accepts a stable release, the workflow waits up to 20 minutes for
+the exact version to become available, then opens a PR against
+`rawtreedb/rawtree-platform` to bump the hosted MCP dependency and lockfile.
+Platform CI verifies the Worker on the PR and deploys it after merge.
 If platform already pins the same version or a newer one, the job skips the PR.
 
 To enable the PR job, install a GitHub App on `rawtree-platform` with repository

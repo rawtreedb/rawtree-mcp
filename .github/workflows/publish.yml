@@ -99,7 +99,18 @@ jobs:
             exit 0
           fi
 
-          npm install --package-lock-only --save-exact --ignore-scripts --no-audit --no-fund "@rawtree/mcp@$version"
+          package="@rawtree/mcp@$version"
+          echo "Waiting for $package to become available on npm."
+          deadline=$((SECONDS + 20 * 60))
+          until [[ "$(npm view "$package" version --prefer-online --fetch-retries=0 --fetch-timeout=10000 2>/dev/null)" == "$version" ]]; do
+            if (( SECONDS >= deadline )); then
+              echo "::error::$package did not become available on npm within 20 minutes."
+              exit 1
+            fi
+            sleep 30
+          done
+
+          npm install --package-lock-only --save-exact --ignore-scripts --no-audit --no-fund "$package"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Open or update the platform PR
