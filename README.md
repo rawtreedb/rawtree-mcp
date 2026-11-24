@@ -935,11 +935,8 @@ const server = createMcpServer(client);
 
 ## Publishing
 
-Publishing is handled by the GitHub Actions `Publish` workflow.
-
-Required repository secret:
-
-- `NPM_TOKEN`: npm automation token with permission to publish `@rawtree/mcp`.
+Publishing is handled by the GitHub Actions `Publish` workflow using npm trusted
+publishing.
 
 Release flow:
 
@@ -952,6 +949,17 @@ The workflow verifies that the release tag matches `package.json`, runs lint, te
 ```bash
 npm publish --provenance --access public
 ```
+
+After successful npm publication of a stable release, the workflow opens a PR
+against `rawtreedb/rawtree-platform` to bump the exact hosted MCP dependency and
+lockfile. Platform CI verifies the Worker on the PR and deploys it after merge.
+If platform already pins the same version or a newer one, the job skips the PR.
+
+To enable the PR job, install a GitHub App on `rawtree-platform` with repository
+**Contents** and **Pull requests** read/write permissions. In `rawtree-mcp`,
+set `PLATFORM_RELEASE_APP_ID` as an Actions variable and
+`PLATFORM_RELEASE_APP_PRIVATE_KEY` as an Actions secret. If PR creation fails
+after npm publishes, re-run the failed job in GitHub Actions.
 
 ### Testing with MCP Inspector
 
