@@ -12,7 +12,7 @@ export function addFeedbackTools(server: McpServer, rawtree: RawTreeClient) {
       title: 'Submit Feedback',
       description: `${FEEDBACK_GUIDANCE}
 
-Uses this connection's API URL and credentials. Works before an organization exists. API keys and workload tokens supply their bound organization and cluster. With user credentials, optional organization_id and cluster_id are UUIDs; a cluster determines its organization. Configured organization/cluster names and database defaults are not substituted for these IDs. Explicit scope must be accessible to the caller. Returns { id, created_at } after successful storage.`,
+Uses this connection's API URL and credentials. Works before an organization exists. API keys and workload tokens supply their bound organization and cluster. With user credentials, optional organization_id and cluster_id are UUIDs; a cluster determines its organization. Configured organization, cluster, and database defaults are not substituted for these IDs. Explicit scope must be accessible to the caller. Returns { id, created_at } after successful storage.`,
       inputSchema: z.strictObject({
         message: z
           .string()

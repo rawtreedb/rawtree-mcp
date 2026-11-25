@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { RawTreeClient } from '../client.js';
-import { jsonResult, namedJsonResult } from './common.js';
+import { jsonResult, namedJsonResult, organizationInput } from './common.js';
 
 const organizationMemberRoleSchema = z.enum(['admin', 'member']);
 
@@ -15,12 +15,12 @@ export function addOrganizationTools(
       title: 'List Organizations',
       description: `**Purpose:** List RawTree organizations available to the authenticated user.
 
-**Returns:** Organization names, roles, plans, and avatar URLs.
+**Returns:** Organization IDs, names, roles, plans, and avatar URLs.
 
 **Auth:** Requires a user credential such as OAuth. Database API keys are not user credentials and cannot list organizations.
 
 **When to use:**
-- You need an organization name before listing clusters
+- You need an organization name or ID before listing clusters
 - The user wants to work across multiple organizations through one MCP connection`,
       inputSchema: {},
     },
@@ -45,10 +45,9 @@ export function addOrganizationTools(
         destructiveHint: false,
       },
       inputSchema: {
-        organization: z
-          .string()
-          .min(1)
-          .describe('Organization whose accepted members should be listed.'),
+        organization: organizationInput.describe(
+          'Name or ID of the organization whose accepted members should be listed.',
+        ),
       },
     },
     async ({ organization }) =>
@@ -73,10 +72,9 @@ export function addOrganizationTools(
         destructiveHint: false,
       },
       inputSchema: {
-        organization: z
-          .string()
-          .min(1)
-          .describe('Organization to which the person should be invited.'),
+        organization: organizationInput.describe(
+          'Name or ID of the organization to which the person should be invited.',
+        ),
         email: z
           .string()
           .min(1)
@@ -108,10 +106,9 @@ export function addOrganizationTools(
         destructiveHint: true,
       },
       inputSchema: {
-        organization: z
-          .string()
-          .min(1)
-          .describe('Organization containing the member.'),
+        organization: organizationInput.describe(
+          'Name or ID of the organization containing the member.',
+        ),
         userId: z
           .string()
           .min(1)
@@ -146,10 +143,9 @@ export function addOrganizationTools(
         destructiveHint: true,
       },
       inputSchema: {
-        organization: z
-          .string()
-          .min(1)
-          .describe('Organization containing the member.'),
+        organization: organizationInput.describe(
+          'Name or ID of the organization containing the member.',
+        ),
         userId: z
           .string()
           .min(1)

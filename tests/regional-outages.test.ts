@@ -1,6 +1,12 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { RawTreeClient } from '../src/client.js';
 
+const organizationId = '00000000-0000-4000-8000-0000000000a1';
+const clusterIds: Record<string, string> = {
+  us: '00000000-0000-4000-8000-0000000000f1',
+  eu: '00000000-0000-4000-8000-0000000000e1',
+};
+
 type Failure = number | 'network' | 'timeout';
 
 function fixture() {
@@ -10,10 +16,6 @@ function fixture() {
   const fetchFn: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
     calls.push({ url, signal: init?.signal });
-    if (url.pathname === '/v1/organizations')
-      return Response.json({
-        organizations: [{ name: 'acme', organization_id: 'org' }],
-      });
     if (url.pathname.endsWith('/regions'))
       return Response.json({
         regions: [
@@ -58,7 +60,7 @@ function fixture() {
         organization: { name: 'acme' },
         clusters: empty
           ? []
-          : [{ id: `${region}-id`, name: region, region_id: region }],
+          : [{ id: clusterIds[region], name: region, region_id: region }],
       });
     }
     return Response.json({ data: [] });
@@ -81,7 +83,10 @@ it.each([
 ] as const)('routes a healthy cluster before listing during regional failure: %s', async (failure) => {
   const { client, calls, failures } = fixture();
   failures.set('eu', failure);
-  await client.listDatabases({ organization: 'acme', cluster: 'us' });
+  await client.listDatabases({
+    organization: organizationId,
+    cluster: clusterIds.us,
+  });
   expect(calls.at(-1)?.url.hostname).toBe('api.rawtree.com');
   expect(calls.at(-1)?.url.pathname).toBe('/v1/databases');
 });
@@ -93,11 +98,11 @@ it('bounds a stalled region at five seconds and returns healthy clusters', async
   const timeout = vi
     .spyOn(AbortSignal, 'timeout')
     .mockReturnValue(controller.signal);
-  const pending = client.listClusters('acme');
+  const pending = client.listClusters(organizationId);
   await vi.waitFor(() => expect(timeout).toHaveBeenCalledTimes(2));
   controller.abort(new DOMException('Timed out', 'TimeoutError'));
   expect(await pending).toMatchObject({
-    clusters: [{ id: 'us-id' }],
+    clusters: [{ id: clusterIds.us }],
     unavailable_regions: [{ id: 'eu', name: 'Ireland' }],
   });
   expect(timeout).toHaveBeenCalledWith(5_000);
@@ -106,9 +111,9 @@ it('bounds a stalled region at five seconds and returns healthy clusters', async
 it('preserves response metadata when the first deployment fails', async () => {
   const { client, failures } = fixture();
   failures.set('us', 503);
-  expect(await client.listClusters('acme')).toMatchObject({
+  expect(await client.listClusters(organizationId)).toMatchObject({
     organization: { name: 'acme' },
-    clusters: [{ id: 'eu-id' }],
+    clusters: [{ id: clusterIds.eu }],
     unavailable_regions: [{ id: 'us', name: 'Virginia' }],
   });
 });
@@ -117,7 +122,7 @@ it('marks an empty healthy catalog as partial during an outage', async () => {
   const { client, failures, empty } = fixture();
   empty();
   failures.set('eu', 503);
-  expect(await client.listClusters('acme')).toMatchObject({
+  expect(await client.listClusters(organizationId)).toMatchObject({
     clusters: [],
     unavailable_regions: [{ id: 'eu', name: 'Ireland' }],
   });
@@ -128,7 +133,9 @@ it.each([
 ])('preserves authorization errors even when another deployment succeeds: %s', async (status) => {
   const { client, failures } = fixture();
   failures.set('eu', status);
-  await expect(client.listClusters('acme')).rejects.toMatchObject({ status });
+  await expect(client.listClusters(organizationId)).rejects.toMatchObject({
+    status,
+  });
 });
 
 it.each([
@@ -137,7 +144,9 @@ it.each([
   const { client, failures } = fixture();
   failures.set('us', status);
   failures.set('eu', status);
-  await expect(client.listClusters('acme')).rejects.toMatchObject({ status });
+  await expect(client.listClusters(organizationId)).rejects.toMatchObject({
+    status,
+  });
 });
 
 it.each([
@@ -146,13 +155,16 @@ it.each([
 ])('routes a recovered cluster immediately with a cached partial catalog (explicit refresh: %s)', async (refresh) => {
   const { client, calls, failures } = fixture();
   failures.set('eu', 503);
-  await client.listClusters('acme');
+  await client.listClusters(organizationId);
   failures.clear();
   if (refresh)
-    expect(await client.listClusters('acme')).not.toHaveProperty(
+    expect(await client.listClusters(organizationId)).not.toHaveProperty(
       'unavailable_regions',
     );
-  await client.listDatabases({ organization: 'acme', cluster: 'eu' });
+  await client.listDatabases({
+    organization: organizationId,
+    cluster: clusterIds.eu,
+  });
   expect(calls.at(-1)?.url.hostname).toBe(
     'api.1234abcd.eu-west-1.aws.rawtree.com',
   );
@@ -162,13 +174,19 @@ it('blocks cluster-ID mutations missing from a partial catalog, then retries aft
   const { client, calls, failures } = fixture();
   failures.set('eu', 503);
   await expect(
-    client.pauseCluster({ organization: 'acme', clusterId: 'eu-id' }),
+    client.pauseCluster({
+      organization: organizationId,
+      clusterId: clusterIds.eu,
+    }),
   ).rejects.toThrow('Some regions are unavailable');
   expect(calls.some(({ url }) => url.pathname.endsWith('/stop'))).toBe(false);
   failures.clear();
-  await client.pauseCluster({ organization: 'acme', clusterId: 'eu-id' });
+  await client.pauseCluster({
+    organization: organizationId,
+    clusterId: clusterIds.eu,
+  });
   expect(calls.at(-1)?.url.hostname).toBe(
     'api.1234abcd.eu-west-1.aws.rawtree.com',
   );
-  expect(calls.at(-1)?.url.pathname).toBe('/v1/clusters/eu-id/stop');
+  expect(calls.at(-1)?.url.pathname).toBe(`/v1/clusters/${clusterIds.eu}/stop`);
 });

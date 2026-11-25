@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import packageJson from '../package.json' with { type: 'json' };
 import { type RawTreeApiError, RawTreeClient } from '../src/client.js';
+import { clusterId, expectTenantHeaders, organizationId } from './fixtures.js';
 
 interface RecordedCall {
   url: string;
@@ -110,15 +111,16 @@ describe('RawTreeClient', () => {
     const client = new RawTreeClient({
       apiKey: 'jwt_test',
       database: 'analytics db',
-      organization: 'acme team',
+      organization: organizationId,
       fetchFn: recordingFetch(jsonResponse({ tables: [] }), calls),
     });
 
     await client.listTables();
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/tables?database=analytics+db&organization=acme+team',
+      'https://api.rawtree.com/v1/tables?database=analytics+db',
     );
+    expectTenantHeaders(calls[0].init, { organization: organizationId });
   });
 
   it('creates a table with cluster default storage', async () => {
@@ -137,16 +139,20 @@ describe('RawTreeClient', () => {
       client.createTable(
         { name: 'events' },
         {
-          organization: 'acme team',
-          cluster: 'production',
+          organization: organizationId,
+          cluster: clusterId,
           database: 'analytics',
         },
       ),
     ).resolves.toEqual(response);
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/tables?database=analytics&organization=acme+team&cluster=production',
+      'https://api.rawtree.com/v1/tables?database=analytics',
     );
+    expectTenantHeaders(calls[0].init, {
+      organization: organizationId,
+      cluster: clusterId,
+    });
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBe(JSON.stringify({ name: 'events' }));
   });
@@ -170,7 +176,11 @@ describe('RawTreeClient', () => {
           name: 'events',
           sortingKey: 'region, ifNull(cityHash64(host, instanceId), 0)',
         },
-        { organization: 'acme', cluster: 'production', database: 'analytics' },
+        {
+          organization: organizationId,
+          cluster: clusterId,
+          database: 'analytics',
+        },
       ),
     ).resolves.toEqual(response);
 
@@ -199,13 +209,15 @@ describe('RawTreeClient', () => {
       client.updateTable(
         'events',
         { sortingKey: 'toStartOfHour(timestamp), region' },
-        { organization: 'acme team', cluster: 'production' },
+        { organization: organizationId, cluster: clusterId },
       ),
     ).resolves.toEqual(response);
 
-    expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/tables/events?organization=acme+team&cluster=production',
-    );
+    expect(calls[0].url).toBe('https://api.rawtree.com/v1/tables/events');
+    expectTenantHeaders(calls[0].init, {
+      organization: organizationId,
+      cluster: clusterId,
+    });
     expect(calls[0].init.method).toBe('PATCH');
     expect(calls[0].init.body).toBe(
       JSON.stringify({ sorting_key: 'toStartOfHour(timestamp), region' }),
@@ -217,19 +229,23 @@ describe('RawTreeClient', () => {
     const client = new RawTreeClient({
       apiKey: 'jwt_test',
       database: 'configured_database',
-      organization: 'configured_org',
+      organization: organizationId,
       fetchFn: recordingFetch(jsonResponse({ rows: 1 }), calls),
     });
 
     await client.query('SELECT 1', {
-      organization: 'acme team',
-      cluster: 'production',
+      organization: organizationId,
+      cluster: clusterId,
       database: 'analytics db',
     });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/query?database=analytics+db&organization=acme+team&cluster=production',
+      'https://api.rawtree.com/v1/query?database=analytics+db',
     );
+    expectTenantHeaders(calls[0].init, {
+      organization: organizationId,
+      cluster: clusterId,
+    });
   });
 
   it('omits the database selector so the API can use its default', async () => {
@@ -240,13 +256,218 @@ describe('RawTreeClient', () => {
     });
 
     await client.query('SELECT 1', {
-      organization: 'acme',
-      cluster: 'production',
+      organization: organizationId,
+      cluster: clusterId,
     });
 
-    expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/query?organization=acme&cluster=production',
-    );
+    expect(calls[0].url).toBe('https://api.rawtree.com/v1/query');
+    expectTenantHeaders(calls[0].init, {
+      organization: organizationId,
+      cluster: clusterId,
+    });
+  });
+
+  describe('name resolution', () => {
+    function resolvingClient(credentialScope: 'cluster' | 'user' = 'user') {
+      const calls: RecordedCall[] = [];
+      const fetchFn: typeof fetch = async (input, init) => {
+        const url = new URL(String(input));
+        calls.push({ url: String(input), init: init ?? {} });
+        if (url.pathname === '/v1/organizations')
+          return jsonResponse({
+            organizations: [
+              { name: 'acme', organization_id: organizationId },
+              {
+                name: 'other',
+                organization_id: '00000000-0000-4000-8000-0000000000c1',
+              },
+            ],
+          });
+        if (url.pathname === '/v1/regions')
+          return jsonResponse({
+            regions: [
+              {
+                id: 'legacy',
+                name: 'Virginia',
+                cloud_region: 'us-east-1',
+                deployment_id: null,
+                enabled: true,
+                organization_id: null,
+              },
+            ],
+          });
+        if (url.pathname === '/v1/clusters')
+          return jsonResponse({
+            clusters: [{ id: clusterId, name: 'production' }],
+          });
+        return jsonResponse({ tables: [] });
+      };
+      return {
+        calls,
+        client: new RawTreeClient({
+          apiKey: credentialScope === 'cluster' ? 'rt_test' : 'jwt_test',
+          credentialScope,
+          fetchFn,
+        }),
+      };
+    }
+
+    it('resolves organization and cluster names to IDs on the wire, once per client', async () => {
+      const { client, calls } = resolvingClient();
+      const named = { organization: 'acme', cluster: 'production' };
+
+      await client.listTables(named);
+      await client.listTables(named);
+
+      const tables = calls.filter(({ url }) => url.includes('/v1/tables'));
+      expect(tables).toHaveLength(2);
+      for (const call of tables) expectTenantHeaders(call.init);
+      expect(
+        calls.filter(({ url }) => url.endsWith('/v1/organizations')),
+      ).toHaveLength(1);
+      expect(
+        calls.filter(({ url }) => url.endsWith('/v1/clusters')),
+      ).toHaveLength(1);
+      for (const { url, init } of calls) {
+        expect(url).not.toMatch(/acme|production/);
+        expect(JSON.stringify(init.headers)).not.toMatch(/acme|production/);
+      }
+    });
+
+    it('passes UUIDs through without any lookup', async () => {
+      const { client, calls } = resolvingClient();
+
+      await client.listTables({
+        organization: organizationId,
+        cluster: clusterId,
+      });
+
+      expect(calls).toHaveLength(1);
+      expectTenantHeaders(calls[0].init);
+    });
+
+    it('puts a resolved organization ID in organization paths', async () => {
+      const { client, calls } = resolvingClient();
+
+      await client.listOrganizationMembers('acme');
+
+      expect(calls.at(-1)?.url).toBe(
+        `https://api.rawtree.com/v1/organizations/${organizationId}/members`,
+      );
+    });
+
+    it('sends resolved IDs as metrics query parameters', async () => {
+      const { client, calls } = resolvingClient();
+
+      await client.getConnectorMetrics('c1', {
+        organization: 'acme',
+        cluster: 'production',
+      });
+
+      const url = new URL(calls.at(-1)?.url ?? '');
+      expect(url.searchParams.get('organization_id')).toBe(organizationId);
+      expect(url.searchParams.get('cluster_id')).toBe(clusterId);
+    });
+
+    it.each([
+      [{ organization: 'missing' }, "Organization 'missing' was not found"],
+      [
+        { organization: 'acme', cluster: 'missing' },
+        "Cluster 'missing' was not found",
+      ],
+    ])('fails clearly for an unknown name %j without calling the target route', async (scope, message) => {
+      const { client, calls } = resolvingClient();
+
+      await expect(client.listTables(scope)).rejects.toThrow(message);
+      expect(calls.some(({ url }) => url.includes('/v1/tables'))).toBe(false);
+    });
+
+    describe('with an API key', () => {
+      it('resolves cluster and organization names through the key, once per client', async () => {
+        const { client, calls } = resolvingClient('cluster');
+        const named = { organization: 'acme', cluster: 'production' };
+
+        await client.listTables(named);
+        await client.listTables(named);
+
+        expect(
+          calls.filter(({ url }) => url.endsWith('/v1/organizations')),
+        ).toHaveLength(1);
+        expect(
+          calls.filter(({ url }) => url.endsWith('/v1/clusters')),
+        ).toHaveLength(1);
+        const tables = calls.filter(({ url }) => url.includes('/v1/tables'));
+        expect(tables).toHaveLength(2);
+        for (const call of tables) expectTenantHeaders(call.init);
+      });
+
+      it('puts the resolved organization ID in organization paths', async () => {
+        const { client, calls } = resolvingClient('cluster');
+
+        await client.listOrganizationMembers('acme');
+
+        expect(calls.at(-1)?.url).toBe(
+          `https://api.rawtree.com/v1/organizations/${organizationId}/members`,
+        );
+      });
+
+      it("rejects an organization name that is not the key's organization", async () => {
+        const { client, calls } = resolvingClient('cluster');
+
+        await expect(
+          client.listTables({ organization: 'missing' }),
+        ).rejects.toThrow(
+          "Organization 'missing' does not match the API key's organization.",
+        );
+        expect(calls.some(({ url }) => url.includes('/v1/tables'))).toBe(false);
+      });
+
+      it('rejects a cluster name that is not the bound cluster', async () => {
+        const { client, calls } = resolvingClient('cluster');
+
+        await expect(client.listTables({ cluster: 'staging' })).rejects.toThrow(
+          "The API key is not bound to cluster 'staging'.",
+        );
+        expect(calls.some(({ url }) => url.includes('/v1/tables'))).toBe(false);
+      });
+
+      it('passes UUIDs straight into headers without any lookup', async () => {
+        const { client, calls } = resolvingClient('cluster');
+
+        await client.listTables({
+          organization: organizationId,
+          cluster: clusterId,
+        });
+
+        expect(calls).toHaveLength(1);
+        expectTenantHeaders(calls[0].init);
+      });
+    });
+
+    it('needs an organization to resolve a cluster name', async () => {
+      const { client } = resolvingClient();
+
+      await expect(
+        client.listTables({ cluster: 'production' }),
+      ).rejects.toThrow('Provide organization');
+    });
+  });
+
+  it('never sends organization or cluster names as query parameters', async () => {
+    const calls: RecordedCall[] = [];
+    const client = new RawTreeClient({
+      apiKey: 'jwt_test',
+      organization: organizationId,
+      cluster: clusterId,
+      fetchFn: recordingFetch(jsonResponse({ tables: [] }), calls),
+    });
+
+    await client.listTables();
+
+    const url = new URL(calls[0].url);
+    expect(url.searchParams.has('organization')).toBe(false);
+    expect(url.searchParams.has('cluster')).toBe(false);
+    expectTenantHeaders(calls[0].init);
   });
 
   it('lists organizations without resource scope', async () => {
@@ -254,7 +475,7 @@ describe('RawTreeClient', () => {
     const client = new RawTreeClient({
       apiKey: 'jwt_test',
       database: 'analytics',
-      organization: 'acme',
+      organization: organizationId,
       fetchFn: recordingFetch(jsonResponse({ organizations: [] }), calls),
     });
 
@@ -270,12 +491,14 @@ describe('RawTreeClient', () => {
       fetchFn: recordingFetch(jsonResponse({ members: [] }), calls),
     });
 
-    await expect(client.listOrganizationMembers('acme/team')).resolves.toEqual({
+    await expect(
+      client.listOrganizationMembers(organizationId),
+    ).resolves.toEqual({
       members: [],
     });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/organizations/acme%2Fteam/members',
+      `https://api.rawtree.com/v1/organizations/${organizationId}/members`,
     );
     expect(calls[0].init.method).toBe('GET');
   });
@@ -295,12 +518,12 @@ describe('RawTreeClient', () => {
     });
 
     await client.addOrganizationMember({
-      organization: 'acme team',
+      organization: organizationId,
       email: 'member@example.com',
     });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/organizations/acme%20team/members',
+      `https://api.rawtree.com/v1/organizations/${organizationId}/members`,
     );
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBe(
@@ -316,13 +539,13 @@ describe('RawTreeClient', () => {
     });
 
     await client.updateOrganizationMember({
-      organization: 'acme/team',
+      organization: organizationId,
       userId: 'user/id',
       role: 'admin',
     });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/organizations/acme%2Fteam/members/user%2Fid',
+      `https://api.rawtree.com/v1/organizations/${organizationId}/members/user%2Fid`,
     );
     expect(calls[0].init.method).toBe('PATCH');
     expect(calls[0].init.body).toBe(JSON.stringify({ role: 'admin' }));
@@ -336,12 +559,12 @@ describe('RawTreeClient', () => {
     });
 
     await client.removeOrganizationMember({
-      organization: 'acme team',
+      organization: organizationId,
       userId: 'user/id',
     });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/organizations/acme%20team/members/user%2Fid',
+      `https://api.rawtree.com/v1/organizations/${organizationId}/members/user%2Fid`,
     );
     expect(calls[0].init.method).toBe('DELETE');
     expect(calls[0].init.body).toBeUndefined();
@@ -371,8 +594,8 @@ describe('RawTreeClient', () => {
 
     await expect(
       client.listDatabases({
-        organization: 'acme',
-        cluster: 'production',
+        organization: organizationId,
+        cluster: clusterId,
       }),
     ).resolves.toMatchObject({
       databases: [
@@ -384,9 +607,11 @@ describe('RawTreeClient', () => {
       ],
     });
 
-    expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/databases?organization=acme&cluster=production',
-    );
+    expect(calls[0].url).toBe('https://api.rawtree.com/v1/databases');
+    expectTenantHeaders(calls[0].init, {
+      organization: organizationId,
+      cluster: clusterId,
+    });
   });
 
   it('creates a database with optional customer-owned S3 storage', async () => {
@@ -410,13 +635,15 @@ describe('RawTreeClient', () => {
             roleArn: 'arn:aws:iam::123456789012:role/RawTreeS3',
           },
         },
-        { organization: 'acme team', cluster: 'production' },
+        { organization: organizationId, cluster: clusterId },
       ),
     ).resolves.toEqual(response);
 
-    expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/databases?organization=acme+team&cluster=production',
-    );
+    expect(calls[0].url).toBe('https://api.rawtree.com/v1/databases');
+    expectTenantHeaders(calls[0].init, {
+      organization: organizationId,
+      cluster: clusterId,
+    });
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBe(
       JSON.stringify({
@@ -448,13 +675,17 @@ describe('RawTreeClient', () => {
             roleArn: 'arn:aws:iam::123456789012:role/RawTreeS3',
           },
         },
-        { organization: 'acme team', cluster: 'production' },
+        { organization: organizationId, cluster: clusterId },
       ),
     ).resolves.toEqual(response);
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/databases/verify-s3-access?organization=acme+team&cluster=production',
+      'https://api.rawtree.com/v1/databases/verify-s3-access',
     );
+    expectTenantHeaders(calls[0].init, {
+      organization: organizationId,
+      cluster: clusterId,
+    });
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBe(
       JSON.stringify({
@@ -473,20 +704,24 @@ describe('RawTreeClient', () => {
     const client = new RawTreeClient({
       apiKey: 'jwt_test',
       database: 'configured_database',
-      organization: 'configured_org',
+      organization: organizationId,
       fetchFn: recordingFetch(jsonResponse({ deleted: true }), calls),
     });
 
     await expect(
       client.deleteDatabase('analytics db', {
-        organization: 'acme team',
-        cluster: 'production',
+        organization: organizationId,
+        cluster: clusterId,
       }),
     ).resolves.toEqual({ deleted: true });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/databases/analytics%20db?organization=acme+team&cluster=production',
+      'https://api.rawtree.com/v1/databases/analytics%20db',
     );
+    expectTenantHeaders(calls[0].init, {
+      organization: organizationId,
+      cluster: clusterId,
+    });
     expect(calls[0].init.method).toBe('DELETE');
   });
 
@@ -495,7 +730,7 @@ describe('RawTreeClient', () => {
     const client = new RawTreeClient({
       apiKey: 'jwt_test',
       database: 'analytics',
-      organization: 'acme',
+      organization: organizationId,
       fetchFn: recordingFetch(jsonResponse({ inserted: 1 }), calls),
     });
 
@@ -505,8 +740,9 @@ describe('RawTreeClient', () => {
     });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/tables/events?url=https%3A%2F%2Fexample.com%2Fevents.jsonl&database=analytics&organization=acme',
+      'https://api.rawtree.com/v1/tables/events?url=https%3A%2F%2Fexample.com%2Fevents.jsonl&database=analytics',
     );
+    expectTenantHeaders(calls[0].init, { organization: organizationId });
   });
 
   it('inserts JSON without transform query parameters', async () => {
@@ -555,13 +791,12 @@ describe('RawTreeClient', () => {
       fetchFn: recordingFetch(jsonResponse({ clusters: [] }), calls),
     });
 
-    await expect(client.listClusters('acme team')).resolves.toEqual({
+    await expect(client.listClusters(organizationId)).resolves.toEqual({
       clusters: [],
     });
 
-    expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters?organization=acme+team',
-    );
+    expect(calls[0].url).toBe('https://api.rawtree.com/v1/clusters');
+    expectTenantHeaders(calls[0].init, { organization: organizationId });
     expect(calls[0].init.method).toBe('GET');
   });
 
@@ -592,7 +827,9 @@ describe('RawTreeClient', () => {
       fetchFn: recordingFetch(jsonResponse(response), calls),
     });
 
-    await expect(client.listClusters('acme')).resolves.toEqual(response);
+    await expect(client.listClusters(organizationId)).resolves.toEqual(
+      response,
+    );
   });
 
   it('lists current cluster creation sizes and replica limits', async () => {
@@ -607,7 +844,7 @@ describe('RawTreeClient', () => {
     const client = new RawTreeClient({
       apiKey: 'jwt_test',
       database: 'analytics',
-      organization: 'configured-org',
+      organization: organizationId,
       fetchFn: recordingFetch(jsonResponse(response), calls),
     });
 
@@ -631,7 +868,7 @@ describe('RawTreeClient', () => {
     await expect(
       client.createCluster({
         regionId: '11111111-1111-4111-8111-111111111111',
-        organization: 'acme',
+        organization: organizationId,
         name: 'production',
         s3StorageAccess: {
           externalId: 'rawtree-acme-production',
@@ -644,9 +881,8 @@ describe('RawTreeClient', () => {
       }),
     ).resolves.toEqual({ id: 'cluster-id', name: 'production' });
 
-    expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters?organization=acme',
-    );
+    expect(calls[0].url).toBe('https://api.rawtree.com/v1/clusters');
+    expectTenantHeaders(calls[0].init, { organization: organizationId });
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBe(
       JSON.stringify({
@@ -688,7 +924,7 @@ describe('RawTreeClient', () => {
 
     await client.createCluster({
       regionId: '11111111-1111-4111-8111-111111111111',
-      organization: 'acme',
+      organization: organizationId,
       name: 'production',
       s3StorageAccess: {
         externalId: 'rawtree-acme-production',
@@ -748,7 +984,7 @@ describe('RawTreeClient', () => {
 
     await client.createCluster({
       regionId: '11111111-1111-4111-8111-111111111111',
-      organization: 'acme',
+      organization: organizationId,
       name: 'production',
       s3StorageAccess: {
         externalId: 'rawtree-acme-production',
@@ -796,7 +1032,7 @@ describe('RawTreeClient', () => {
 
     await expect(
       client.verifyClusterS3Access({
-        organization: 'acme team',
+        organization: organizationId,
         s3StorageAccess: { externalId: 'rawtree-acme-production' },
         s3Storage: {
           data: { bucket: 'acme-rawtree-data', path: 'cluster-data' },
@@ -807,8 +1043,9 @@ describe('RawTreeClient', () => {
     ).resolves.toEqual(response);
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters/verify-s3-access?organization=acme+team',
+      'https://api.rawtree.com/v1/clusters/verify-s3-access',
     );
+    expectTenantHeaders(calls[0].init, { organization: organizationId });
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBe(
       JSON.stringify({
@@ -827,21 +1064,22 @@ describe('RawTreeClient', () => {
     const client = new RawTreeClient({
       apiKey: 'jwt_test',
       fetchFn: recordingFetch(
-        jsonResponse({ id: 'cluster/id', name: 'production' }),
+        jsonResponse({ id: clusterId, name: 'production' }),
         calls,
       ),
     });
 
     await expect(
       client.getCluster({
-        organization: 'acme team',
-        clusterId: 'cluster/id',
+        organization: organizationId,
+        clusterId: clusterId,
       }),
-    ).resolves.toEqual({ id: 'cluster/id', name: 'production' });
+    ).resolves.toEqual({ id: clusterId, name: 'production' });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters/cluster%2Fid?organization=acme+team',
+      `https://api.rawtree.com/v1/clusters/${clusterId}`,
     );
+    expectTenantHeaders(calls[0].init);
     expect(calls[0].init.method).toBe('GET');
     expect(calls[0].init.body).toBeUndefined();
   });
@@ -852,7 +1090,7 @@ describe('RawTreeClient', () => {
       apiKey: 'jwt_test',
       fetchFn: recordingFetch(
         jsonResponse({
-          id: 'cluster/id',
+          id: clusterId,
           name: 'production',
           idle_timeout_minutes: 0,
         }),
@@ -862,18 +1100,19 @@ describe('RawTreeClient', () => {
 
     await expect(
       client.updateCluster({
-        organization: 'acme team',
-        clusterId: 'cluster/id',
+        organization: organizationId,
+        clusterId: clusterId,
         idleTimeoutMinutes: 0,
       }),
     ).resolves.toMatchObject({
-      id: 'cluster/id',
+      id: clusterId,
       idle_timeout_minutes: 0,
     });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters/cluster%2Fid?organization=acme+team',
+      `https://api.rawtree.com/v1/clusters/${clusterId}`,
     );
+    expectTenantHeaders(calls[0].init);
     expect(calls[0].init.method).toBe('PATCH');
     expect(calls[0].init.body).toBe(
       JSON.stringify({ idle_timeout_minutes: 0 }),
@@ -885,24 +1124,25 @@ describe('RawTreeClient', () => {
     const client = new RawTreeClient({
       apiKey: 'jwt_test',
       fetchFn: recordingFetch(
-        jsonResponse({ id: 'cluster/id', status: { phase: 'pausing' } }),
+        jsonResponse({ id: clusterId, status: { phase: 'pausing' } }),
         calls,
       ),
     });
 
     await expect(
       client.pauseCluster({
-        organization: 'acme team',
-        clusterId: 'cluster/id',
+        organization: organizationId,
+        clusterId: clusterId,
       }),
     ).resolves.toEqual({
-      id: 'cluster/id',
+      id: clusterId,
       status: { phase: 'pausing' },
     });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters/cluster%2Fid/stop?organization=acme+team',
+      `https://api.rawtree.com/v1/clusters/${clusterId}/stop`,
     );
+    expectTenantHeaders(calls[0].init);
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBeUndefined();
   });
@@ -912,26 +1152,126 @@ describe('RawTreeClient', () => {
     const client = new RawTreeClient({
       apiKey: 'jwt_test',
       fetchFn: recordingFetch(
-        jsonResponse({ id: 'cluster-id', status: { phase: 'resuming' } }),
+        jsonResponse({ id: clusterId, status: { phase: 'resuming' } }),
         calls,
       ),
     });
 
     await expect(
       client.resumeCluster({
-        organization: 'acme',
-        clusterId: 'cluster-id',
+        organization: organizationId,
+        clusterId: clusterId,
       }),
     ).resolves.toEqual({
-      id: 'cluster-id',
+      id: clusterId,
       status: { phase: 'resuming' },
     });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/clusters/cluster-id/resume?organization=acme',
+      `https://api.rawtree.com/v1/clusters/${clusterId}/resume`,
     );
+    expectTenantHeaders(calls[0].init);
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBeUndefined();
+  });
+
+  describe('cluster tools by name or ID', () => {
+    function clusterClient(credentialScope: 'cluster' | 'user' = 'user') {
+      const calls: RecordedCall[] = [];
+      const fetchFn: typeof fetch = async (input, init) => {
+        const url = new URL(String(input));
+        calls.push({ url: String(input), init: init ?? {} });
+        if (url.pathname === '/v1/organizations')
+          return jsonResponse({
+            organizations: [{ name: 'acme', organization_id: organizationId }],
+          });
+        if (url.pathname === '/v1/regions')
+          return jsonResponse({
+            regions: [
+              {
+                id: 'legacy',
+                name: 'Virginia',
+                cloud_region: 'us-east-1',
+                deployment_id: null,
+                enabled: true,
+                organization_id: null,
+              },
+            ],
+          });
+        if (url.pathname === '/v1/clusters')
+          return jsonResponse({
+            clusters: [{ id: clusterId, name: 'production' }],
+          });
+        return jsonResponse({ id: clusterId });
+      };
+      return {
+        calls,
+        client: new RawTreeClient({
+          apiKey: credentialScope === 'cluster' ? 'rt_test' : 'jwt_test',
+          credentialScope,
+          fetchFn,
+        }),
+      };
+    }
+
+    it.each([
+      ['getCluster', 'GET', ''],
+      ['pauseCluster', 'POST', '/stop'],
+      ['resumeCluster', 'POST', '/resume'],
+    ] as const)('%s resolves a cluster name to its ID in the path', async (method, verb, suffix) => {
+      for (const credentialScope of ['user', 'cluster'] as const) {
+        const { client, calls } = clusterClient(credentialScope);
+
+        await client[method]({ organization: 'acme', clusterId: 'production' });
+
+        const last = calls.at(-1);
+        expect(last?.url).toBe(
+          `https://api.rawtree.com/v1/clusters/${clusterId}${suffix}`,
+        );
+        expect(last?.init.method).toBe(verb);
+        expectTenantHeaders(last?.init ?? {});
+      }
+    });
+
+    it('updateCluster resolves a cluster name to its ID in the path', async () => {
+      const { client, calls } = clusterClient();
+
+      await client.updateCluster({
+        organization: 'acme',
+        clusterId: 'production',
+        idleTimeoutMinutes: 30,
+      });
+
+      expect(calls.at(-1)?.url).toBe(
+        `https://api.rawtree.com/v1/clusters/${clusterId}`,
+      );
+    });
+
+    it('passes a UUID through without looking up clusters', async () => {
+      const { client, calls } = clusterClient();
+
+      await client.getCluster({
+        organization: organizationId,
+        clusterId,
+      });
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0].url).toBe(
+        `https://api.rawtree.com/v1/clusters/${clusterId}`,
+      );
+    });
+
+    it.each([
+      'user',
+      'cluster',
+    ] as const)('fails for an unknown cluster name with %s credentials without calling the cluster route', async (credentialScope) => {
+      const { client, calls } = clusterClient(credentialScope);
+
+      await expect(
+        client.pauseCluster({ organization: 'acme', clusterId: 'staging' }),
+      ).rejects.toThrow(/staging/);
+      expect(calls.some(({ url }) => url.endsWith('/stop'))).toBe(false);
+    });
   });
 
   it('lists apps and installation state for a cluster', async () => {
@@ -949,16 +1289,18 @@ describe('RawTreeClient', () => {
 
     await expect(
       client.listApps({
-        organization: 'acme team',
-        cluster: 'production cluster',
+        organization: organizationId,
+        cluster: clusterId,
       }),
     ).resolves.toMatchObject({
       apps: [{ id: 'prometheus', installed: true }],
     });
 
-    expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/apps?organization=acme+team&cluster=production+cluster',
-    );
+    expect(calls[0].url).toBe('https://api.rawtree.com/v1/apps');
+    expectTenantHeaders(calls[0].init, {
+      organization: organizationId,
+      cluster: clusterId,
+    });
     expect(calls[0].init.method).toBe('GET');
     expect(calls[0].init.body).toBeUndefined();
   });
@@ -979,15 +1321,19 @@ describe('RawTreeClient', () => {
 
     await expect(
       client.installApp({
-        organization: 'acme team',
-        cluster: 'production cluster',
+        organization: organizationId,
+        cluster: clusterId,
         appId: 'opentelemetry/app',
       }),
     ).resolves.toMatchObject({ installed: true });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/apps/opentelemetry%2Fapp?organization=acme+team&cluster=production+cluster',
+      'https://api.rawtree.com/v1/apps/opentelemetry%2Fapp',
     );
+    expectTenantHeaders(calls[0].init, {
+      organization: organizationId,
+      cluster: clusterId,
+    });
     expect(calls[0].init.method).toBe('PUT');
     expect(calls[0].init.body).toBeUndefined();
   });
@@ -1008,15 +1354,19 @@ describe('RawTreeClient', () => {
 
     await expect(
       client.uninstallApp({
-        organization: 'acme team',
-        cluster: 'production cluster',
+        organization: organizationId,
+        cluster: clusterId,
         appId: 'prometheus/app',
       }),
     ).resolves.toMatchObject({ installed: false });
 
     expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/apps/prometheus%2Fapp?organization=acme+team&cluster=production+cluster',
+      'https://api.rawtree.com/v1/apps/prometheus%2Fapp',
     );
+    expectTenantHeaders(calls[0].init, {
+      organization: organizationId,
+      cluster: clusterId,
+    });
     expect(calls[0].init.method).toBe('DELETE');
     expect(calls[0].init.body).toBeUndefined();
   });

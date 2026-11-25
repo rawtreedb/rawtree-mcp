@@ -2,8 +2,8 @@ import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RawTreeClient, type RawTreeClientOptions } from '../../src/client.js';
 import { createMcpServer } from '../../src/server.js';
+import { expectTenantHeaders, scope } from '../fixtures.js';
 
-const scope = { organization: 'acme team', cluster: 'production/eu' };
 const savedQuery = {
   id: '00000000-0000-4000-8000-000000000001',
   organization_id: '00000000-0000-4000-8000-000000000002',
@@ -119,9 +119,10 @@ describe('saved-query MCP tools', () => {
     expect(result).toMatchObject({ content: jsonContent(body) });
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(fetchFn.mock.calls[0][0].toString()).toBe(
-      'https://api.rawtree.com/v1/saved-queries?organization=acme+team&cluster=production%2Feu',
+      'https://api.rawtree.com/v1/saved-queries',
     );
     expect(fetchFn.mock.calls[0][1]?.method).toBe('GET');
+    expectTenantHeaders(fetchFn.mock.calls[0][1]);
   });
 
   it('returns an empty query list unchanged', async () => {
@@ -144,7 +145,7 @@ describe('saved-query MCP tools', () => {
     expect(result).toMatchObject({ content: jsonContent(savedQuery) });
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(fetchFn.mock.calls[0][0].toString()).toBe(
-      'https://api.rawtree.com/v1/saved-queries?organization=acme+team&cluster=production%2Feu',
+      'https://api.rawtree.com/v1/saved-queries',
     );
     expect(fetchFn.mock.calls[0][1]).toMatchObject({
       method: 'POST',
@@ -171,7 +172,7 @@ describe('saved-query MCP tools', () => {
     ).toMatchObject({ content: jsonContent(updated) });
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(fetchFn.mock.calls[0][0].toString()).toBe(
-      `https://api.rawtree.com/v1/saved-queries/${savedQuery.id}?organization=acme+team&cluster=production%2Feu`,
+      `https://api.rawtree.com/v1/saved-queries/${savedQuery.id}`,
     );
     expect(fetchFn.mock.calls[0][1]).toMatchObject({
       method: 'PATCH',
@@ -241,7 +242,7 @@ describe('saved-query MCP tools', () => {
       content: jsonContent({ id: savedQuery.id, deleted: true }),
     });
     expect(fetchFn.mock.calls[0][0].toString()).toBe(
-      `https://api.rawtree.com/v1/saved-queries/${savedQuery.id}?organization=acme+team&cluster=production%2Feu`,
+      `https://api.rawtree.com/v1/saved-queries/${savedQuery.id}`,
     );
     expect(fetchFn.mock.calls[0][1]).toMatchObject({
       method: 'DELETE',

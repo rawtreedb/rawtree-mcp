@@ -2,8 +2,8 @@ import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RawTreeClient } from '../../src/client.js';
 import { createMcpServer } from '../../src/server.js';
+import { expectTenantHeaders, scope } from '../fixtures.js';
 
-const scope = { organization: 'acme team', cluster: 'production/eu' };
 const id = '00000000-0000-4000-8000-000000000001';
 const sinkId = '00000000-0000-4000-8000-000000000002';
 const integrationId = '00000000-0000-4000-8000-000000000003';
@@ -45,7 +45,7 @@ const names = [
   'delete-workflow',
 ];
 const apiUrl = 'https://api.rawtree.com/v1/workflows';
-const query = '?organization=acme+team&cluster=production%2Feu';
+const query = '';
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -74,8 +74,8 @@ describe('workflow MCP tools', () => {
     const rawtree = new RawTreeClient({
       apiKey,
       database: 'must_not_leak',
-      organization: 'configured_org',
-      cluster: 'configured_cluster',
+      organization: '00000000-0000-4000-8000-0000000000c1',
+      cluster: '00000000-0000-4000-8000-0000000000d1',
       fetchFn,
     });
     const server = createMcpServer(rawtree, { requireExplicitScope });
@@ -175,6 +175,7 @@ describe('workflow MCP tools', () => {
       }),
     ).toMatchObject({ content: content(workflow) });
     expect(String(fetchFn.mock.calls[0][0])).toBe(`${apiUrl}${query}`);
+    expectTenantHeaders(fetchFn.mock.calls[0][1]);
     expect(fetchFn.mock.calls[0][1]).toMatchObject({
       method: 'POST',
       body: JSON.stringify(input),

@@ -11,12 +11,7 @@ const account = {
   description: null,
   role: 'member',
 };
-const organizations = {
-  organizations: [
-    { name: 'other', organization_id: '00000000-0000-4000-8000-000000000003' },
-    { name: 'team alpha', organization_id: organizationId },
-  ],
-};
+const otherOrganizationId = '00000000-0000-4000-8000-000000000003';
 
 function response(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -41,8 +36,8 @@ describe('service account tools', () => {
       new RawTreeClient({
         apiKey: 'oauth_test',
         fetchFn,
-        organization: 'other',
-        cluster: 'ignored',
+        organization: otherOrganizationId,
+        cluster: '00000000-0000-4000-8000-000000000004',
         database: 'ignored',
       }),
       { requireExplicitScope: explicit },
@@ -84,28 +79,22 @@ describe('service account tools', () => {
   it.each([
     { accounts: [] },
     { accounts: [account] },
-  ])('lists accounts using the selected organization UUID', async ({
+  ])('lists accounts using the organization ID in the path', async ({
     accounts,
   }) => {
-    const { client, fetchFn } = await connect([
-      response(organizations),
-      response(accounts),
-    ]);
+    const { client, fetchFn } = await connect([response(accounts)]);
     const result = await client.callTool({
       name: 'list-service-accounts',
-      arguments: { organization: 'team alpha' },
+      arguments: { organization: organizationId },
     });
     expect(result).toMatchObject({
       content: [{ type: 'text', text: JSON.stringify(accounts, null, 2) }],
     });
-    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(String(fetchFn.mock.calls[0]?.[0])).toBe(
-      'https://api.rawtree.com/v1/organizations',
-    );
-    expect(String(fetchFn.mock.calls[1]?.[0])).toBe(
       `https://api.rawtree.com/v1/organizations/${organizationId}/service-accounts`,
     );
-    expect(fetchFn.mock.calls[1]?.[1]?.method).toBe('GET');
+    expect(fetchFn.mock.calls[0]?.[1]?.method).toBe('GET');
   });
 
   it.each([
@@ -113,14 +102,11 @@ describe('service account tools', () => {
     { role: 'admin', description: 'é'.repeat(1000) },
   ])('creates with optional metadata %j', async (metadata) => {
     const created = { ...account, ...metadata };
-    const { client, fetchFn } = await connect([
-      response(organizations),
-      response(created),
-    ]);
+    const { client, fetchFn } = await connect([response(created)]);
     const result = await client.callTool({
       name: 'create-service-account',
       arguments: {
-        organization: 'team alpha',
+        organization: organizationId,
         name: 'build-jobs',
         ...metadata,
       },
@@ -128,11 +114,11 @@ describe('service account tools', () => {
     expect(result).toMatchObject({
       content: [{ type: 'text', text: JSON.stringify(created, null, 2) }],
     });
-    expect(String(fetchFn.mock.calls[1]?.[0])).toBe(
+    expect(String(fetchFn.mock.calls[0]?.[0])).toBe(
       `https://api.rawtree.com/v1/organizations/${organizationId}/service-accounts`,
     );
-    expect(fetchFn.mock.calls[1]?.[1]?.method).toBe('POST');
-    expect(JSON.parse(String(fetchFn.mock.calls[1]?.[1]?.body))).toEqual({
+    expect(fetchFn.mock.calls[0]?.[1]?.method).toBe('POST');
+    expect(JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body))).toEqual({
       name: 'build-jobs',
       role: 'member',
       ...metadata,
@@ -153,7 +139,7 @@ describe('service account tools', () => {
     const { client, fetchFn } = await connect();
     const result = await client.callTool({
       name: 'create-service-account',
-      arguments: { organization: 'team alpha', ...input },
+      arguments: { organization: organizationId, ...input },
     });
     expect(result.isError).toBe(true);
     expect(fetchFn).not.toHaveBeenCalled();
@@ -172,18 +158,38 @@ describe('service account tools', () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
-  it('never falls back to a different organization', async () => {
-    const { client, fetchFn } = await connect([response(organizations)]);
+  it('resolves an organization name to its ID before calling the API', async () => {
+    const { client, fetchFn } = await connect([
+      response({
+        organizations: [
+          { name: 'other', organization_id: otherOrganizationId },
+          { name: 'team alpha', organization_id: organizationId },
+        ],
+      }),
+      response([account]),
+    ]);
+    await client.callTool({
+      name: 'list-service-accounts',
+      arguments: { organization: 'team alpha' },
+    });
+    expect(fetchFn.mock.calls.map(([url]) => String(url))).toEqual([
+      'https://api.rawtree.com/v1/organizations',
+      `https://api.rawtree.com/v1/organizations/${organizationId}/service-accounts`,
+    ]);
+  });
+
+  it('reports an unknown organization name without calling the target route', async () => {
+    const { client, fetchFn } = await connect([
+      response({ organizations: [] }),
+    ]);
     const result = await client.callTool({
       name: 'create-service-account',
       arguments: { organization: 'missing', name: 'build-jobs' },
     });
     expect(result.isError).toBe(true);
-    expect(result.content).toEqual([
-      expect.objectContaining({
-        text: expect.stringContaining("Organization 'missing' was not found"),
-      }),
-    ]);
+    expect(JSON.stringify(result)).toContain(
+      "Organization 'missing' was not found",
+    );
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
@@ -191,14 +197,13 @@ describe('service account tools', () => {
     401, 403, 409,
   ])('reports API errors without retrying creation: %s', async (status) => {
     const { client, fetchFn } = await connect([
-      response(organizations),
       response({ message: 'Request denied' }, status),
     ]);
     const result = await client.callTool({
       name: 'create-service-account',
-      arguments: { organization: 'team alpha', name: 'build-jobs' },
+      arguments: { organization: organizationId, name: 'build-jobs' },
     });
     expect(result.isError).toBe(true);
-    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 });

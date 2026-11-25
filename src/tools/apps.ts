@@ -1,17 +1,18 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { RawTreeClient } from '../client.js';
-import { jsonResult, namedJsonResult } from './common.js';
+import {
+  clusterInput,
+  jsonResult,
+  namedJsonResult,
+  organizationInput,
+} from './common.js';
 
 const appScopeInput = {
-  organization: z
-    .string()
-    .min(1)
-    .describe('Organization containing the target cluster.'),
-  cluster: z
-    .string()
-    .min(1)
-    .describe('Cluster name returned by list-clusters.'),
+  organization: organizationInput.describe(
+    'Name or ID of the organization containing the target cluster.',
+  ),
+  cluster: clusterInput.describe('Name or ID of the cluster.'),
 };
 
 const appIdInput = z.string().min(1).describe('App ID returned by list-apps.');
@@ -51,7 +52,7 @@ export function addAppTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Auth:** Requires a user credential with organization admin access. Authorization is enforced by the RawTree API.
 
-**Safety:** This changes the app functionality enabled for the cluster. You MUST confirm the exact organization, cluster name, and app ID with the user before calling this tool.`,
+**Safety:** This changes the app functionality enabled for the cluster. You MUST confirm the exact organization, cluster, and app ID with the user before calling this tool.`,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -81,7 +82,7 @@ export function addAppTools(server: McpServer, rawtree: RawTreeClient) {
 
 **Auth:** Requires a user credential with organization admin access. Authorization is enforced by the RawTree API.
 
-**Safety:** This makes the app's native endpoints unavailable for the cluster. You MUST confirm the exact organization, cluster name, and app ID with the user before calling this tool.`,
+**Safety:** This makes the app's native endpoints unavailable for the cluster. You MUST confirm the exact organization, cluster, and app ID with the user before calling this tool.`,
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,

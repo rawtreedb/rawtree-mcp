@@ -1,16 +1,15 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { RawTreeClient } from '../client.js';
-import { jsonResult, slackChannelName } from './common.js';
+import { jsonResult, organizationInput, slackChannelName } from './common.js';
 
 const auth =
   '**Auth:** Requires a user credential such as OAuth and membership in the organization. API keys are not supported. Authorization is enforced by the RawTree API.';
 const connect =
   'Connecting or disconnecting Slack is not available through MCP: an organization admin must do it on the integrations settings page in the RawTree app.';
-const organization = z
-  .string()
-  .min(1)
-  .describe('Organization whose integrations should be used.');
+const organization = organizationInput.describe(
+  'Name or ID of the organization whose integrations should be used.',
+);
 
 export function addIntegrationTools(server: McpServer, rawtree: RawTreeClient) {
   server.registerTool(
@@ -39,7 +38,7 @@ ${auth}
       const result = await rawtree.listIntegrations(organization);
       return jsonResult({
         ...(result as object),
-        settings_url: rawtree.integrationsSettingsUrl(organization),
+        settings_url: await rawtree.integrationsSettingsUrl(organization),
       });
     },
   );

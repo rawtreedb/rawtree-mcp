@@ -3,9 +3,10 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { RawTreeClient } from '../src/client.js';
 import { createMcpServer } from '../src/server.js';
 
+const organizationId = '00000000-0000-4000-8000-0000000000a1';
 const clusterArgs = {
   regionId: '11111111-1111-4111-8111-111111111111',
-  organization: 'acme',
+  organization: organizationId,
   name: 'production',
   replicas: 2,
   minimumSize: { cpuCores: 2, memoryGiB: 8 },
@@ -34,10 +35,6 @@ describe('storage tool contracts', () => {
       apiKey: 'fixture-token',
       fetchFn: async (input, init) => {
         const url = new URL(String(input));
-        if (url.pathname === '/v1/organizations')
-          return Response.json({
-            organizations: [{ organization_id: 'org-id', name: 'acme' }],
-          });
         if (url.pathname.endsWith('/regions'))
           return Response.json({
             regions: [
@@ -124,7 +121,7 @@ describe('storage tool contracts', () => {
     const verification = await client.callTool({
       name: 'verify-cluster-s3-access',
       arguments: {
-        organization: 'acme',
+        organization: organizationId,
         s3StorageAccess: { externalId: identity.s3StorageAccess.externalId },
         s3Storage: storage,
       },
@@ -155,8 +152,8 @@ describe('storage tool contracts', () => {
         name,
         arguments: {
           name: 'analytics',
-          organization: 'acme',
-          cluster: 'production',
+          organization: organizationId,
+          cluster: '00000000-0000-4000-8000-0000000000b1',
           s3Storage: storage,
         },
       });
@@ -205,7 +202,7 @@ describe('storage tool contracts', () => {
       {
         name: 'verify-cluster-s3-access',
         arguments: {
-          organization: 'acme',
+          organization: organizationId,
           s3Storage: storage,
           s3StorageAccess: {},
         },
@@ -217,7 +214,7 @@ describe('storage tool contracts', () => {
       },
       {
         name: 'verify-cluster-s3-access',
-        arguments: { organization: 'acme', s3Storage: storage },
+        arguments: { organization: organizationId, s3Storage: storage },
       },
       {
         name: 'create-database',

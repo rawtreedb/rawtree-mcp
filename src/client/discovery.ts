@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { RawTreeApiError } from './http.js';
+import { RawTreeApiError, type RequestOptions } from './http.js';
 import type { RegionCatalog } from './regions.js';
 import { deploymentHeaders } from './routing.js';
 
@@ -19,15 +19,11 @@ const collection = z
 
 /** Keep healthy deployments usable while explicitly reporting incomplete discovery. */
 export async function discoverClusters(
-  organization: string,
+  organizationId: string,
   catalog: RegionCatalog,
-  load: (
-    path: string,
-    headers: Record<string, string>,
-    signal: AbortSignal,
-  ) => Promise<unknown>,
+  load: (path: string, options: RequestOptions) => Promise<unknown>,
 ) {
-  const { regions } = await catalog.list(organization);
+  const { regions } = await catalog.list(organizationId);
   const deployments = new Map<
     string,
     { headers: Record<string, string>; regions: typeof regions }
@@ -40,11 +36,16 @@ export async function discoverClusters(
     if (deployment) deployment.regions.push(region);
     else deployments.set(key, { headers, regions: [region] });
   }
-  const path = `/v1/clusters?${new URLSearchParams({ organization })}`;
   const targets = [...deployments.values()];
   const responses = await Promise.allSettled(
     targets.map(async ({ headers }) =>
-      collection.parse(await load(path, headers, AbortSignal.timeout(5_000))),
+      collection.parse(
+        await load('/v1/clusters', {
+          headers,
+          tenant: { organization: organizationId },
+          signal: AbortSignal.timeout(5_000),
+        }),
+      ),
     ),
   );
   const failures = responses.filter(

@@ -47,7 +47,12 @@ import {
   uiUrlForApi,
 } from './client/http.js';
 import { RegionCatalog } from './client/regions.js';
-import { ClusterRouting, deploymentApiUrl } from './client/routing.js';
+import {
+  CLUSTER_ID_HEADER,
+  ClusterRouting,
+  deploymentApiUrl,
+  ORGANIZATION_ID_HEADER,
+} from './client/routing.js';
 
 import type {
   CreateSavedQueryInput,
@@ -71,12 +76,15 @@ export interface RawTreeClientOptions {
   /** Cluster-bound credentials use gateway routing, without user discovery. */
   credentialScope?: 'cluster' | 'user';
   apiUrl?: string;
+  /** Default cluster name or ID. */
   cluster?: string;
   database?: string;
+  /** Default organization name or ID. */
   organization?: string;
   userAgent?: string;
 }
 
+/** `organization` and `cluster` accept a name or an ID; the client resolves names and only sends IDs to the API. */
 export interface RawTreeScope {
   cluster?: string;
   database?: string;
@@ -95,19 +103,22 @@ function encodePathPart(part: string): string {
   return encodeURIComponent(part);
 }
 
+function isUuid(value: string): boolean {
+  return z.uuid().safeParse(value).success;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export class RawTreeClient {
   private readonly regions: RegionCatalog;
-  private readonly routing = new ClusterRouting((path) => {
-    const url = this.endpoint(path);
-    const organization = url.searchParams.get('organization');
-    return url.pathname === '/v1/clusters' && organization
-      ? this.listClusters(organization)
-      : this.requestJson('GET', path);
-  });
+  private readonly routing = new ClusterRouting((organization) =>
+    this.listClusters(organization),
+  );
+  private readonly organizationIds = new Map<string, Promise<string>>();
+  private readonly clusterIds = new Map<string, Promise<string>>();
+  private boundCluster?: Promise<{ id: string; name: string }>;
   private readonly apiUrl: string;
   private readonly uiUrl: string;
   private readonly cluster?: string;
@@ -143,9 +154,9 @@ export class RawTreeClient {
   async submitFeedback(input: SubmitFeedbackInput): Promise<unknown> {
     return this.requestJson('POST', this.apiPath('/feedback'), {
       body: { ...input },
-      query: {
-        organization_id: input.organization_id,
-        cluster_id: input.cluster_id,
+      routeTo: {
+        organization: input.organization_id,
+        cluster: input.cluster_id,
       },
     });
   }
@@ -154,8 +165,30 @@ export class RawTreeClient {
     return this.requestJson('GET', this.apiPath('/organizations'));
   }
 
-  integrationsSettingsUrl(organization: string): string {
-    return `${this.uiUrl}/${encodePathPart(organization)}/~/integrations`;
+  /** The app addresses organizations by name, so the ID is resolved through the organization list. */
+  async integrationsSettingsUrl(organization: string): Promise<string> {
+    const name = isUuid(organization)
+      ? await this.organizationName(organization)
+      : organization;
+    return `${this.uiUrl}/${encodePathPart(name)}/~/integrations`;
+  }
+
+  private async organizationName(organizationId: string): Promise<string> {
+    const response = z
+      .object({
+        organizations: z.array(
+          z.object({ name: z.string(), organization_id: z.string() }),
+        ),
+      })
+      .parse(await this.listOrganizations());
+    const selected = response.organizations.find(
+      (item) => item.organization_id === organizationId,
+    );
+    if (!selected)
+      throw new Error(
+        `Organization '${organizationId}' was not found. Use list-organizations to select an organization.`,
+      );
+    return selected.name;
   }
 
   async listIntegrations(organization: string): Promise<unknown> {
@@ -186,30 +219,131 @@ export class RawTreeClient {
   async listOrganizationMembers(organization: string): Promise<unknown> {
     return this.requestJson(
       'GET',
-      `${this.apiPath('/organizations')}/${encodePathPart(organization)}/members`,
+      `${await this.organizationPath(organization)}/members`,
     );
   }
 
-  private async organizationPath(organization: string): Promise<string> {
-    const response = z
-      .object({
-        organizations: z.array(
-          z.object({
-            name: z.string(),
-            organization_id: z.uuid(),
-          }),
-        ),
-      })
-      .parse(await this.listOrganizations());
-    const selected = response.organizations.find(
-      (item) => item.name === organization,
-    );
-    if (!selected) {
-      throw new Error(
-        `Organization '${organization}' was not found. Use list-organizations to select an organization.`,
+  /** Resolves an organization name to its ID; UUIDs pass through. Lookups are cached per client. */
+  private resolveOrganization(organization: string): Promise<string> {
+    if (isUuid(organization)) return Promise.resolve(organization);
+    const cached = this.organizationIds.get(organization);
+    if (cached) return cached;
+    const lookup = (async () => {
+      const response = z
+        .object({
+          organizations: z.array(
+            z.object({ name: z.string(), organization_id: z.string() }),
+          ),
+        })
+        .parse(await this.listOrganizations());
+      const selected = response.organizations.find(
+        (item) => item.name === organization,
       );
+      if (!selected)
+        throw new Error(
+          this.credentialScope === 'cluster'
+            ? `Organization '${organization}' does not match the API key's organization.`
+            : `Organization '${organization}' was not found. Use list-organizations to select an organization.`,
+        );
+      return selected.organization_id;
+    })();
+    this.organizationIds.set(organization, lookup);
+    lookup.catch(() => this.organizationIds.delete(organization));
+    return lookup;
+  }
+
+  /** Resolves a cluster name within an organization to its ID; UUIDs pass through. */
+  private resolveCluster(
+    organizationId: string | undefined,
+    cluster: string,
+  ): Promise<string> {
+    if (isUuid(cluster)) return Promise.resolve(cluster);
+    if (!organizationId)
+      return Promise.reject(
+        new Error('Provide organization when selecting a cluster by name.'),
+      );
+    const key = `${organizationId}/${cluster}`;
+    const cached = this.clusterIds.get(key);
+    if (cached) return cached;
+    const lookup = (async () => {
+      const response = z
+        .object({
+          clusters: z.array(z.object({ id: z.string(), name: z.string() })),
+        })
+        .parse(await this.listClusters(organizationId));
+      const selected = response.clusters.find((item) => item.name === cluster);
+      if (!selected)
+        throw new Error(
+          `Cluster '${cluster}' was not found. Use list-clusters to select a cluster.`,
+        );
+      return selected.id;
+    })();
+    this.clusterIds.set(key, lookup);
+    lookup.catch(() => this.clusterIds.delete(key));
+    return lookup;
+  }
+
+  /** An API key is pinned to one cluster, so a cluster name is matched against that cluster. */
+  private bound(): Promise<{ id: string; name: string }> {
+    if (this.boundCluster) return this.boundCluster;
+    const lookup = (async () => {
+      const response = z
+        .object({
+          clusters: z.array(z.object({ id: z.string(), name: z.string() })),
+        })
+        .parse(await this.requestJson('GET', '/v1/clusters'));
+      const [cluster] = response.clusters;
+      if (!cluster) throw new Error('The API key is not bound to a cluster.');
+      return cluster;
+    })();
+    this.boundCluster = lookup;
+    lookup.catch(() => {
+      if (this.boundCluster === lookup) this.boundCluster = undefined;
+    });
+    return lookup;
+  }
+
+  private async tenantIds({
+    organization,
+    cluster,
+  }: {
+    organization?: string | undefined;
+    cluster?: string | undefined;
+  }): Promise<{ organization?: string; cluster?: string }> {
+    if (this.credentialScope === 'cluster') {
+      let clusterId: string | undefined;
+      if (cluster) {
+        if (isUuid(cluster)) clusterId = cluster;
+        else {
+          const bound = await this.bound();
+          if (bound.name !== cluster)
+            throw new Error(
+              `The API key is not bound to cluster '${cluster}'.`,
+            );
+          clusterId = bound.id;
+        }
+      }
+      return {
+        ...(organization
+          ? { organization: await this.resolveOrganization(organization) }
+          : {}),
+        ...(clusterId ? { cluster: clusterId } : {}),
+      };
     }
-    return `${this.apiPath('/organizations')}/${encodePathPart(selected.organization_id)}`;
+    const organizationId = organization
+      ? await this.resolveOrganization(organization)
+      : undefined;
+    const clusterId = cluster
+      ? await this.resolveCluster(organizationId, cluster)
+      : undefined;
+    return {
+      ...(organizationId ? { organization: organizationId } : {}),
+      ...(clusterId ? { cluster: clusterId } : {}),
+    };
+  }
+
+  private async organizationPath(organization: string): Promise<string> {
+    return `${this.apiPath('/organizations')}/${encodePathPart(await this.resolveOrganization(organization))}`;
   }
 
   async listServiceAccounts(organization: string): Promise<unknown> {
@@ -286,7 +420,7 @@ export class RawTreeClient {
 
   async listFederationRules(scope: FederationScope): Promise<unknown> {
     return this.requestJson('GET', `${this.apiPath('/federation-rules')}`, {
-      query: federationScope.parse(scope),
+      tenant: await this.tenantIds(federationScope.parse(scope)),
     });
   }
 
@@ -297,7 +431,7 @@ export class RawTreeClient {
     return this.requestJson(
       'GET',
       `${this.apiPath('/federation-rules')}/${encodePathPart(id)}`,
-      { query: federationScope.parse(scope) },
+      { tenant: await this.tenantIds(federationScope.parse(scope)) },
     );
   }
 
@@ -308,7 +442,7 @@ export class RawTreeClient {
     const body = ruleConfiguration.parse(input);
     return this.requestJson('POST', `${this.apiPath('/federation-rules')}`, {
       body,
-      query: federationScope.parse(scope),
+      tenant: await this.tenantIds(federationScope.parse(scope)),
     });
   }
 
@@ -321,7 +455,7 @@ export class RawTreeClient {
     return this.requestJson(
       'PUT',
       `${this.apiPath('/federation-rules')}/${encodePathPart(id)}`,
-      { body, query: federationScope.parse(scope) },
+      { body, tenant: await this.tenantIds(federationScope.parse(scope)) },
     );
   }
 
@@ -332,7 +466,7 @@ export class RawTreeClient {
     return this.requestJson(
       'DELETE',
       `${this.apiPath('/federation-rules')}/${encodePathPart(id)}`,
-      { query: federationScope.parse(scope) },
+      { tenant: await this.tenantIds(federationScope.parse(scope)) },
     );
   }
 
@@ -345,7 +479,7 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson(
       'POST',
-      `${this.apiPath('/organizations')}/${encodePathPart(organization)}/members`,
+      `${await this.organizationPath(organization)}/members`,
       { body: { email } },
     );
   }
@@ -361,7 +495,7 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson(
       'PATCH',
-      `${this.apiPath('/organizations')}/${encodePathPart(organization)}/members/${encodePathPart(userId)}`,
+      `${await this.organizationPath(organization)}/members/${encodePathPart(userId)}`,
       { body: { role } },
     );
   }
@@ -375,7 +509,7 @@ export class RawTreeClient {
   }): Promise<unknown> {
     return this.requestJson(
       'DELETE',
-      `${this.apiPath('/organizations')}/${encodePathPart(organization)}/members/${encodePathPart(userId)}`,
+      `${await this.organizationPath(organization)}/members/${encodePathPart(userId)}`,
     );
   }
 
@@ -383,7 +517,7 @@ export class RawTreeClient {
     return this.requestJson(
       'GET',
       this.apiPath('/tables'),
-      this.scoped({}, scope),
+      await this.scoped({}, scope),
     );
   }
 
@@ -394,7 +528,7 @@ export class RawTreeClient {
     return this.requestJson(
       'POST',
       this.apiPath('/tables'),
-      this.scoped(
+      await this.scoped(
         {
           body: {
             name,
@@ -415,7 +549,7 @@ export class RawTreeClient {
     return this.requestJson(
       'GET',
       `${this.apiPath('/tables')}/${encodePathPart(table)}`,
-      this.scoped({}, scope),
+      await this.scoped({}, scope),
     );
   }
 
@@ -439,7 +573,7 @@ export class RawTreeClient {
     return this.requestJson(
       'PATCH',
       `${this.apiPath('/tables')}/${encodePathPart(table)}`,
-      this.scoped(
+      await this.scoped(
         {
           body: {
             ...(sortingKey === undefined ? {} : { sorting_key: sortingKey }),
@@ -456,7 +590,7 @@ export class RawTreeClient {
     return this.requestJson(
       'DELETE',
       `${this.apiPath('/tables')}/${encodePathPart(table)}`,
-      this.scoped({}, scope),
+      await this.scoped({}, scope),
     );
   }
 
@@ -473,7 +607,7 @@ export class RawTreeClient {
     return this.requestJson(
       'POST',
       `${this.apiPath('/tables')}/${encodePathPart(table)}`,
-      this.scoped({ body: data }, scope),
+      await this.scoped({ body: data }, scope),
     );
   }
 
@@ -490,7 +624,7 @@ export class RawTreeClient {
     return this.requestJson(
       'POST',
       `${this.apiPath('/tables')}/${encodePathPart(table)}`,
-      this.scoped(
+      await this.scoped(
         {
           query: { url },
         },
@@ -503,7 +637,7 @@ export class RawTreeClient {
     return this.requestJson(
       'POST',
       this.apiPath('/query'),
-      this.scoped(
+      await this.scoped(
         {
           body: { sql },
         },
@@ -520,7 +654,7 @@ export class RawTreeClient {
     const response = await this.requestJson(
       'POST',
       this.apiPath('/query-format'),
-      this.scoped({ body: { sql }, signal }, scope),
+      await this.scoped({ body: { sql }, signal }, scope),
     );
     if (!isRecord(response) || typeof response.formatted !== 'string') {
       throw new Error('RawTree returned an invalid query-format response.');
@@ -534,7 +668,7 @@ export class RawTreeClient {
     return this.requestJson(
       'GET',
       this.apiPath('/saved-queries'),
-      this.clusterScoped({}, scope),
+      await this.clusterScoped({}, scope),
     );
   }
 
@@ -545,7 +679,7 @@ export class RawTreeClient {
     return this.requestJson(
       'POST',
       this.apiPath('/saved-queries'),
-      this.clusterScoped({ body: { ...input } }, scope),
+      await this.clusterScoped({ body: { ...input } }, scope),
     );
   }
 
@@ -557,7 +691,7 @@ export class RawTreeClient {
     return this.requestJson(
       'PATCH',
       `${this.apiPath('/saved-queries')}/${encodePathPart(id)}`,
-      this.clusterScoped({ body: { ...input } }, scope),
+      await this.clusterScoped({ body: { ...input } }, scope),
     );
   }
 
@@ -568,7 +702,7 @@ export class RawTreeClient {
     return this.requestJson(
       'DELETE',
       `${this.apiPath('/saved-queries')}/${encodePathPart(id)}`,
-      this.clusterScoped({}, scope),
+      await this.clusterScoped({}, scope),
     );
   }
 
@@ -576,7 +710,7 @@ export class RawTreeClient {
     return this.requestJson(
       'GET',
       this.apiPath('/workflows'),
-      this.clusterScoped({}, scope),
+      await this.clusterScoped({}, scope),
     );
   }
 
@@ -584,7 +718,7 @@ export class RawTreeClient {
     return this.requestJson(
       'GET',
       `${this.apiPath('/workflows')}/${encodePathPart(id)}`,
-      this.clusterScoped({}, scope),
+      await this.clusterScoped({}, scope),
     );
   }
 
@@ -595,7 +729,7 @@ export class RawTreeClient {
     return this.requestJson(
       'POST',
       this.apiPath('/workflows'),
-      this.clusterScoped({ body: { ...input } }, scope),
+      await this.clusterScoped({ body: { ...input } }, scope),
     );
   }
 
@@ -607,7 +741,7 @@ export class RawTreeClient {
     return this.requestJson(
       'PATCH',
       `${this.apiPath('/workflows')}/${encodePathPart(id)}`,
-      this.clusterScoped({ body: { ...input } }, scope),
+      await this.clusterScoped({ body: { ...input } }, scope),
     );
   }
 
@@ -615,7 +749,7 @@ export class RawTreeClient {
     return this.requestJson(
       'DELETE',
       `${this.apiPath('/workflows')}/${encodePathPart(id)}`,
-      this.clusterScoped({}, scope),
+      await this.clusterScoped({}, scope),
     );
   }
 
@@ -626,33 +760,29 @@ export class RawTreeClient {
     return this.requestJson(
       'GET',
       this.apiPath('/logs'),
-      this.scoped({ query }, scope),
+      await this.scoped({ query }, scope),
     );
   }
 
   async listClusters(organization: string): Promise<unknown> {
+    const organizationId = await this.resolveOrganization(organization);
     const version = this.routing.version;
     const result =
       this.credentialScope === 'cluster'
         ? await this.requestJson('GET', '/v1/clusters', {
-            query: { organization },
+            tenant: { organization: organizationId },
           })
         : await discoverClusters(
-            organization,
+            organizationId,
             this.regions,
-            (path, headers, signal) =>
-              this.requestJson('GET', path, { headers, signal }),
+            (path, options) => this.requestJson('GET', path, options),
           );
-    this.routing.remember(
-      this.endpoint('/v1/clusters', { organization }),
-      result,
-      version,
-    );
+    this.routing.remember(organizationId, result, version);
     return result;
   }
 
   async listRegions(organization: string): Promise<unknown> {
-    return this.regions.list(organization);
+    return this.regions.list(await this.resolveOrganization(organization));
   }
 
   async listClusterSizes(
@@ -660,7 +790,9 @@ export class RawTreeClient {
   ): Promise<unknown> {
     return this.requestJson('GET', this.apiPath('/clusters/sizes'), {
       headers: await this.regions.headers(
-        placement.organization,
+        placement.organization
+          ? await this.resolveOrganization(placement.organization)
+          : undefined,
         placement.regionId,
       ),
     });
@@ -694,7 +826,7 @@ export class RawTreeClient {
     }
     z.string().uuid().parse(regionId);
     return this.requestJson('POST', this.apiPath('/clusters'), {
-      query: { organization },
+      tenant: await this.tenantIds({ organization }),
       body: {
         region_id: regionId,
         name,
@@ -741,14 +873,26 @@ export class RawTreeClient {
       'POST',
       this.apiPath('/clusters/verify-s3-access'),
       {
-        query: { organization },
-        headers: await this.regions.headers(organization, regionId),
+        tenant: await this.tenantIds({ organization }),
+        headers: await this.regions.headers(
+          await this.resolveOrganization(organization),
+          regionId,
+        ),
         body: {
           s3_storage_access: s3StorageAccessRequestBody(s3StorageAccess),
           s3_storage: s3StorageRequestBody(s3Storage),
         },
       },
     );
+  }
+
+  /** Resolves a cluster name or ID for a route that carries the cluster ID in its path. */
+  private async clusterTarget(organization: string, cluster: string) {
+    const tenant = await this.tenantIds({ organization, cluster });
+    return {
+      tenant,
+      path: `${this.apiPath('/clusters')}/${encodePathPart(tenant.cluster ?? cluster)}`,
+    };
   }
 
   async getCluster({
@@ -758,11 +902,8 @@ export class RawTreeClient {
     organization: string;
     clusterId: string;
   }): Promise<unknown> {
-    return this.requestJson(
-      'GET',
-      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}`,
-      { query: { organization } },
-    );
+    const { tenant, path } = await this.clusterTarget(organization, clusterId);
+    return this.requestJson('GET', path, { tenant });
   }
 
   async updateCluster({
@@ -774,14 +915,11 @@ export class RawTreeClient {
     clusterId: string;
     idleTimeoutMinutes: number;
   }): Promise<unknown> {
-    return this.requestJson(
-      'PATCH',
-      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}`,
-      {
-        query: { organization },
-        body: { idle_timeout_minutes: idleTimeoutMinutes },
-      },
-    );
+    const { tenant, path } = await this.clusterTarget(organization, clusterId);
+    return this.requestJson('PATCH', path, {
+      tenant,
+      body: { idle_timeout_minutes: idleTimeoutMinutes },
+    });
   }
 
   async pauseCluster({
@@ -791,11 +929,8 @@ export class RawTreeClient {
     organization: string;
     clusterId: string;
   }): Promise<unknown> {
-    return this.requestJson(
-      'POST',
-      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}/stop`,
-      { query: { organization } },
-    );
+    const { tenant, path } = await this.clusterTarget(organization, clusterId);
+    return this.requestJson('POST', `${path}/stop`, { tenant });
   }
 
   async resumeCluster({
@@ -805,11 +940,8 @@ export class RawTreeClient {
     organization: string;
     clusterId: string;
   }): Promise<unknown> {
-    return this.requestJson(
-      'POST',
-      `${this.apiPath('/clusters')}/${encodePathPart(clusterId)}/resume`,
-      { query: { organization } },
-    );
+    const { tenant, path } = await this.clusterTarget(organization, clusterId);
+    return this.requestJson('POST', `${path}/resume`, { tenant });
   }
 
   async listApps({
@@ -820,7 +952,7 @@ export class RawTreeClient {
     cluster: string;
   }): Promise<unknown> {
     return this.requestJson('GET', this.apiPath('/apps'), {
-      query: { organization, cluster },
+      tenant: await this.tenantIds({ organization, cluster }),
     });
   }
 
@@ -836,7 +968,7 @@ export class RawTreeClient {
     return this.requestJson(
       'PUT',
       `${this.apiPath('/apps')}/${encodePathPart(appId)}`,
-      { query: { organization, cluster } },
+      { tenant: await this.tenantIds({ organization, cluster }) },
     );
   }
 
@@ -852,7 +984,7 @@ export class RawTreeClient {
     return this.requestJson(
       'DELETE',
       `${this.apiPath('/apps')}/${encodePathPart(appId)}`,
-      { query: { organization, cluster } },
+      { tenant: await this.tenantIds({ organization, cluster }) },
     );
   }
 
@@ -862,7 +994,7 @@ export class RawTreeClient {
     return this.requestJson(
       'GET',
       this.apiPath('/connectors'),
-      this.clusterScoped({}, scope),
+      await this.clusterScoped({}, scope),
     );
   }
 
@@ -873,7 +1005,7 @@ export class RawTreeClient {
     return this.requestJson(
       'POST',
       this.apiPath('/connectors'),
-      this.clusterScoped({ body: { ...input } }, scope),
+      await this.clusterScoped({ body: { ...input } }, scope),
     );
   }
 
@@ -884,7 +1016,7 @@ export class RawTreeClient {
     return this.requestJson(
       'GET',
       `${this.apiPath('/connectors')}/${encodePathPart(connectorId)}`,
-      this.clusterScoped({}, scope),
+      await this.clusterScoped({}, scope),
     );
   }
 
@@ -894,19 +1026,17 @@ export class RawTreeClient {
     windowSeconds = 300,
   ): Promise<string> {
     // Keep the raw JSON: OTLP timestamps and counters can exceed JS integer precision.
-    return this.requestText(
-      'GET',
-      this.apiPath('/metrics'),
-      this.clusterScoped(
-        {
-          query: {
-            filters: JSON.stringify({ 'rawtree.connector.id': connectorId }),
-            window_seconds: windowSeconds,
-          },
-        },
-        scope,
-      ),
-    );
+    const tenant = await this.scopeTenant(scope);
+    return this.requestText('GET', this.apiPath('/metrics'), {
+      // The metrics API takes IDs as query parameters, not selector headers.
+      routeTo: tenant,
+      query: {
+        organization_id: tenant.organization,
+        cluster_id: tenant.cluster,
+        filters: JSON.stringify({ 'rawtree.connector.id': connectorId }),
+        window_seconds: windowSeconds,
+      },
+    });
   }
 
   async addConnectorDestination(
@@ -931,7 +1061,7 @@ export class RawTreeClient {
     return this.requestJson(
       'PATCH',
       `${this.apiPath('/connectors')}/${encodePathPart(connectorId)}`,
-      this.clusterScoped(
+      await this.clusterScoped(
         { body: { destinations: [...destinations, destination] } },
         scope,
       ),
@@ -946,7 +1076,7 @@ export class RawTreeClient {
     return this.requestJson(
       'PATCH',
       `${this.apiPath('/connectors')}/${encodePathPart(connectorId)}`,
-      this.clusterScoped({ body: { status } }, scope),
+      await this.clusterScoped({ body: { status } }, scope),
     );
   }
 
@@ -954,10 +1084,7 @@ export class RawTreeClient {
     scope: Omit<RawTreeScope, 'database'> = {},
   ): Promise<unknown> {
     return this.requestJson('GET', this.apiPath('/databases'), {
-      query: {
-        organization: scope.organization ?? this.organization,
-        cluster: scope.cluster ?? this.cluster,
-      },
+      tenant: await this.scopeTenant(scope),
     });
   }
 
@@ -972,10 +1099,7 @@ export class RawTreeClient {
     scope: Omit<RawTreeScope, 'database'> = {},
   ): Promise<unknown> {
     return this.requestJson('POST', this.apiPath('/databases'), {
-      query: {
-        organization: scope.organization ?? this.organization,
-        cluster: scope.cluster ?? this.cluster,
-      },
+      tenant: await this.scopeTenant(scope),
       body: {
         name,
         ...(s3Storage === undefined
@@ -999,10 +1123,7 @@ export class RawTreeClient {
       'POST',
       this.apiPath('/databases/verify-s3-access'),
       {
-        query: {
-          organization: scope.organization ?? this.organization,
-          cluster: scope.cluster ?? this.cluster,
-        },
+        tenant: await this.scopeTenant(scope),
         body: { name, s3_storage: s3StorageRequestBody(s3Storage) },
       },
     );
@@ -1016,10 +1137,7 @@ export class RawTreeClient {
       'DELETE',
       `${this.apiPath('/databases')}/${encodePathPart(database)}`,
       {
-        query: {
-          organization: scope.organization ?? this.organization,
-          cluster: scope.cluster ?? this.cluster,
-        },
+        tenant: await this.scopeTenant(scope),
       },
     );
   }
@@ -1028,7 +1146,7 @@ export class RawTreeClient {
     return this.requestJson(
       'GET',
       this.apiPath('/api-keys'),
-      this.scoped({}, scope),
+      await this.scoped({}, scope),
     );
   }
 
@@ -1047,7 +1165,7 @@ export class RawTreeClient {
     return this.requestJson(
       'POST',
       this.apiPath('/api-keys'),
-      this.scoped(
+      await this.scoped(
         {
           body: { name, permission, expires_at },
         },
@@ -1060,45 +1178,36 @@ export class RawTreeClient {
     return this.requestJson(
       'DELETE',
       `${this.apiPath('/api-keys')}/${encodePathPart(id)}`,
-      this.scoped({}, scope),
+      await this.scoped({}, scope),
     );
   }
 
-  private scoped(
+  /** Resolved IDs for a scope that falls back to the configured organization and cluster. */
+  private scopeTenant(
+    scope: Pick<RawTreeScope, 'organization' | 'cluster'>,
+  ): Promise<{ organization?: string; cluster?: string }> {
+    return this.tenantIds({
+      organization: scope.organization ?? this.organization,
+      cluster: scope.cluster ?? this.cluster,
+    });
+  }
+
+  private async scoped(
     options: RequestOptions = {},
     scope: RawTreeScope = {},
-  ): RequestOptions {
-    const cluster = scope.cluster ?? this.cluster;
+  ): Promise<RequestOptions> {
     const database = scope.database ?? this.database;
-    const organization = scope.organization ?? this.organization;
-    if (!cluster && !database && !organization) return options;
-    // RawTree database-scoped data routes stay at /v1/<resource>; auth reads scope from query params.
     return {
-      ...options,
-      query: {
-        ...options.query,
-        database,
-        organization,
-        cluster,
-      },
+      ...(await this.clusterScoped(options, scope)),
+      ...(database ? { query: { ...options.query, database } } : {}),
     };
   }
 
-  private clusterScoped(
+  private async clusterScoped(
     options: RequestOptions = {},
     scope: Omit<RawTreeScope, 'database'> = {},
-  ): RequestOptions {
-    const cluster = scope.cluster ?? this.cluster;
-    const organization = scope.organization ?? this.organization;
-    if (!cluster && !organization) return options;
-    return {
-      ...options,
-      query: {
-        ...options.query,
-        organization,
-        cluster,
-      },
-    };
+  ): Promise<RequestOptions> {
+    return { ...options, tenant: await this.scopeTenant(scope) };
   }
 
   private endpoint(path: string, query?: QueryParams): URL {
@@ -1112,7 +1221,6 @@ export class RawTreeClient {
     path: string,
     options: RequestOptions = {},
   ): Promise<unknown> {
-    const routingVersion = this.routing.version;
     const text = await this.requestText(method, path, {
       ...options,
       headers: {
@@ -1122,13 +1230,6 @@ export class RawTreeClient {
     });
 
     const result = text ? parseJson(text) : null;
-    // Regional collection responses must never replace a merged discovery result.
-    if (method === 'GET' && this.endpoint(path).pathname !== '/v1/clusters')
-      this.routing.remember(
-        this.endpoint(path, options.query),
-        result,
-        routingVersion,
-      );
     return result;
   }
 
@@ -1142,13 +1243,23 @@ export class RawTreeClient {
     const routingHeaders =
       this.credentialScope === 'cluster'
         ? {}
-        : await this.routing.headers(url, options.signal);
+        : await this.routing.headers(
+            url,
+            options.tenant ?? options.routeTo ?? {},
+            options.signal,
+          );
     const headers = {
       Authorization: `Bearer ${this.apiKey}`,
       'User-Agent': this.userAgent,
       'x-rawtree-client': 'mcp',
       'x-rawtree-client-version': packageJson.version,
       ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+      ...(options.tenant?.organization
+        ? { [ORGANIZATION_ID_HEADER]: options.tenant.organization }
+        : {}),
+      ...(options.tenant?.cluster
+        ? { [CLUSTER_ID_HEADER]: options.tenant.cluster }
+        : {}),
       ...options.headers,
       ...routingHeaders,
     };
@@ -1173,8 +1284,12 @@ export class RawTreeClient {
     if (
       method !== 'GET' &&
       (path.startsWith('/v1/organizations') || path.startsWith('/v1/clusters'))
-    )
+    ) {
       this.routing.clear();
+      this.organizationIds.clear();
+      this.clusterIds.clear();
+      this.boundCluster = undefined;
+    }
     return text;
   }
 }

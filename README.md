@@ -119,16 +119,18 @@ MCP_PORT=3000 npx -y @rawtree/mcp --http
 - `--api-key`: RawTree database API key for stdio mode
 - `--api-url`: RawTree API base URL, default `https://api.rawtree.com`
 - `--database`: Database name for scoped routes
-- `--org`: Organization name for scoped routes
+- `--org`: Organization name or ID for scoped routes
 - `--http`: Use HTTP transport instead of stdio
 - `--port`: HTTP port when using `--http`, default `3000` or `MCP_PORT`
+
+Organization and cluster inputs accept a name or an ID. The client resolves names to IDs (cached per process) and only ever sends IDs to the API.
 
 Environment variables:
 
 - `RAWTREE_API_KEY`: RawTree database API key
 - `RAWTREE_API_URL`: RawTree API base URL, default `https://api.rawtree.com`
 - `RAWTREE_DATABASE`: Database name for scoped routes
-- `RAWTREE_ORG`: Organization name for scoped routes
+- `RAWTREE_ORG`: Organization name or ID for scoped routes
 - `MCP_PORT`: HTTP port when using `--http`
 
 ## Tools
@@ -254,7 +256,7 @@ separate workflow SQL restrictions or the formatter's broader syntax support.
 
 These tools target the `/v1/workflows` API with cron schedules. The backend must have the workflow `schedule`, `query`, and `sinks` with nested `settings` contracts deployed; top-level `enabled` and `interval_seconds` are rejected. The former workflow `destinations` field is rejected; connector destinations are unchanged. Flattened sink settings are rejected. There are no `trigger` aliases or workflow-specific telemetry tools.
 
-All five tools require explicit `organization` and `cluster` **names**, including standalone/API-key usage. Configured defaults do not replace these required tool arguments. Workflow definitions have their own `query.database`; the MCP's default database is never added as a workflow query parameter or substituted for that field.
+All five tools require explicit `organization` and `cluster` **names or IDs**, including standalone/API-key usage. Configured defaults do not replace these required tool arguments. Workflow definitions have their own `query.database`; the MCP's default database is never added as a workflow query parameter or substituted for that field.
 
 | Tool | Required parameters | Optional parameters | Result |
 | --- | --- | --- | --- |
@@ -379,7 +381,7 @@ User sessions and OAuth can list their own private queries and cluster-shared qu
 
 Creating, updating, and deleting require a user session or OAuth. The API assigns new queries to the authenticated user; callers do not supply a user ID. Only the owner can update or delete a query, including a cluster-shared query. With an API key, these actions return: “This action requires a user session. API keys aren’t supported.”
 
-All examples below show explicit organization and cluster names, as required by hosted deployments configured with `requireExplicitScope`. Standalone clients may omit names already configured on `RawTreeClient`. Saved-query requests never inherit the client's database: it is a field of the saved definition, not a list filter.
+All examples below show explicit organization and cluster names or IDs, as required by hosted deployments configured with `requireExplicitScope`. Standalone clients may omit names or IDs already configured on `RawTreeClient`. Saved-query requests never inherit the client's database: it is a field of the saved definition, not a list filter.
 
 **List saved queries**
 
@@ -575,7 +577,7 @@ Structured log filters include:
 - `list-service-accounts` — List an organization's service account IDs, names, descriptions, and stored roles.
 - `create-service-account` — Create a service account with an immutable name, optional description, and optional `member` (default) or `admin` role.
 
-Both tools require an explicit `organization` name and an organization admin
+Both tools require an explicit `organization` name or ID and an organization admin
 using a user session or OAuth. API keys cannot manage service accounts. No
 cluster or database is required. Names contain 1–128 lowercase letters or
 digits separated by single hyphens; descriptions accept up to 2000 UTF-8 bytes
@@ -666,8 +668,8 @@ Both are read-only and require a user credential such as OAuth; API keys are not
 - `list-cluster-sizes` — List current replica limits, supported per-replica sizes, and default vertical autoscaling bounds.
 - `verify-cluster-s3-access` — Verify an optional customer-owned S3 configuration before cluster creation. The check temporarily writes, reads, and removes a probe object in both configured destinations.
 - `create-cluster` — Provision a dedicated cluster after confirming its organization, replica count, minimum size, maximum size, autoscaling behavior, optional idle timeout, optional customer-owned default S3 configuration, and immutable cluster identity.
-- `get-cluster` — Get one dedicated cluster and its current lifecycle status by ID.
-- `update-cluster` — Change a dedicated cluster's idle timeout after confirming the organization, cluster ID, and new value. Use `0` to disable idling.
+- `get-cluster` — Get one dedicated cluster and its current lifecycle status by name or ID.
+- `update-cluster` — Change a dedicated cluster's idle timeout after confirming the organization, cluster, and new value. Use `0` to disable idling.
 - `pause-cluster` — Pause a dedicated cluster after explicit confirmation. Its databases become unavailable until the cluster is resumed.
 - `resume-cluster` — Resume a paused dedicated cluster after explicit confirmation.
 
@@ -708,8 +710,8 @@ The RawTree API remains the authorization boundary: cluster access requires a us
 ### Apps
 
 - `list-apps` — List the available apps and installation state for one cluster.
-- `install-app` — Install an app on a cluster after confirming the organization, cluster name, and app ID.
-- `uninstall-app` — Uninstall an app and disable its native endpoints after confirming the organization, cluster name, and app ID. Existing cluster data is not deleted.
+- `install-app` — Install an app on a cluster after confirming the organization, cluster, and app ID.
+- `uninstall-app` — Uninstall an app and disable its native endpoints after confirming the organization, cluster, and app ID. Existing cluster data is not deleted.
 
 App tools require a user credential. Organization members can list apps; installing and uninstalling require organization-admin access. Use the app IDs returned by `list-apps`.
 

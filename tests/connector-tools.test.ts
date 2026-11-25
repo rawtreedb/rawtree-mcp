@@ -2,8 +2,8 @@ import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RawTreeClient } from '../src/client.js';
 import { createMcpServer } from '../src/server.js';
+import { expectTenantHeaders, scope } from './fixtures.js';
 
-const scope = { organization: 'acme', cluster: 'production' };
 const destination = {
   nats_stream: 'EVENTS',
   nats_consumer: 'rawtree',
@@ -98,7 +98,8 @@ describe('connector tools over MCP', () => {
     expect(result.isError).not.toBe(true);
     expect(calls).toHaveLength(1);
     expect(calls[0].url.pathname).toBe('/v1/connectors');
-    expect(Object.fromEntries(calls[0].url.searchParams)).toEqual(scope);
+    expect(Object.fromEntries(calls[0].url.searchParams)).toEqual({});
+    expectTenantHeaders(calls[0].init);
     expect(calls[0].init.method).toBe('POST');
     expect(JSON.parse(String(calls[0].init.body))).toEqual({
       name: input.name,
@@ -313,7 +314,8 @@ describe('connector tools over MCP', () => {
     expect(calls[0].init.method).toBe('GET');
     expect(calls[0].url.pathname).toBe('/v1/metrics');
     expect(Object.fromEntries(calls[0].url.searchParams)).toEqual({
-      ...scope,
+      organization_id: scope.organization,
+      cluster_id: scope.cluster,
       filters: JSON.stringify({ 'rawtree.connector.id': connector.id }),
       window_seconds: String(window_seconds ?? 300),
     });

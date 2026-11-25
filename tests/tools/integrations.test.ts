@@ -107,7 +107,7 @@ describe('integration MCP tools', () => {
     expect(
       await client.callTool({
         name: 'list-integrations',
-        arguments: { organization: 'acme team' },
+        arguments: { organization: organizationId },
       }),
     ).toMatchObject({
       content: content({
@@ -116,13 +116,30 @@ describe('integration MCP tools', () => {
       }),
     });
     expect(fetchFn.mock.calls.map(([url]) => String(url))).toEqual([
-      `${rawtreeApiUrl}/v1/organizations`,
       `${rawtreeApiUrl}/v1/organizations/${organizationId}/integrations`,
+      `${rawtreeApiUrl}/v1/organizations`,
     ]);
-    expect(fetchFn.mock.calls[1][1]).toMatchObject({
+    expect(fetchFn.mock.calls[0][1]).toMatchObject({
       method: 'GET',
       headers: { Authorization: 'Bearer oauth_test' },
     });
+  });
+
+  it('resolves an organization name to its ID and links settings by name', async () => {
+    const { client, apiCalls } = await connect([json(integrations)]);
+    const result = await client.callTool({
+      name: 'list-integrations',
+      arguments: { organization: 'acme team' },
+    });
+    expect(result).toMatchObject({
+      content: content({
+        ...integrations,
+        settings_url: 'https://rawtree.com/acme%20team/~/integrations',
+      }),
+    });
+    expect(apiCalls().map(([url]) => String(url))).toEqual([
+      `${apiUrl}/integrations`,
+    ]);
   });
 
   it('lists Slack channels and forwards the cursor', async () => {
@@ -130,7 +147,10 @@ describe('integration MCP tools', () => {
       json(channels),
       json({ ...channels, next_cursor: null }),
     ]);
-    const args = { organization: 'acme team', integration_id: integrationId };
+    const args = {
+      organization: organizationId,
+      integration_id: integrationId,
+    };
     expect(
       await client.callTool({ name: 'list-slack-channels', arguments: args }),
     ).toMatchObject({ content: content(channels) });
@@ -152,7 +172,7 @@ describe('integration MCP tools', () => {
       json({ ...channels, next_cursor: null }),
     ]);
     const args = {
-      organization: 'acme team',
+      organization: organizationId,
       integration_id: integrationId,
       name: '#Alerts',
     };
@@ -172,18 +192,26 @@ describe('integration MCP tools', () => {
 
   it.each([
     { name: 'list-integrations', args: {} },
-    { name: 'list-slack-channels', args: { organization: 'acme' } },
+    { name: 'list-slack-channels', args: { organization: organizationId } },
     {
       name: 'list-slack-channels',
-      args: { organization: 'acme', integration_id: 'slack' },
+      args: { organization: organizationId, integration_id: 'slack' },
     },
     {
       name: 'list-slack-channels',
-      args: { organization: 'acme', integration_id: integrationId, cursor: '' },
+      args: {
+        organization: organizationId,
+        integration_id: integrationId,
+        cursor: '',
+      },
     },
     ...['', ' # ', 'a'.repeat(81)].map((name) => ({
       name: 'list-slack-channels',
-      args: { organization: 'acme', integration_id: integrationId, name },
+      args: {
+        organization: organizationId,
+        integration_id: integrationId,
+        name,
+      },
     })),
   ])('rejects invalid inputs without calling the API: %j', async ({
     name,
@@ -196,16 +224,15 @@ describe('integration MCP tools', () => {
   });
 
   it('fails when the organization is not visible to the credential', async () => {
-    const { client, apiCalls } = await connect();
+    const { client } = await connect([
+      json({ message: 'Organization not found.' }, 404),
+    ]);
     const result = await client.callTool({
       name: 'list-integrations',
-      arguments: { organization: 'other' },
+      arguments: { organization: '00000000-0000-4000-8000-0000000000ff' },
     });
     expect(result.isError).toBe(true);
-    expect(JSON.stringify(result)).toContain(
-      "Organization 'other' was not found.",
-    );
-    expect(apiCalls()).toEqual([]);
+    expect(JSON.stringify(result)).toContain('Organization not found.');
   });
 
   it('preserves backend failures', async () => {
@@ -220,7 +247,7 @@ describe('integration MCP tools', () => {
     ]);
     const result = await client.callTool({
       name: 'list-integrations',
-      arguments: { organization: 'acme team' },
+      arguments: { organization: organizationId },
     });
     expect(result.isError).toBe(true);
     expect(JSON.stringify(result)).toContain(

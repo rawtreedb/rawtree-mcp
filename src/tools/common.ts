@@ -46,26 +46,44 @@ export const slackChannelName = z.string().refine((value) => {
   return name.length > 0 && [...name].length <= 80;
 }, 'Slack channel names have 1 to 80 characters, such as #alerts.');
 
-function scopeName(options: ToolScopeOptions, description: string) {
-  const schema = z.string().min(1).describe(description);
+export const organizationInput = z
+  .string()
+  .min(1)
+  .describe('Organization name or ID, as shown by list-organizations.');
+
+export const clusterInput = z
+  .string()
+  .min(1)
+  .describe('Cluster name or ID, as shown by list-clusters.');
+
+function scopeId(options: ToolScopeOptions, schema: z.ZodString) {
   return options.requireExplicitScope ? schema : schema.optional();
 }
 
 export function clusterScopeInput(options: ToolScopeOptions) {
   return {
-    organization: scopeName(
+    organization: scopeId(
       options,
-      'RawTree organization containing the target cluster.',
+      organizationInput.describe(
+        'Name or ID of the organization containing the target cluster.',
+      ),
     ),
-    cluster: scopeName(options, 'RawTree cluster to use for this operation.'),
+    cluster: scopeId(
+      options,
+      clusterInput.describe(
+        'Name or ID of the cluster to use for this operation.',
+      ),
+    ),
   };
 }
 
 export function organizationScopeInput(options: ToolScopeOptions) {
   return {
-    organization: scopeName(
+    organization: scopeId(
       options,
-      'RawTree organization containing the target database.',
+      organizationInput.describe(
+        'Name or ID of the organization containing the target database.',
+      ),
     ),
   };
 }

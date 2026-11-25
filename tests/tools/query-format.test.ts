@@ -7,6 +7,10 @@ import {
   type RawTreeClientOptions,
 } from '../../src/client.js';
 import { createMcpServer } from '../../src/server.js';
+import { clusterId, expectTenantHeaders, organizationId } from '../fixtures.js';
+
+const otherOrganizationId = '00000000-0000-4000-8000-0000000000c1';
+const otherClusterId = '00000000-0000-4000-8000-0000000000d1';
 
 function jsonResponse(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
@@ -70,16 +74,16 @@ describe('query-format', () => {
       jsonResponse({ formatted }),
     );
     const client = await connect(fetchFn, true, {
-      organization: 'old',
-      cluster: 'old',
+      organization: otherOrganizationId,
+      cluster: otherClusterId,
       database: 'old',
     });
     const result = await client.callTool({
       name: 'query-format',
       arguments: {
         sql,
-        organization: 'acme team',
-        cluster: 'prod/eu',
+        organization: organizationId,
+        cluster: clusterId,
         database: 'analytics db',
       },
     });
@@ -90,8 +94,9 @@ describe('query-format', () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
     const [url, init] = fetchFn.mock.calls[0];
     expect(String(url)).toBe(
-      'https://api.rawtree.com/v1/query-format?database=analytics+db&organization=acme+team&cluster=prod%2Feu',
+      'https://api.rawtree.com/v1/query-format?database=analytics+db',
     );
+    expectTenantHeaders(init);
     expect(init).toMatchObject({
       method: 'POST',
       body: JSON.stringify({ sql }),
@@ -129,8 +134,8 @@ describe('query-format', () => {
       jsonResponse({ formatted: 'SELECT 1' }),
     );
     const client = await connect(fetchFn, false, {
-      organization: 'team',
-      cluster: 'prod',
+      organization: organizationId,
+      cluster: clusterId,
       database: 'default',
     });
     await client.callTool({
@@ -138,8 +143,9 @@ describe('query-format', () => {
       arguments: { sql: 'select 1' },
     });
     expect(String(fetchFn.mock.calls[0][0])).toBe(
-      'https://api.rawtree.com/v1/query-format?database=default&organization=team&cluster=prod',
+      'https://api.rawtree.com/v1/query-format?database=default',
     );
+    expectTenantHeaders(fetchFn.mock.calls[0][1]);
   });
 
   it.each([

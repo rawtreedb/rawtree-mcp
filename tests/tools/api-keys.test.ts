@@ -2,8 +2,8 @@ import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RawTreeClient } from '../../src/client.js';
 import { createMcpServer } from '../../src/server.js';
+import { expectTenantHeaders, scope } from '../fixtures.js';
 
-const scope = { organization: 'acme team', cluster: 'production/eu' };
 const key = {
   id: '11111111-1111-4111-8111-111111111111',
   token: 'rt_test',
@@ -79,8 +79,9 @@ describe('API-key expiration', () => {
     expect(result.isError).not.toBe(true);
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(fetchFn.mock.calls[0][0].toString()).toBe(
-      'https://api.rawtree.com/v1/api-keys?database=analytics&organization=acme+team&cluster=production%2Feu',
+      'https://api.rawtree.com/v1/api-keys?database=analytics',
     );
+    expectTenantHeaders(fetchFn.mock.calls[0][1]);
     expect(fetchFn.mock.calls[0][1]).toMatchObject({
       method: 'POST',
       body: JSON.stringify({

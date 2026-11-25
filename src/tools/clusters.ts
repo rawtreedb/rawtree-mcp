@@ -5,6 +5,7 @@ import {
   externalIdInput,
   jsonResult,
   namedJsonResult,
+  organizationInput,
   s3StorageAccessInput,
   s3StorageInput,
 } from './common.js';
@@ -46,7 +47,7 @@ export function addClusterTools(server: McpServer, rawtree: RawTreeClient) {
       description:
         'List the public and BYOC regions accessible to an organization. Use an enabled region ID for cluster creation and its prerequisite size and S3 checks. Regions need a ready deployment.',
       annotations: { readOnlyHint: true, destructiveHint: false },
-      inputSchema: { organization: z.string().min(1) },
+      inputSchema: { organization: organizationInput },
     },
     async ({ organization }) =>
       jsonResult(await rawtree.listRegions(organization)),
@@ -69,10 +70,9 @@ With user authentication, discovery spans enabled regions. If a region is unavai
 - You need a cluster ID or current lifecycle status
 - You need to inspect provisioned resources before creating another cluster`,
       inputSchema: {
-        organization: z
-          .string()
-          .min(1)
-          .describe('Organization whose dedicated clusters should be listed.'),
+        organization: organizationInput.describe(
+          'Name or ID of the organization whose dedicated clusters should be listed.',
+        ),
       },
     },
     async ({ organization }) =>
@@ -95,7 +95,7 @@ With user authentication, discovery spans enabled regions. If a region is unavai
         destructiveHint: false,
       },
       inputSchema: {
-        organization: z.string().min(1).optional(),
+        organization: organizationInput.optional(),
         regionId: regionIdInput.optional(),
       },
     },
@@ -125,10 +125,9 @@ With user authentication, discovery spans enabled regions. If a region is unavai
         idempotentHint: true,
       },
       inputSchema: z.strictObject({
-        organization: z
-          .string()
-          .min(1)
-          .describe('Organization that will own the cluster.'),
+        organization: organizationInput.describe(
+          'Name or ID of the organization that will own the cluster.',
+        ),
         s3StorageAccess: s3StorageAccessInput.extend({
           externalId: externalIdInput,
         }),
@@ -171,10 +170,9 @@ With user authentication, discovery spans enabled regions. If a region is unavai
         idempotentHint: false,
       },
       inputSchema: z.strictObject({
-        organization: z
-          .string()
-          .min(1)
-          .describe('Organization in which to create the cluster.'),
+        organization: organizationInput.describe(
+          'Name or ID of the organization in which to create the cluster.',
+        ),
         regionId: regionIdInput,
         name: z
           .string()
@@ -247,20 +245,19 @@ With user authentication, discovery spans enabled regions. If a region is unavai
 **When to use:**
 - User asks for the current status of one cluster
 - You need to check progress after pausing or resuming a cluster
-- You already have a cluster ID and do not need the full organization cluster list`,
+- You already know the cluster and do not need the full organization cluster list`,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
       },
       inputSchema: {
-        organization: z
-          .string()
-          .min(1)
-          .describe('Organization containing the cluster.'),
+        organization: organizationInput.describe(
+          'Name or ID of the organization containing the cluster.',
+        ),
         clusterId: z
           .string()
           .min(1)
-          .describe('Dedicated cluster ID returned by list-clusters.'),
+          .describe('Dedicated cluster name or ID, as shown by list-clusters.'),
       },
     },
     async ({ organization, clusterId }) =>
@@ -279,21 +276,20 @@ With user authentication, discovery spans enabled regions. If a region is unavai
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 
-**Safety:** You MUST confirm the exact organization, cluster ID, and new idle timeout with the user before calling this tool.`,
+**Safety:** You MUST confirm the exact organization, cluster, and new idle timeout with the user before calling this tool.`,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
         idempotentHint: true,
       },
       inputSchema: {
-        organization: z
-          .string()
-          .min(1)
-          .describe('Organization containing the cluster to update.'),
+        organization: organizationInput.describe(
+          'Name or ID of the organization containing the cluster to update.',
+        ),
         clusterId: z
           .string()
           .min(1)
-          .describe('Dedicated cluster ID returned by list-clusters.'),
+          .describe('Dedicated cluster name or ID, as shown by list-clusters.'),
         idleTimeoutMinutes: idleTimeoutMinutesInput,
       },
     },
@@ -319,20 +315,19 @@ With user authentication, discovery spans enabled regions. If a region is unavai
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 
-**Safety:** Pausing makes the cluster's databases unavailable until it is resumed. You MUST confirm the exact organization and cluster ID before calling this tool.`,
+**Safety:** Pausing makes the cluster's databases unavailable until it is resumed. You MUST confirm the exact organization and cluster before calling this tool.`,
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
       },
       inputSchema: {
-        organization: z
-          .string()
-          .min(1)
-          .describe('Organization containing the cluster to pause.'),
+        organization: organizationInput.describe(
+          'Name or ID of the organization containing the cluster to pause.',
+        ),
         clusterId: z
           .string()
           .min(1)
-          .describe('Dedicated cluster ID returned by list-clusters.'),
+          .describe('Dedicated cluster name or ID, as shown by list-clusters.'),
       },
     },
     async ({ organization, clusterId }) => {
@@ -353,20 +348,19 @@ With user authentication, discovery spans enabled regions. If a region is unavai
 
 **Auth:** The RawTree API requires a user access token with organization admin access. Authorization is enforced by the API.
 
-**Safety:** You MUST confirm the exact organization and cluster ID before calling this tool.`,
+**Safety:** You MUST confirm the exact organization and cluster before calling this tool.`,
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
       },
       inputSchema: {
-        organization: z
-          .string()
-          .min(1)
-          .describe('Organization containing the cluster to resume.'),
+        organization: organizationInput.describe(
+          'Name or ID of the organization containing the cluster to resume.',
+        ),
         clusterId: z
           .string()
           .min(1)
-          .describe('Dedicated cluster ID returned by list-clusters.'),
+          .describe('Dedicated cluster name or ID, as shown by list-clusters.'),
       },
     },
     async ({ organization, clusterId }) => {

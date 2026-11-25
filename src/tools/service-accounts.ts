@@ -1,12 +1,11 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { RawTreeClient } from '../client.js';
-import { jsonResult } from './common.js';
+import { jsonResult, organizationInput } from './common.js';
 
-const organization = z
-  .string()
-  .min(1)
-  .describe('Organization name from list-organizations.');
+const organization = organizationInput.describe(
+  'Name or ID of the organization.',
+);
 
 export function addServiceAccountTools(
   server: McpServer,
