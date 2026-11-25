@@ -11,8 +11,8 @@ it.skipIf(!process.env.RAWTREE_LIVE_API_URL)(
       .object({
         RAWTREE_LIVE_API_URL: z.url(),
         RAWTREE_LIVE_OAUTH_TOKEN: z.string().min(1),
-        RAWTREE_LIVE_ORGANIZATION: z.string().min(1),
-        RAWTREE_LIVE_CLUSTER: z.string().min(1),
+        RAWTREE_LIVE_ORGANIZATION: z.uuid(),
+        RAWTREE_LIVE_CLUSTER: z.uuid(),
         RAWTREE_LIVE_USER_ID: z.uuid(),
       })
       .parse(process.env);

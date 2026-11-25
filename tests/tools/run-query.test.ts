@@ -2,6 +2,7 @@ import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RawTreeClient } from '../../src/client.js';
 import { createMcpServer } from '../../src/server.js';
+import { clusterId, expectTenantHeaders, organizationId } from '../fixtures.js';
 
 describe('run-query contract', () => {
   const closeables: Array<{ close(): Promise<void> }> = [];
@@ -120,8 +121,8 @@ describe('run-query contract', () => {
       name: 'run-query',
       arguments: {
         sql,
-        organization: 'acme',
-        cluster: 'prod',
+        organization: organizationId,
+        cluster: clusterId,
         database: 'analytics',
       },
     });
@@ -132,8 +133,9 @@ describe('run-query contract', () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
     const [url, init] = fetchFn.mock.calls[0];
     expect(String(url)).toBe(
-      'https://api.rawtree.com/v1/query?database=analytics&organization=acme&cluster=prod',
+      'https://api.rawtree.com/v1/query?database=analytics',
     );
+    expectTenantHeaders(init);
     expect(init).toMatchObject({
       method: 'POST',
       body: JSON.stringify({ sql }),

@@ -1,11 +1,6 @@
 import { z } from 'zod';
 import { deploymentHeaders, type LoadMetadata } from './routing.js';
 
-const organizations = z.object({
-  organizations: z.array(
-    z.object({ organization_id: z.string().min(1), name: z.string() }),
-  ),
-});
 const regions = z.object({
   regions: z.array(
     z.object({
@@ -25,32 +20,26 @@ export class RegionCatalog {
     private readonly credentialScope: 'cluster' | 'user',
   ) {}
 
-  async list(organization: string) {
+  async list(organizationId: string) {
     if (this.credentialScope === 'cluster')
       throw new Error(
         'Region discovery and selection require a user credential such as OAuth.',
       );
-    const response = organizations.parse(await this.load('/v1/organizations'));
-    const owner = response.organizations.find(
-      (item) => item.name === organization,
-    );
-    if (!owner)
-      throw new Error(`Organization '${organization}' was not found.`);
     return regions.parse(
       await this.load(
-        `/v1/regions?${new URLSearchParams({ organization_id: owner.organization_id })}`,
+        `/v1/regions?${new URLSearchParams({ organization_id: organizationId })}`,
       ),
     );
   }
 
   async headers(
-    organization: string | undefined,
+    organizationId: string | undefined,
     regionId: string | undefined,
   ): Promise<Record<string, string>> {
     if (regionId === undefined) return {};
-    if (!organization)
+    if (!organizationId)
       throw new Error('Provide organization when selecting a region.');
-    const response = await this.list(organization);
+    const response = await this.list(organizationId);
     const region = response.regions.find((item) => item.id === regionId);
     if (!region) throw new Error('Region not found in this organization.');
     if (!region.enabled) throw new Error('The selected region is disabled.');

@@ -2,6 +2,7 @@ import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RawTreeClient } from '../../src/client.js';
 import { createMcpServer } from '../../src/server.js';
+import { clusterId, expectTenantHeaders, organizationId } from '../fixtures.js';
 
 const ttl = 'toDateTime(__raw_data.ts) + INTERVAL 7 DAY DELETE';
 const settings = {
@@ -77,8 +78,8 @@ describe('table configuration tools', () => {
       name: 'update-table',
       arguments: {
         table: 'events',
-        organization: 'acme',
-        cluster: 'prod',
+        organization: organizationId,
+        cluster: clusterId,
         database: 'analytics',
         ...input,
       },
@@ -92,9 +93,8 @@ describe('table configuration tools', () => {
       }),
     );
     expect(fetchFn.mock.calls[0][1]?.method).toBe('PATCH');
-    expect(String(fetchFn.mock.calls[0][0])).toContain(
-      'database=analytics&organization=acme&cluster=prod',
-    );
+    expect(String(fetchFn.mock.calls[0][0])).toContain('database=analytics');
+    expectTenantHeaders(fetchFn.mock.calls[0][1]);
     expect(JSON.stringify(result.content)).toContain('[HIDDEN]');
   });
 

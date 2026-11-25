@@ -7,7 +7,8 @@ const organizationId = '00000000-0000-4000-8000-000000000001';
 const otherId = '00000000-0000-4000-8000-000000000002';
 const collection = '/v1/clusters';
 const routing = { deployment_id: '12abcdef', cloud_region: 'eu-west-1' };
-const scope = { organization: 'acme', cluster: 'production' };
+const clusterId = '00000000-0000-4000-8000-0000000000b1';
+const scope = { organization: organizationId, cluster: clusterId };
 
 function server(
   metadata: Record<string, unknown> = routing,
@@ -37,27 +38,22 @@ function server(
         ],
       });
     const body =
-      url.pathname === '/v1/organizations'
+      url.pathname.endsWith('/clusters') && init?.method === 'GET'
         ? {
-            organizations: [
-              { organization_id: organizationId, name: 'acme' },
-              { organization_id: otherId, name: 'other' },
+            clusters: [
+              {
+                id: clusterId,
+                name: 'production',
+                ...metadata,
+                ...(new Headers(init.headers).get(
+                  'X-RawTree-Organization-Id',
+                ) === otherId
+                  ? { deployment_id: 'abcdef12', cloud_region: 'ap-south-1' }
+                  : {}),
+              },
             ],
           }
-        : url.pathname.endsWith('/clusters') && init?.method === 'GET'
-          ? {
-              clusters: [
-                {
-                  id: 'cluster-id',
-                  name: 'production',
-                  ...metadata,
-                  ...(url.searchParams.get('organization') === 'other'
-                    ? { deployment_id: 'abcdef12', cloud_region: 'ap-south-1' }
-                    : {}),
-                },
-              ],
-            }
-          : { data: [{ result: 1 }] };
+        : { data: [{ result: 1 }] };
     return new Response(JSON.stringify(body), {
       status: failDiscovery && url.pathname.endsWith('/clusters') ? 503 : 200,
     });
@@ -78,19 +74,17 @@ describe('automatic cluster routing', () => {
   it('keeps existing cluster URLs and adds serving headers to cluster actions', async () => {
     const { calls, fetchFn } = server();
     const client = new RawTreeClient({ apiKey: 'session.fixture', fetchFn });
-    await client.listClusters('acme');
+    await client.listClusters(organizationId);
     expect(calls.map(({ url }) => url.pathname)).toEqual([
-      '/v1/organizations',
       '/v1/regions',
       collection,
     ]);
-    await client.pauseCluster({
-      organization: 'acme',
-      clusterId: 'cluster-id',
-    });
+    await client.pauseCluster({ organization: organizationId, clusterId });
     const action = calls.at(-1);
-    expect(action?.url.pathname).toBe(`${collection}/cluster-id/stop`);
-    expect(action?.url.searchParams.get('organization')).toBe('acme');
+    expect(action?.url.pathname).toBe(`${collection}/${clusterId}/stop`);
+    expect(action?.headers.get('X-RawTree-Organization-Id')).toBe(
+      organizationId,
+    );
     expectRouting(action?.headers ?? new Headers());
     expect(
       calls
@@ -108,14 +102,14 @@ describe('automatic cluster routing', () => {
     });
     await Promise.all([
       client.listDatabases(scope),
-      client.listDatabases({ organization: 'other', cluster: 'production' }),
+      client.listDatabases({ organization: otherId, cluster: clusterId }),
     ]);
     const requests = calls.filter(
       ({ url }) => url.pathname === '/v1/databases',
     );
     expect(requests).toHaveLength(2);
-    for (const { url, headers } of requests) {
-      if (url.searchParams.get('organization') === 'other')
+    for (const { headers } of requests) {
+      if (headers.get('X-RawTree-Organization-Id') === otherId)
         expectRouting(headers, 'abcdef12', 'ap-south-1');
       else expectRouting(headers);
     }
@@ -203,7 +197,7 @@ describe('cluster-bound workload credentials', () => {
       credentialScope,
       fetchFn,
     });
-    await client.listClusters('acme');
+    await client.listClusters(organizationId);
     await client.query('SELECT 1', scope);
     expect(calls.map(({ url }) => url.pathname)).toEqual([
       '/v1/clusters',
@@ -214,8 +208,10 @@ describe('cluster-bound workload credentials', () => {
       expect(headers.has('X-RawTree-Deployment-Id')).toBe(false);
       expect(headers.has('X-RawTree-Region')).toBe(false);
     }
-    expect(calls[1]?.url.searchParams.get('organization')).toBe('acme');
-    expect(calls[1]?.url.searchParams.get('cluster')).toBe('production');
+    expect(calls[1]?.headers.get('X-RawTree-Organization-Id')).toBe(
+      organizationId,
+    );
+    expect(calls[1]?.headers.get('X-RawTree-Cluster-Id')).toBe(clusterId);
   });
 
   it('honors explicit user routing even when the credential has an API-key prefix', async () => {
@@ -225,10 +221,9 @@ describe('cluster-bound workload credentials', () => {
       credentialScope: 'user',
       fetchFn,
     });
-    await client.listClusters('acme');
+    await client.listClusters(organizationId);
     await client.query('SELECT 1', scope);
     expect(calls.map(({ url }) => url.pathname)).toEqual([
-      '/v1/organizations',
       '/v1/regions',
       '/v1/clusters',
       '/v1/query',

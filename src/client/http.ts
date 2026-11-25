@@ -18,6 +18,10 @@ export interface RequestOptions {
   body?: JsonValue | Record<string, unknown>;
   query?: QueryParams;
   headers?: Record<string, string>;
+  /** Resolved IDs sent as the tenant selector headers; also used to route to the cluster's deployment. */
+  tenant?: { organization?: string; cluster?: string };
+  /** Resolved IDs used only to route, for endpoints that carry their IDs in the query or body. */
+  routeTo?: { organization?: string; cluster?: string };
 }
 
 export class RawTreeApiError extends Error {

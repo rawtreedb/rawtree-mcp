@@ -1,6 +1,10 @@
 import { expect, it } from 'vitest';
 import { RawTreeClient } from '../src/client.js';
 
+const organizationId = '00000000-0000-4000-8000-0000000000a1';
+const europeId = '00000000-0000-4000-8000-0000000000e1';
+const americaId = '00000000-0000-4000-8000-0000000000f1';
+
 function fixture(
   apiUrl = 'https://api.rawtree.com',
   deployment = '1234abcd',
@@ -14,10 +18,6 @@ function fixture(
     const url = new URL(String(input));
     const headers = new Headers(init?.headers);
     calls.push({ url, headers });
-    if (url.pathname === '/v1/organizations')
-      return Response.json({
-        organizations: [{ name: 'acme', organization_id: 'org-id' }],
-      });
     if (url.pathname.endsWith('/regions')) {
       const catalog = {
         regions: [
@@ -78,14 +78,14 @@ function fixture(
         );
       const cluster = europe
         ? {
-            id: 'eu-cluster',
+            id: europeId,
             name: 'europe',
             region_id: unknownRegion ? 'missing' : 'eu',
             deployment_id: 'wrong',
             cloud_region: 'us-east-1',
           }
         : {
-            id: 'us-cluster',
+            id: americaId,
             name: 'america',
             region_id: 'legacy',
             s3_storage: { data: { bucket: 'data' } },
@@ -96,9 +96,7 @@ function fixture(
           ? [cluster, cluster]
           : [
               cluster,
-              ...(gatewayDuplicate
-                ? [{ id: 'eu-cluster', name: 'europe' }]
-                : []),
+              ...(gatewayDuplicate ? [{ id: europeId, name: 'europe' }] : []),
             ],
       });
     }
@@ -121,12 +119,12 @@ it.each([
   '0123456789abcdef0123456789abcdef',
 ])('merges enabled deployments and resolves authoritative region metadata for %s', async (deployment) => {
   const { client, calls } = fixture('https://api.rawtree.dev', deployment);
-  expect(await client.listClusters('acme')).toMatchObject({
+  expect(await client.listClusters(organizationId)).toMatchObject({
     organization: { name: 'acme' },
     clusters: [
-      { id: 'us-cluster', s3_storage: { data: { bucket: 'data' } } },
+      { id: americaId, s3_storage: { data: { bucket: 'data' } } },
       {
-        id: 'eu-cluster',
+        id: europeId,
         deployment_id: deployment,
         cloud_region: 'eu-west-1',
       },
@@ -137,7 +135,10 @@ it.each([
     'api.rawtree.dev',
     `api.${deployment}.eu-west-1.aws.rawtree.dev`,
   ]);
-  await client.listDatabases({ organization: 'acme', cluster: 'europe' });
+  await client.listDatabases({
+    organization: organizationId,
+    cluster: europeId,
+  });
   expect(calls.at(-1)?.url.hostname).toBe(
     `api.${deployment}.eu-west-1.aws.rawtree.dev`,
   );
@@ -152,7 +153,10 @@ it.each([
 
 it('discovers Europe before the caller lists clusters', async () => {
   const { client, calls } = fixture();
-  await client.listDatabases({ organization: 'acme', cluster: 'europe' });
+  await client.listDatabases({
+    organization: organizationId,
+    cluster: europeId,
+  });
   expect(calls.at(-1)?.url.hostname).toBe(
     'api.1234abcd.eu-west-1.aws.rawtree.com',
   );
@@ -164,7 +168,10 @@ it.each([
   'https://api.rawtree.com:8443',
 ])('preserves custom API URL %s while sending routing headers', async (apiUrl) => {
   const { client, calls } = fixture(apiUrl);
-  await client.listDatabases({ organization: 'acme', cluster: 'europe' });
+  await client.listDatabases({
+    organization: organizationId,
+    cluster: europeId,
+  });
   expect(calls.every(({ url }) => url.origin === apiUrl)).toBe(true);
   expect(calls.at(-1)?.headers.get('X-RawTree-Deployment-Id')).toBe('1234abcd');
 });
@@ -177,23 +184,29 @@ it('keeps healthy clusters usable during regional failure and recovers on retry'
     false,
   );
   failEurope(true);
-  expect(await client.listClusters('acme')).toMatchObject({
-    clusters: [{ id: 'us-cluster' }],
+  expect(await client.listClusters(organizationId)).toMatchObject({
+    clusters: [{ id: americaId }],
     unavailable_regions: [
       { id: 'eu', name: 'Ireland' },
       { id: 'duplicate', name: 'Duplicate' },
     ],
   });
-  await client.listDatabases({ organization: 'acme', cluster: 'america' });
+  await client.listDatabases({
+    organization: organizationId,
+    cluster: americaId,
+  });
   expect(calls.at(-1)?.url.hostname).toBe('api.rawtree.com');
   await expect(
-    client.listDatabases({ organization: 'acme', cluster: 'europe' }),
+    client.listDatabases({ organization: organizationId, cluster: europeId }),
   ).rejects.toThrow('Some regions are unavailable');
   expect(
     calls.filter(({ url }) => url.pathname === '/v1/databases'),
   ).toHaveLength(1);
   failEurope(false);
-  await client.listDatabases({ organization: 'acme', cluster: 'europe' });
+  await client.listDatabases({
+    organization: organizationId,
+    cluster: europeId,
+  });
   expect(calls.at(-1)?.url.hostname).toBe(
     'api.1234abcd.eu-west-1.aws.rawtree.com',
   );
@@ -203,7 +216,7 @@ it('rejects an unknown region reference before executing a cluster operation', a
   const { client, calls, unknownRegion } = fixture();
   unknownRegion();
   await expect(
-    client.listDatabases({ organization: 'acme', cluster: 'europe' }),
+    client.listDatabases({ organization: organizationId, cluster: europeId }),
   ).rejects.toThrow("Region 'missing'");
   expect(calls.some(({ url }) => url.pathname === '/v1/databases')).toBe(false);
 });
@@ -223,15 +236,24 @@ it.each([
     gatewayFirst,
   );
   failEurope(true);
-  if (cached) await client.listClusters('acme');
+  if (cached) await client.listClusters(organizationId);
   const operation = () =>
     cached
-      ? client.listDatabases({ organization: 'acme', cluster: 'europe' })
-      : client.pauseCluster({ organization: 'acme', clusterId: 'eu-cluster' });
+      ? client.listDatabases({
+          organization: organizationId,
+          cluster: europeId,
+        })
+      : client.pauseCluster({
+          organization: organizationId,
+          clusterId: europeId,
+        });
   await expect(operation()).rejects.toThrow('Some regions are unavailable');
   expect(calls.some(({ url }) => url.pathname === '/v1/databases')).toBe(false);
   expect(calls.some(({ url }) => url.pathname.endsWith('/stop'))).toBe(false);
-  await client.listDatabases({ organization: 'acme', cluster: 'america' });
+  await client.listDatabases({
+    organization: organizationId,
+    cluster: americaId,
+  });
   expect(calls.at(-1)?.url.hostname).toBe('api.rawtree.com');
   failEurope(false);
   await operation();
@@ -243,9 +265,12 @@ it.each([
 it('refreshes a cached gateway stub immediately after its region recovers', async () => {
   const { client, calls, failEurope } = fixture();
   failEurope(true);
-  await client.listClusters('acme');
+  await client.listClusters(organizationId);
   failEurope(false);
-  await client.listDatabases({ organization: 'acme', cluster: 'europe' });
+  await client.listDatabases({
+    organization: organizationId,
+    cluster: europeId,
+  });
   expect(calls.at(-1)?.url.hostname).toBe(
     'api.1234abcd.eu-west-1.aws.rawtree.com',
   );
@@ -260,7 +285,10 @@ it.each([
     '1234abcd',
     gatewayFirst,
   );
-  await client.listDatabases({ organization: 'acme', cluster: 'europe' });
+  await client.listDatabases({
+    organization: organizationId,
+    cluster: europeId,
+  });
   expect(calls.at(-1)?.url.hostname).toBe(
     'api.1234abcd.eu-west-1.aws.rawtree.com',
   );

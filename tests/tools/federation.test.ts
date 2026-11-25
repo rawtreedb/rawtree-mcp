@@ -4,14 +4,8 @@ import { RawTreeClient } from '../../src/client.js';
 import { createMcpServer } from '../../src/server.js';
 
 const id = '00000000-0000-4000-8000-000000000001';
-const organization = 'team alpha';
-const cluster = 'prod/eu';
-const catalog = {
-  organizations: [
-    { name: 'other', organization_id: '00000000-0000-4000-8000-000000000002' },
-    { name: organization, organization_id: id },
-  ],
-};
+const organization = '00000000-0000-4000-8000-000000000002';
+const cluster = '00000000-0000-4000-8000-000000000003';
 const issuer = { name: 'ci', issuer_url: 'https://EXAMPLE.com/tenant/' };
 const rule = {
   name: 'ci',
@@ -34,7 +28,7 @@ function response(body: unknown, status = 200) {
     headers: { 'Content-Type': 'application/json' },
   });
 }
-async function connect(responses: Response[] = []) {
+async function connect(responses: Response[] = [], apiKey = 'rt_fixture') {
   const fetchFn = vi.fn<typeof fetch>(async () => {
     const result = responses.shift();
     if (!result) throw new Error('Unexpected request');
@@ -42,10 +36,10 @@ async function connect(responses: Response[] = []) {
   });
   const server = createMcpServer(
     new RawTreeClient({
-      apiKey: 'rt_fixture',
+      apiKey,
       fetchFn,
-      organization: 'wrong',
-      cluster: 'wrong',
+      organization: '00000000-0000-4000-8000-000000000004',
+      cluster: '00000000-0000-4000-8000-000000000005',
       database: 'wrong',
     }),
   );
@@ -76,7 +70,6 @@ describe('federation tools', () => {
                   updated_at: 'date',
                 };
         const replies = [response(body)];
-        if (entity === 'issuer') replies.unshift(response(catalog));
         const { client, fetchFn } = await connect(replies);
         const args = {
           organization,
@@ -94,11 +87,16 @@ describe('federation tools', () => {
           : '';
         expect(url.pathname).toBe(
           entity === 'issuer'
-            ? `/v1/organizations/${id}/federation-issuers${suffix}`
+            ? `/v1/organizations/${organization}/federation-issuers${suffix}`
             : `/v1/federation-rules${suffix}`,
         );
-        expect(Object.fromEntries(url.searchParams)).toEqual(
-          entity === 'issuer' ? {} : { organization, cluster },
+        expect(Object.fromEntries(url.searchParams)).toEqual({});
+        const headers = new Headers(request?.[1]?.headers);
+        expect(headers.get('X-RawTree-Organization-Id')).toBe(
+          entity === 'issuer' ? null : organization,
+        );
+        expect(headers.get('X-RawTree-Cluster-Id')).toBe(
+          entity === 'issuer' ? null : cluster,
         );
         expect(request?.[1]?.method).toBe(
           action === 'create'
@@ -154,10 +152,7 @@ describe('federation tools', () => {
       jwks_source: 'explicit_url',
       jwks_url: 'https://keys.example.com/jwks?version=2',
     };
-    const { client, fetchFn } = await connect([
-      response(catalog),
-      response(input),
-    ]);
+    const { client, fetchFn } = await connect([response(input)]);
     expect(
       (
         await client.callTool({
@@ -166,7 +161,7 @@ describe('federation tools', () => {
         })
       ).isError,
     ).not.toBe(true);
-    expect(JSON.parse(String(fetchFn.mock.calls[1]?.[1]?.body))).toEqual(input);
+    expect(JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body))).toEqual(input);
   });
   it.each([
     ['create-federation-issuer', { ...issuer, jwks_source: 'explicit_url' }],
@@ -214,17 +209,63 @@ describe('federation tools', () => {
     );
     expect(fetchFn).not.toHaveBeenCalled();
   });
-  it('does not silently use another organization', async () => {
-    const { client, fetchFn } = await connect([response(catalog)]);
-    expect(
-      (
-        await client.callTool({
-          name: 'create-federation-issuer',
-          arguments: { organization: 'missing', ...issuer },
-        })
-      ).isError,
-    ).toBe(true);
-    expect(fetchFn).toHaveBeenCalledTimes(1);
+  it('resolves organization and cluster names to IDs on the wire', async () => {
+    const { client, fetchFn } = await connect(
+      [
+        response({
+          organizations: [
+            { name: 'team alpha', organization_id: organization },
+          ],
+        }),
+        response({
+          regions: [
+            {
+              id: 'legacy',
+              name: 'Virginia',
+              cloud_region: 'us-east-1',
+              deployment_id: null,
+              enabled: true,
+              organization_id: null,
+            },
+          ],
+        }),
+        response({ clusters: [{ id: cluster, name: 'prod' }] }),
+        response([]),
+      ],
+      'oauth_fixture',
+    );
+    await client.callTool({
+      name: 'list-federation-rules',
+      arguments: { organization: 'team alpha', cluster: 'prod' },
+    });
+    const request = fetchFn.mock.calls.at(-1);
+    expect(String(request?.[0])).toBe(
+      'https://api.rawtree.com/v1/federation-rules',
+    );
+    const headers = new Headers(request?.[1]?.headers);
+    expect(headers.get('X-RawTree-Organization-Id')).toBe(organization);
+    expect(headers.get('X-RawTree-Cluster-Id')).toBe(cluster);
+  });
+
+  it('resolves an organization name for issuer paths', async () => {
+    const { client, fetchFn } = await connect(
+      [
+        response({
+          organizations: [
+            { name: 'team alpha', organization_id: organization },
+          ],
+        }),
+        response([]),
+      ],
+      'oauth_fixture',
+    );
+    await client.callTool({
+      name: 'list-federation-issuers',
+      arguments: { organization: 'team alpha' },
+    });
+    expect(String(fetchFn.mock.calls.at(-1)?.[0])).toBe(
+      `https://api.rawtree.com/v1/organizations/${organization}/federation-issuers`,
+    );
   });
   it.each([
     401, 403, 404, 409,

@@ -126,7 +126,7 @@ describe('feedback MCP tool', () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
     const [url, options] = fetchFn.mock.calls[0];
     expect(Object.fromEntries(new URL(url.toString()).searchParams)).toEqual(
-      scope,
+      {},
     );
     expect(JSON.parse(String(options?.body))).toEqual(body);
   });

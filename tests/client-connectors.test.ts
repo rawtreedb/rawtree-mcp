@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { RawTreeClient } from '../src/client.js';
+import { expectTenantHeaders, scope } from './fixtures.js';
 
 interface RecordedCall {
   url: string;
@@ -24,8 +25,6 @@ function sequenceFetch(
     return response;
   };
 }
-
-const scope = { organization: 'acme team', cluster: 'production/eu' };
 
 const connector = {
   id: 'connector/id',
@@ -64,10 +63,11 @@ describe('RawTreeClient connector routes', () => {
     await client.getConnectorMetrics('connector/id', scope);
 
     expect(calls.map((call) => call.url)).toEqual([
-      'https://api.rawtree.com/v1/connectors?organization=acme+team&cluster=production%2Feu',
-      'https://api.rawtree.com/v1/connectors/connector%2Fid?organization=acme+team&cluster=production%2Feu',
-      'https://api.rawtree.com/v1/metrics?filters=%7B%22rawtree.connector.id%22%3A%22connector%2Fid%22%7D&window_seconds=300&organization=acme+team&cluster=production%2Feu',
+      'https://api.rawtree.com/v1/connectors',
+      'https://api.rawtree.com/v1/connectors/connector%2Fid',
+      `https://api.rawtree.com/v1/metrics?organization_id=${scope.organization}&cluster_id=${scope.cluster}&filters=%7B%22rawtree.connector.id%22%3A%22connector%2Fid%22%7D&window_seconds=300`,
     ]);
+    for (const call of calls.slice(0, 2)) expectTenantHeaders(call.init);
     expect(calls.every((call) => call.init.method === 'GET')).toBe(true);
   });
 
@@ -104,9 +104,7 @@ describe('RawTreeClient connector routes', () => {
 
     await client.createConnector(input, scope);
 
-    expect(calls[0].url).toBe(
-      'https://api.rawtree.com/v1/connectors?organization=acme+team&cluster=production%2Feu',
-    );
+    expect(calls[0].url).toBe('https://api.rawtree.com/v1/connectors');
     expect(calls[0].init.method).toBe('POST');
     expect(calls[0].init.body).toBe(JSON.stringify(input));
   });

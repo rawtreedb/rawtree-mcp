@@ -2,9 +2,9 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { RawTreeClient } from '../client.js';
 import { issuerConfiguration } from '../federation.js';
-import { jsonResult } from './common.js';
+import { jsonResult, organizationInput } from './common.js';
 
-const scope = z.strictObject({ organization: z.string().min(1) });
+const scope = z.strictObject({ organization: organizationInput });
 const selected = scope.extend({ id: z.uuid() });
 const definition = issuerConfiguration.safeExtend(scope.shape);
 const replacement = definition.safeExtend({ id: z.uuid() });
