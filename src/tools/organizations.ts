@@ -17,7 +17,7 @@ export function addOrganizationTools(
 
 **Returns:** Organization IDs, names, roles, plans, and avatar URLs.
 
-**Auth:** Requires a user credential such as OAuth. Database API keys are not user credentials and cannot list organizations.
+**Auth:** A user credential such as OAuth lists every organization the user belongs to. A database API key lists only its own bound organization, with a null role.
 
 **When to use:**
 - You need an organization name or ID before listing clusters
