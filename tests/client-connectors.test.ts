@@ -67,7 +67,7 @@ describe('RawTreeClient connector routes', () => {
       'https://api.rawtree.com/v1/connectors/connector%2Fid',
       `https://api.rawtree.com/v1/metrics?organization_id=${scope.organization}&cluster_id=${scope.cluster}&filters=%7B%22rawtree.connector.id%22%3A%22connector%2Fid%22%7D&window_seconds=300`,
     ]);
-    for (const call of calls.slice(0, 2)) expectTenantHeaders(call.init);
+    for (const call of calls) expectTenantHeaders(call.init);
     expect(calls.every((call) => call.init.method === 'GET')).toBe(true);
   });
 
