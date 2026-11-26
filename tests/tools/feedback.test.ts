@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import packageJson from '../../package.json' with { type: 'json' };
 import { RawTreeClient } from '../../src/client.js';
 import { createMcpServer } from '../../src/server.js';
+import { expectTenantHeaders } from '../fixtures.js';
 
 const receipt = {
   id: 'b2b27b86-f2eb-4059-86f9-b99c29f05980',
@@ -129,6 +130,10 @@ describe('feedback MCP tool', () => {
       {},
     );
     expect(JSON.parse(String(options?.body))).toEqual(body);
+    expectTenantHeaders(options, {
+      organization: scope.organization_id,
+      cluster: scope.cluster_id,
+    });
   });
 
   it.each([
