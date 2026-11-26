@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.10
+
+- Select the organization and cluster with `X-RawTree-Organization-Id` and `X-RawTree-Cluster-Id` headers instead of query parameters. Names are resolved to IDs in the client, API keys resolve names against their own organization and cluster, and the cluster tools accept a name or ID.
+- Accept a default cluster at startup.
+- Ask to retry cluster name lookups during partial regional outages.
+- Document that API keys list their bound organization.
+
 ## 0.4.9
 
 - Document HTTP handler DDL in `run-query`, including admin permissions, supported syntax, cluster scope, and empty results.
