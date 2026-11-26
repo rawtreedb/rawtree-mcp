@@ -118,6 +118,7 @@ MCP_PORT=3000 npx -y @rawtree/mcp --http
 
 - `--api-key`: RawTree database API key for stdio mode
 - `--api-url`: RawTree API base URL, default `https://api.rawtree.com`
+- `--cluster`: Cluster name or ID for scoped routes
 - `--database`: Database name for scoped routes
 - `--org`: Organization name or ID for scoped routes
 - `--http`: Use HTTP transport instead of stdio
@@ -129,6 +130,7 @@ Environment variables:
 
 - `RAWTREE_API_KEY`: RawTree database API key
 - `RAWTREE_API_URL`: RawTree API base URL, default `https://api.rawtree.com`
+- `RAWTREE_CLUSTER`: Cluster name or ID for scoped routes
 - `RAWTREE_DATABASE`: Database name for scoped routes
 - `RAWTREE_ORG`: Organization name or ID for scoped routes
 - `MCP_PORT`: HTTP port when using `--http`

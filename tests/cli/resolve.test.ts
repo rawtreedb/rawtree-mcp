@@ -48,6 +48,7 @@ describe('resolveConfig', () => {
           'api-key': 'rt_arg',
           database: 'analytics',
           org: 'team',
+          cluster: 'production',
         },
         {},
       ),
@@ -56,6 +57,7 @@ describe('resolveConfig', () => {
       config: {
         apiKey: 'rt_arg',
         database: 'analytics',
+        cluster: 'production',
         organization: 'team',
         port: 3000,
         transport: 'stdio',
@@ -71,6 +73,7 @@ describe('resolveConfig', () => {
           RAWTREE_API_KEY: 'rt_test',
           RAWTREE_DATABASE: 'analytics',
           RAWTREE_ORG: 'team',
+          RAWTREE_CLUSTER: 'production',
         },
       ),
     ).toEqual({
@@ -78,6 +81,7 @@ describe('resolveConfig', () => {
       config: {
         apiKey: 'rt_test',
         database: 'analytics',
+        cluster: 'production',
         organization: 'team',
         port: 3000,
         transport: 'stdio',
