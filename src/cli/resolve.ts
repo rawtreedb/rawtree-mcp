@@ -34,6 +34,7 @@ export function resolveConfig(
 ): ResolveResult {
   const apiKey = firstString(parsed['api-key'], env.RAWTREE_API_KEY);
   const apiUrl = firstString(parsed['api-url'], env.RAWTREE_API_URL);
+  const cluster = firstString(parsed.cluster, env.RAWTREE_CLUSTER);
   const database = firstString(parsed.database, env.RAWTREE_DATABASE);
   const organization = firstString(
     parsed.org,
@@ -52,6 +53,7 @@ export function resolveConfig(
 
   const common = {
     ...(apiUrl ? { apiUrl } : {}),
+    ...(cluster ? { cluster } : {}),
     ...(database ? { database } : {}),
     ...(organization ? { organization } : {}),
     port: parsePort(parsed, env),
