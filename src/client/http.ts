@@ -30,8 +30,6 @@ export interface RequestOptions {
   headers?: Record<string, string>;
   /** Organization and cluster names or IDs; resolved to IDs for the selector headers and deployment routing. */
   scope?: TenantScope;
-  /** Resolved IDs used only to route, for endpoints that carry their IDs in the query or body. */
-  routeTo?: TenantIds;
 }
 
 export class RawTreeApiError extends Error {

@@ -156,7 +156,7 @@ export class RawTreeClient {
   async submitFeedback(input: SubmitFeedbackInput): Promise<unknown> {
     return this.requestJson('POST', this.apiPath('/feedback'), {
       body: { ...input },
-      routeTo: {
+      scope: {
         organization: input.organization_id,
         cluster: input.cluster_id,
       },
@@ -1030,8 +1030,7 @@ export class RawTreeClient {
     // Keep the raw JSON: OTLP timestamps and counters can exceed JS integer precision.
     const tenant = await this.tenantIds(this.defaultScope(scope));
     return this.requestText('GET', this.apiPath('/metrics'), {
-      // The metrics API takes IDs as query parameters, not selector headers.
-      routeTo: tenant,
+      scope: tenant,
       query: {
         organization_id: tenant.organization,
         cluster_id: tenant.cluster,
@@ -1247,11 +1246,7 @@ export class RawTreeClient {
     const routingHeaders =
       this.credentialScope === 'cluster'
         ? {}
-        : await this.routing.headers(
-            url,
-            tenant ?? options.routeTo ?? {},
-            options.signal,
-          );
+        : await this.routing.headers(url, tenant ?? {}, options.signal);
     const headers = {
       Authorization: `Bearer ${this.apiKey}`,
       'User-Agent': this.userAgent,
