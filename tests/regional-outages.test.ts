@@ -190,3 +190,22 @@ it('blocks cluster-ID mutations missing from a partial catalog, then retries aft
   );
   expect(calls.at(-1)?.url.pathname).toBe(`/v1/clusters/${clusterIds.eu}/stop`);
 });
+
+it('asks to retry when a cluster name is missing from a partial catalog', async () => {
+  const { client, failures } = fixture();
+  failures.set('eu', 503);
+  await expect(
+    client.listDatabases({ organization: organizationId, cluster: 'eu' }),
+  ).rejects.toThrow('Some regions are unavailable');
+  failures.clear();
+  await expect(
+    client.listDatabases({ organization: organizationId, cluster: 'eu' }),
+  ).resolves.toBeDefined();
+});
+
+it('reports a missing cluster name when the catalog is complete', async () => {
+  const { client } = fixture();
+  await expect(
+    client.listDatabases({ organization: organizationId, cluster: 'nope' }),
+  ).rejects.toThrow("Cluster 'nope' was not found");
+});
