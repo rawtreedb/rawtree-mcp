@@ -42,7 +42,7 @@ export async function discoverClusters(
       collection.parse(
         await load('/v1/clusters', {
           headers,
-          tenant: { organization: organizationId },
+          scope: { organization: organizationId },
           signal: AbortSignal.timeout(5_000),
         }),
       ),

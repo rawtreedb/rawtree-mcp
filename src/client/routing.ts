@@ -1,13 +1,11 @@
+import type { TenantIds } from './http.js';
+
 export type LoadMetadata = (path: string) => Promise<unknown>;
 export type LoadClusters = (organizationId: string) => Promise<unknown>;
 
 export const ORGANIZATION_ID_HEADER = 'X-RawTree-Organization-Id';
 export const CLUSTER_ID_HEADER = 'X-RawTree-Cluster-Id';
 
-export interface TenantIds {
-  organization?: string;
-  cluster?: string;
-}
 type MetadataRecord = Record<string, unknown>;
 
 function records(value: unknown, field: string): MetadataRecord[] {

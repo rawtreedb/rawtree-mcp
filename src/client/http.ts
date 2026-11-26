@@ -13,15 +13,25 @@ type QueryValue =
 
 export type QueryParams = Record<string, QueryValue>;
 
+export interface TenantScope {
+  organization?: string | undefined;
+  cluster?: string | undefined;
+}
+
+export interface TenantIds {
+  organization?: string;
+  cluster?: string;
+}
+
 export interface RequestOptions {
   signal?: AbortSignal;
   body?: JsonValue | Record<string, unknown>;
   query?: QueryParams;
   headers?: Record<string, string>;
-  /** Resolved IDs sent as the tenant selector headers; also used to route to the cluster's deployment. */
-  tenant?: { organization?: string; cluster?: string };
+  /** Organization and cluster names or IDs; resolved to IDs for the selector headers and deployment routing. */
+  scope?: TenantScope;
   /** Resolved IDs used only to route, for endpoints that carry their IDs in the query or body. */
-  routeTo?: { organization?: string; cluster?: string };
+  routeTo?: TenantIds;
 }
 
 export class RawTreeApiError extends Error {
