@@ -269,9 +269,14 @@ export class RawTreeClient {
       const response = z
         .object({
           clusters: z.array(z.object({ id: z.string(), name: z.string() })),
+          unavailable_regions: z.array(z.unknown()).optional(),
         })
         .parse(await this.listClusters(organizationId));
       const selected = response.clusters.find((item) => item.name === cluster);
+      if (!selected && response.unavailable_regions?.length)
+        throw new Error(
+          'Some regions are unavailable. Retry loading the cluster before continuing.',
+        );
       if (!selected)
         throw new Error(
           `Cluster '${cluster}' was not found. Use list-clusters to select a cluster.`,
