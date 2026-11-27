@@ -1267,9 +1267,9 @@ export class RawTreeClient {
       signal: options.signal,
     });
 
-    const text = await response.text();
-    const payload = text ? parseJson(text) : null;
     if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      const payload = text ? parseJson(text) : null;
       throw new RawTreeApiError({
         status: response.status,
         method,
@@ -1278,6 +1278,7 @@ export class RawTreeClient {
         message: errorMessage(payload, response.status, method, path),
       });
     }
+    const text = await response.text();
     if (
       method !== 'GET' &&
       (path.startsWith('/v1/organizations') || path.startsWith('/v1/clusters'))
