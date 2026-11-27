@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.11
+
+- `list-clusters` now returns healthy clusters when a regional proxy responds with HTTP 403. Check `unavailable_regions` for regions to retry. [Example request and response](https://github.com/rawtreedb/rawtree-mcp/pull/59).
+
 ## 0.4.10
 
 - Select the organization and cluster with `X-RawTree-Organization-Id` and `X-RawTree-Cluster-Id` headers instead of query parameters. Names are resolved to IDs in the client, API keys resolve names against their own organization and cluster, and the cluster tools accept a name or ID.
