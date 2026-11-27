@@ -3,6 +3,11 @@ import { RawTreeApiError, type RequestOptions } from './http.js';
 import type { RegionCatalog } from './regions.js';
 import { deploymentHeaders } from './routing.js';
 
+const apiErrorBody = z.object({
+  error: z.string().min(1),
+  message: z.string().min(1),
+});
+
 const collection = z
   .object({
     clusters: z.array(
@@ -53,7 +58,12 @@ export async function discoverClusters(
   );
   for (const failure of failures) {
     const error: unknown = failure.reason;
-    if (error instanceof RawTreeApiError && [401, 403].includes(error.status))
+    // A proxy can return an unstructured 403 for a private deployment.
+    if (
+      error instanceof RawTreeApiError &&
+      (error.status === 401 ||
+        (error.status === 403 && apiErrorBody.safeParse(error.payload).success))
+    )
       throw error;
   }
   // A total outage must not look like an empty catalog.

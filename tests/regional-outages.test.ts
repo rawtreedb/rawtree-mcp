@@ -7,7 +7,7 @@ const clusterIds: Record<string, string> = {
   eu: '00000000-0000-4000-8000-0000000000e1',
 };
 
-type Failure = number | 'network' | 'timeout';
+type Failure = number | Response | 'network' | 'timeout';
 
 function fixture() {
   const failures = new Map<string, Failure>();
@@ -40,6 +40,7 @@ function fixture() {
     if (url.pathname === '/v1/clusters') {
       const region = url.hostname.includes('1234abcd') ? 'eu' : 'us';
       const failure = failures.get(region);
+      if (failure instanceof Response) return failure.clone();
       if (failure === 'network') throw new TypeError('Failed to fetch');
       if (failure === 'timeout') {
         const signal = init?.signal;
@@ -53,7 +54,11 @@ function fixture() {
       }
       if (typeof failure === 'number')
         return Response.json(
-          { message: 'Region unavailable' },
+          {
+            error: 'forbidden',
+            message: 'Region unavailable',
+            hint: 'Check access.',
+          },
           { status: failure },
         );
       return Response.json({
@@ -89,6 +94,47 @@ it.each([
   });
   expect(calls.at(-1)?.url.hostname).toBe('api.rawtree.com');
   expect(calls.at(-1)?.url.pathname).toBe('/v1/databases');
+});
+
+it.each([
+  '<html>Forbidden</html>',
+  '',
+  '{}',
+  '{"message":"Forbidden"}',
+  '{"error":"Forbidden"}',
+])('keeps healthy clusters on an unstructured regional 403 (%j)', async (body) => {
+  const { client, failures } = fixture();
+  failures.set('eu', new Response(body, { status: 403 }));
+  expect(await client.listClusters(organizationId)).toMatchObject({
+    clusters: [{ id: clusterIds.us }],
+    unavailable_regions: [{ id: 'eu', name: 'Ireland' }],
+  });
+});
+
+it.each([
+  [401, false],
+  [403, true],
+] as const)('rejects an unstructured %s when all fail or credentials expire', async (status, allFail) => {
+  const { client, failures } = fixture();
+  const failure = new Response(null, { status });
+  failures.set('eu', failure);
+  if (allFail) failures.set('us', failure);
+  await expect(client.listClusters(organizationId)).rejects.toMatchObject({
+    status,
+  });
+});
+
+it('preserves a regional 401 when its response body cannot be read', async () => {
+  const { client, failures } = fixture();
+  const body = new ReadableStream({
+    start(controller) {
+      controller.error(new Error('Disconnected'));
+    },
+  });
+  failures.set('eu', new Response(body, { status: 401 }));
+  await expect(client.listClusters(organizationId)).rejects.toMatchObject({
+    status: 401,
+  });
 });
 
 it('bounds a stalled region at five seconds and returns healthy clusters', async () => {
